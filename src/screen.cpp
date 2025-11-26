@@ -51,6 +51,47 @@ void ScreenBuffer::plotPhysicalPixel(int px, int py, Color color) {
     buffer[offset + 3] = color.a;
 }
 
+void ScreenBuffer::drawHorizontalLine(int x1, int x2, int y, Color color) {
+    // Early reject if y is off-screen
+    if (y < 0 || y >= PHYSICAL_HEIGHT) {
+        return;
+    }
+
+    // Ensure x1 <= x2
+    if (x1 > x2) {
+        int tmp = x1;
+        x1 = x2;
+        x2 = tmp;
+    }
+
+    // Clip to screen bounds
+    if (x2 < 0 || x1 >= PHYSICAL_WIDTH) {
+        return;  // Entirely off-screen
+    }
+    if (x1 < 0) {
+        x1 = 0;
+    }
+    if (x2 >= PHYSICAL_WIDTH) {
+        x2 = PHYSICAL_WIDTH - 1;
+    }
+
+    // Calculate start position in buffer
+    size_t offset = physicalToOffset(x1, y);
+    int length = x2 - x1 + 1;
+
+    // Draw the line
+    // Pack color into a 32-bit value for potential optimization
+    uint32_t rgba = (static_cast<uint32_t>(color.r)) |
+                    (static_cast<uint32_t>(color.g) << 8) |
+                    (static_cast<uint32_t>(color.b) << 16) |
+                    (static_cast<uint32_t>(color.a) << 24);
+
+    uint32_t* dest = reinterpret_cast<uint32_t*>(buffer + offset);
+    for (int i = 0; i < length; i++) {
+        dest[i] = rgba;
+    }
+}
+
 Color ScreenBuffer::getPhysicalPixel(int px, int py) const {
     if (!inPhysicalBounds(px, py)) {
         return Color::black();

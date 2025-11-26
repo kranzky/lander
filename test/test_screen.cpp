@@ -351,6 +351,179 @@ TEST(screen_adjacent_logical_pixels) {
 }
 
 // =============================================================================
+// Horizontal Line Tests
+// =============================================================================
+
+TEST(hline_basic) {
+    ScreenBuffer screen;
+    screen.clear(Color::black());
+
+    // Draw a horizontal line from x=100 to x=110 at y=50
+    screen.drawHorizontalLine(100, 110, 50, Color::red());
+
+    // Check all pixels in the line
+    for (int x = 100; x <= 110; x++) {
+        Color c = screen.getPhysicalPixel(x, 50);
+        ASSERT_EQ(c.r, 255);
+        ASSERT_EQ(c.g, 0);
+        ASSERT_EQ(c.b, 0);
+    }
+
+    // Check pixels just outside the line
+    ASSERT_EQ(screen.getPhysicalPixel(99, 50).r, 0);
+    ASSERT_EQ(screen.getPhysicalPixel(111, 50).r, 0);
+}
+
+TEST(hline_reversed_endpoints) {
+    ScreenBuffer screen;
+    screen.clear(Color::black());
+
+    // Draw with x2 < x1 (should still work)
+    screen.drawHorizontalLine(110, 100, 50, Color::green());
+
+    // Check all pixels in the line
+    for (int x = 100; x <= 110; x++) {
+        Color c = screen.getPhysicalPixel(x, 50);
+        ASSERT_EQ(c.g, 255);
+    }
+}
+
+TEST(hline_single_pixel) {
+    ScreenBuffer screen;
+    screen.clear(Color::black());
+
+    // Draw a single pixel line
+    screen.drawHorizontalLine(200, 200, 100, Color::blue());
+
+    Color c = screen.getPhysicalPixel(200, 100);
+    ASSERT_EQ(c.b, 255);
+
+    // Adjacent pixels should be black
+    ASSERT_EQ(screen.getPhysicalPixel(199, 100).b, 0);
+    ASSERT_EQ(screen.getPhysicalPixel(201, 100).b, 0);
+}
+
+TEST(hline_clip_left) {
+    ScreenBuffer screen;
+    screen.clear(Color::black());
+
+    // Draw line that starts off-screen to the left
+    screen.drawHorizontalLine(-50, 50, 100, Color::red());
+
+    // Should be clipped to start at x=0
+    ASSERT_EQ(screen.getPhysicalPixel(0, 100).r, 255);
+    ASSERT_EQ(screen.getPhysicalPixel(50, 100).r, 255);
+}
+
+TEST(hline_clip_right) {
+    ScreenBuffer screen;
+    screen.clear(Color::black());
+
+    // Draw line that extends off-screen to the right
+    screen.drawHorizontalLine(1250, 1300, 100, Color::green());
+
+    // Should be clipped to end at x=1279
+    ASSERT_EQ(screen.getPhysicalPixel(1250, 100).g, 255);
+    ASSERT_EQ(screen.getPhysicalPixel(1279, 100).g, 255);
+}
+
+TEST(hline_clip_both) {
+    ScreenBuffer screen;
+    screen.clear(Color::black());
+
+    // Draw line that spans entire screen and beyond
+    screen.drawHorizontalLine(-100, 1400, 200, Color::blue());
+
+    // Should fill entire row
+    ASSERT_EQ(screen.getPhysicalPixel(0, 200).b, 255);
+    ASSERT_EQ(screen.getPhysicalPixel(640, 200).b, 255);
+    ASSERT_EQ(screen.getPhysicalPixel(1279, 200).b, 255);
+}
+
+TEST(hline_entirely_off_left) {
+    ScreenBuffer screen;
+    screen.clear(Color::black());
+
+    // Draw line entirely off-screen to the left
+    screen.drawHorizontalLine(-100, -10, 100, Color::red());
+
+    // Nothing should be drawn
+    ASSERT_EQ(screen.getPhysicalPixel(0, 100).r, 0);
+}
+
+TEST(hline_entirely_off_right) {
+    ScreenBuffer screen;
+    screen.clear(Color::black());
+
+    // Draw line entirely off-screen to the right
+    screen.drawHorizontalLine(1300, 1400, 100, Color::red());
+
+    // Nothing should be drawn
+    ASSERT_EQ(screen.getPhysicalPixel(1279, 100).r, 0);
+}
+
+TEST(hline_off_top) {
+    ScreenBuffer screen;
+    screen.clear(Color::black());
+
+    // Draw line off-screen above
+    screen.drawHorizontalLine(100, 200, -10, Color::red());
+
+    // Nothing should be drawn
+    ASSERT_EQ(screen.getPhysicalPixel(100, 0).r, 0);
+}
+
+TEST(hline_off_bottom) {
+    ScreenBuffer screen;
+    screen.clear(Color::black());
+
+    // Draw line off-screen below
+    screen.drawHorizontalLine(100, 200, 1050, Color::red());
+
+    // Nothing should be drawn
+    ASSERT_EQ(screen.getPhysicalPixel(100, 1023).r, 0);
+}
+
+TEST(hline_screen_edges) {
+    ScreenBuffer screen;
+    screen.clear(Color::black());
+
+    // Draw at top edge
+    screen.drawHorizontalLine(0, 100, 0, Color::red());
+    ASSERT_EQ(screen.getPhysicalPixel(50, 0).r, 255);
+
+    // Draw at bottom edge
+    screen.drawHorizontalLine(0, 100, 1023, Color::green());
+    ASSERT_EQ(screen.getPhysicalPixel(50, 1023).g, 255);
+
+    // Draw at left edge (single column)
+    screen.drawHorizontalLine(0, 0, 500, Color::blue());
+    ASSERT_EQ(screen.getPhysicalPixel(0, 500).b, 255);
+
+    // Draw at right edge (single column)
+    screen.drawHorizontalLine(1279, 1279, 500, Color::yellow());
+    ASSERT_EQ(screen.getPhysicalPixel(1279, 500).r, 255);
+    ASSERT_EQ(screen.getPhysicalPixel(1279, 500).g, 255);
+}
+
+TEST(hline_full_row) {
+    ScreenBuffer screen;
+    screen.clear(Color::black());
+
+    // Draw entire row
+    screen.drawHorizontalLine(0, 1279, 512, Color::white());
+
+    // Check several points
+    ASSERT_EQ(screen.getPhysicalPixel(0, 512).r, 255);
+    ASSERT_EQ(screen.getPhysicalPixel(640, 512).r, 255);
+    ASSERT_EQ(screen.getPhysicalPixel(1279, 512).r, 255);
+
+    // Check adjacent rows are still black
+    ASSERT_EQ(screen.getPhysicalPixel(640, 511).r, 0);
+    ASSERT_EQ(screen.getPhysicalPixel(640, 513).r, 0);
+}
+
+// =============================================================================
 // Main
 // =============================================================================
 
@@ -386,6 +559,20 @@ int main() {
     std::printf("\nScreenBuffer single pixel tests:\n");
     RUN_TEST(screen_single_pixel_not_block);
     RUN_TEST(screen_adjacent_logical_pixels);
+
+    std::printf("\nHorizontal line tests:\n");
+    RUN_TEST(hline_basic);
+    RUN_TEST(hline_reversed_endpoints);
+    RUN_TEST(hline_single_pixel);
+    RUN_TEST(hline_clip_left);
+    RUN_TEST(hline_clip_right);
+    RUN_TEST(hline_clip_both);
+    RUN_TEST(hline_entirely_off_left);
+    RUN_TEST(hline_entirely_off_right);
+    RUN_TEST(hline_off_top);
+    RUN_TEST(hline_off_bottom);
+    RUN_TEST(hline_screen_edges);
+    RUN_TEST(hline_full_row);
 
     std::printf("\n========================\n");
     std::printf("Tests: %d total, %d passed, %d failed\n",

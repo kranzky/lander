@@ -72,6 +72,10 @@ public:
     // Use this for smooth rendering of primitives
     void plotPhysicalPixel(int px, int py, Color color);
 
+    // Draw a horizontal line at physical coordinates
+    // x1 and x2 are inclusive endpoints, automatically clipped to screen
+    void drawHorizontalLine(int x1, int x2, int y, Color color);
+
     // Get pixel at physical coordinates (for testing)
     Color getPhysicalPixel(int px, int py) const;
 
