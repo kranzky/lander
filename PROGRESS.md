@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Current Task:** 8
+**Current Task:** 9
 
 **Last Updated:** 2025-11-26
 
@@ -17,9 +17,9 @@
 | 5 | Screen Buffer and Pixel Plotting | 1d18613 |
 | 6 | Color Palette | d00fef7 |
 | 7 | Horizontal Line Drawing | 0a76143 |
+| 8 | Triangle Rasterization | 5e57684 |
 
 ## Remaining Tasks
-- Task 8: Triangle Rasterization
 - Task 9: 3D Projection
 - Task 10: Landscape Altitude Generation
 - Task 11: Basic Landscape Rendering
@@ -60,6 +60,6 @@
 ## Summary
 
 - **Total Tasks:** 44
-- **Completed:** 7
+- **Completed:** 8
 - **In Progress:** 0
-- **Remaining:** 37
+- **Remaining:** 36

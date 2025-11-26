@@ -76,6 +76,10 @@ public:
     // x1 and x2 are inclusive endpoints, automatically clipped to screen
     void drawHorizontalLine(int x1, int x2, int y, Color color);
 
+    // Draw a filled triangle at physical coordinates
+    // Uses scanline rasterization matching the original Lander algorithm
+    void drawTriangle(int x0, int y0, int x1, int y1, int x2, int y2, Color color);
+
     // Get pixel at physical coordinates (for testing)
     Color getPhysicalPixel(int px, int py) const;
 

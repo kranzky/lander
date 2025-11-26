@@ -149,157 +149,38 @@ void Game::drawTestPattern() {
 
     const int W = ScreenBuffer::PHYSICAL_WIDTH;   // 1280
     const int H = ScreenBuffer::PHYSICAL_HEIGHT;  // 1024
-    const int margin = 20;
 
     // =========================================================================
-    // Full 256-color VIDC palette display (16x16 grid) - Left side
-    // Uses drawHorizontalLine for efficient rectangle filling
-    // =========================================================================
-    int paletteW = (W / 2) - margin * 2;
-    int paletteH = (H / 2) - margin * 2;
-    int swatchW = paletteW / 16;
-    int swatchH = paletteH / 16;
-
-    for (int row = 0; row < 16; row++) {
-        for (int col = 0; col < 16; col++) {
-            uint8_t vidc = row * 16 + col;
-            Color c = GameColors::fromVidc(vidc);
-
-            int px = margin + col * swatchW;
-            int py = margin + row * swatchH;
-
-            // Fill rectangle using horizontal lines
-            for (int dy = 0; dy < swatchH - 1; dy++) {
-                screen.drawHorizontalLine(px, px + swatchW - 2, py + dy, c);
-            }
-        }
-    }
-
-    // =========================================================================
-    // Landscape color gradient - Right side, top half
-    // Shows 10 rows (distance) x 16 altitude variations
-    // =========================================================================
-    int landscapeStartX = W / 2 + margin;
-    int landscapeStartY = margin;
-    int landscapeW = W / 2 - margin * 2;
-    int landscapeH = H / 2 - margin * 2;
-    int tileW = landscapeW / 16;
-    int tileH = landscapeH / 10;
-
-    for (int row = 1; row <= 10; row++) {
-        for (int alt = 0; alt < 16; alt++) {
-            Color c = getLandscapeTileColor(alt, row, 0, TileType::Land);
-            int px = landscapeStartX + alt * tileW;
-            int py = landscapeStartY + (10 - row) * tileH;
-
-            for (int dy = 0; dy < tileH - 1; dy++) {
-                screen.drawHorizontalLine(px, px + tileW - 2, py + dy, c);
-            }
-        }
-    }
-
-    // =========================================================================
-    // Bottom half - split into sections
-    // =========================================================================
-    int bottomY = H / 2 + margin;
-    int bottomH = H / 2 - margin * 2;
-    int sectionW = W / 4 - margin;
-
-    // -------------------------------------------------------------------------
-    // Section 1: Sea tiles (10 rows showing distance effect)
-    // -------------------------------------------------------------------------
-    int seaX = margin;
-    int seaTileH = bottomH / 10;
-    int seaTileW = sectionW;
-
-    for (int row = 1; row <= 10; row++) {
-        Color c = getLandscapeTileColor(0, row, 0, TileType::Sea);
-        int py = bottomY + (10 - row) * seaTileH;
-
-        for (int dy = 0; dy < seaTileH - 1; dy++) {
-            screen.drawHorizontalLine(seaX, seaX + seaTileW - 2, py + dy, c);
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // Section 2: Launchpad tiles (10 rows showing distance effect)
-    // -------------------------------------------------------------------------
-    int launchpadX = margin + sectionW + margin;
-
-    for (int row = 1; row <= 10; row++) {
-        Color c = getLandscapeTileColor(0, row, 0, TileType::Launchpad);
-        int py = bottomY + (10 - row) * seaTileH;
-
-        for (int dy = 0; dy < seaTileH - 1; dy++) {
-            screen.drawHorizontalLine(launchpadX, launchpadX + seaTileW - 2, py + dy, c);
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // Section 3: Object colors (ship faces with brightness levels)
-    // -------------------------------------------------------------------------
-    int objectX = margin + (sectionW + margin) * 2;
-    uint16_t shipColors[] = {0x080, 0x040, 0x088, 0x044, 0xC80};
-    int numColors = 5;
-    int brightnessLevels = 10;
-    int objSwatchW = sectionW / numColors;
-    int objSwatchH = bottomH / brightnessLevels;
-
-    for (int bright = 0; bright < brightnessLevels; bright++) {
-        for (int i = 0; i < numColors; i++) {
-            Color c = objectColorToRGB(shipColors[i], bright * 2);
-            int px = objectX + i * objSwatchW;
-            int py = bottomY + bright * objSwatchH;
-
-            for (int dy = 0; dy < objSwatchH - 1; dy++) {
-                screen.drawHorizontalLine(px, px + objSwatchW - 2, py + dy, c);
-            }
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // Section 4: Smoke grey gradient and fuel bar
-    // -------------------------------------------------------------------------
-    int uiX = margin + (sectionW + margin) * 3;
-    int greySwatchH = (bottomH - 60) / 16;
-
-    // Grey gradient (16 levels)
-    for (int level = 0; level < 16; level++) {
-        Color c = GameColors::smokeGrey(level);
-        int py = bottomY + level * greySwatchH;
-
-        for (int dy = 0; dy < greySwatchH - 1; dy++) {
-            screen.drawHorizontalLine(uiX, uiX + sectionW - 2, py + dy, c);
-        }
-    }
-
-    // Fuel bar at bottom of section
-    Color fuelColor = GameColors::fuelBar();
-    int fuelY = bottomY + 16 * greySwatchH + 10;
-    int fuelH = bottomH - 16 * greySwatchH - 20;
-
-    for (int dy = 0; dy < fuelH; dy++) {
-        screen.drawHorizontalLine(uiX, uiX + sectionW - 2, fuelY + dy, fuelColor);
-    }
-
-    // =========================================================================
-    // Horizontal line demonstration - draw some colored lines across the screen
-    // This specifically tests the drawHorizontalLine function
+    // Triangle demonstration - draw various triangles to test rasterization
     // =========================================================================
 
-    // Draw a series of colored lines at the very bottom of the screen
-    int lineY = H - 10;
-    screen.drawHorizontalLine(0, W/4 - 1, lineY, Color::red());
-    screen.drawHorizontalLine(W/4, W/2 - 1, lineY, Color::green());
-    screen.drawHorizontalLine(W/2, 3*W/4 - 1, lineY, Color::blue());
-    screen.drawHorizontalLine(3*W/4, W - 1, lineY, Color::yellow());
+    // Large triangles spread across the screen
+    int centerX = W / 2;
+    int centerY = H / 2;
 
-    // Draw lines that test clipping (extend beyond screen bounds)
-    screen.drawHorizontalLine(-100, 100, H - 6, Color::cyan());      // Clips left
-    screen.drawHorizontalLine(W - 100, W + 100, H - 6, Color::magenta()); // Clips right
+    // Red: pointing up (top center)
+    screen.drawTriangle(centerX - 150, 50, centerX + 150, 50, centerX, 250, Color::red());
 
-    // Draw a white line across the entire width
-    screen.drawHorizontalLine(0, W - 1, H - 2, Color::white());
+    // Green: pointing down (bottom center)
+    screen.drawTriangle(centerX - 150, H - 50, centerX + 150, H - 50, centerX, H - 250, Color::green());
+
+    // Blue: pointing right (left side)
+    screen.drawTriangle(50, centerY - 150, 50, centerY + 150, 250, centerY, Color::blue());
+
+    // Yellow: pointing left (right side)
+    screen.drawTriangle(W - 50, centerY - 150, W - 50, centerY + 150, W - 250, centerY, Color::yellow());
+
+    // Cyan: large center triangle
+    screen.drawTriangle(centerX, centerY - 200, centerX - 200, centerY + 150, centerX + 200, centerY + 150, Color::cyan());
+
+    // Magenta: overlapping triangle (tests drawing order)
+    screen.drawTriangle(centerX - 100, centerY, centerX + 100, centerY, centerX, centerY + 200, Color::magenta());
+
+    // White: thin triangles in corners
+    screen.drawTriangle(50, 50, 200, 50, 125, 150, Color::white());
+    screen.drawTriangle(W - 200, 50, W - 50, 50, W - 125, 150, Color::white());
+    screen.drawTriangle(50, H - 50, 200, H - 50, 125, H - 150, Color::white());
+    screen.drawTriangle(W - 200, H - 50, W - 50, H - 50, W - 125, H - 150, Color::white());
 }
 
 void Game::render() {
