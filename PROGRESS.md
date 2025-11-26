@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Current Task:** 3
+**Current Task:** 4
 
 **Last Updated:** 2025-11-26
 
@@ -11,11 +11,10 @@
 | Task | Description | Commit |
 |------|-------------|--------|
 | 1 | Project Setup and Window | 8c03cbc |
-| 2 | Fixed-Point Math Library | c009a06 |
+| 2 | Fixed-Point Math Library | 4589249 |
+| 3 | Lookup Tables | 2b0fbba |
 
 ## Remaining Tasks
-
-- Task 3: Lookup Tables
 - Task 4: Vector and Matrix Types
 - Task 5: Screen Buffer and Pixel Plotting
 - Task 6: Color Palette
@@ -61,6 +60,6 @@
 ## Summary
 
 - **Total Tasks:** 44
-- **Completed:** 2
+- **Completed:** 3
 - **In Progress:** 0
-- **Remaining:** 42
+- **Remaining:** 41

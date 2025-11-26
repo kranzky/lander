@@ -48,6 +48,14 @@ endif()
 add_executable(test_fixed test/test_fixed.cpp)
 target_include_directories(test_fixed PRIVATE src)
 
+# Test for lookup tables
+add_executable(test_lookup_tables
+    test/test_lookup_tables.cpp
+    src/lookup_tables.cpp
+)
+target_include_directories(test_lookup_tables PRIVATE src)
+
 # Enable testing
 enable_testing()
 add_test(NAME test_fixed COMMAND test_fixed)
+add_test(NAME test_lookup_tables COMMAND test_lookup_tables)
