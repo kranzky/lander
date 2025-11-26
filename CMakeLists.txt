@@ -12,6 +12,7 @@ find_package(SDL2 REQUIRED)
 set(SOURCES
     src/main.cpp
     src/screen.cpp
+    src/palette.cpp
 )
 
 # Create executable
@@ -71,9 +72,17 @@ add_executable(test_screen
 )
 target_include_directories(test_screen PRIVATE src)
 
+# Test for color palette
+add_executable(test_palette
+    test/test_palette.cpp
+    src/palette.cpp
+)
+target_include_directories(test_palette PRIVATE src)
+
 # Enable testing
 enable_testing()
 add_test(NAME test_fixed COMMAND test_fixed)
 add_test(NAME test_lookup_tables COMMAND test_lookup_tables)
 add_test(NAME test_math3d COMMAND test_math3d)
 add_test(NAME test_screen COMMAND test_screen)
+add_test(NAME test_palette COMMAND test_palette)

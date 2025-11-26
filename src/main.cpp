@@ -3,6 +3,7 @@
 #include <cstring>
 #include "constants.h"
 #include "screen.h"
+#include "palette.h"
 
 // =============================================================================
 // Lander - C++/SDL Port
@@ -146,73 +147,151 @@ void Game::drawTestPattern() {
     // Clear to black
     screen.clear(Color::black());
 
-    // Draw corner markers at logical coordinates (scaled to physical)
-    // These demonstrate that logical (0,0) maps to physical (0,0), etc.
+    const int W = ScreenBuffer::PHYSICAL_WIDTH;   // 1280
+    const int H = ScreenBuffer::PHYSICAL_HEIGHT;  // 1024
+    const int margin = 20;
 
-    // Top-left corner - Red (logical 0,0 = physical 0,0)
-    for (int i = 0; i < 20; i++) {
-        screen.plotPhysicalPixel(i, 0, Color::red());
-        screen.plotPhysicalPixel(0, i, Color::red());
-    }
+    // =========================================================================
+    // Full 256-color VIDC palette display (16x16 grid) - Left side
+    // =========================================================================
+    int paletteW = (W / 2) - margin * 2;
+    int paletteH = (H / 2) - margin * 2;
+    int swatchW = paletteW / 16;
+    int swatchH = paletteH / 16;
 
-    // Top-right corner - Green (logical 319 = physical 1276)
-    int right = ScreenBuffer::PHYSICAL_WIDTH - 1;
-    for (int i = 0; i < 20; i++) {
-        screen.plotPhysicalPixel(right - i, 0, Color::green());
-        screen.plotPhysicalPixel(right, i, Color::green());
-    }
+    for (int row = 0; row < 16; row++) {
+        for (int col = 0; col < 16; col++) {
+            uint8_t vidc = row * 16 + col;
+            Color c = GameColors::fromVidc(vidc);
 
-    // Bottom-left corner - Blue (logical 255 = physical 1020)
-    int bottom = ScreenBuffer::PHYSICAL_HEIGHT - 1;
-    for (int i = 0; i < 20; i++) {
-        screen.plotPhysicalPixel(i, bottom, Color::blue());
-        screen.plotPhysicalPixel(0, bottom - i, Color::blue());
-    }
+            int px = margin + col * swatchW;
+            int py = margin + row * swatchH;
 
-    // Bottom-right corner - Yellow
-    for (int i = 0; i < 20; i++) {
-        screen.plotPhysicalPixel(right - i, bottom, Color::yellow());
-        screen.plotPhysicalPixel(right, bottom - i, Color::yellow());
-    }
-
-    // Draw a smooth diagonal line in physical coordinates
-    // From logical (10, 10) to (100, 100) = physical (40, 40) to (400, 400)
-    int x0 = ScreenBuffer::toPhysicalX(10);
-    int y0 = ScreenBuffer::toPhysicalY(10);
-    int x1 = ScreenBuffer::toPhysicalX(100);
-    int y1 = ScreenBuffer::toPhysicalY(100);
-    for (int i = 0; i <= x1 - x0; i++) {
-        screen.plotPhysicalPixel(x0 + i, y0 + i, Color::white());
-    }
-
-    // Draw a filled rectangle at screen center - Cyan
-    // Logical center (160, 128) = physical (640, 512)
-    int pcx = ScreenBuffer::toPhysicalX(ORIGINAL_WIDTH / 2);
-    int pcy = ScreenBuffer::toPhysicalY(ORIGINAL_HEIGHT / 2);
-    int halfW = 80;  // 20 logical * 4
-    int halfH = 40;  // 10 logical * 4
-    for (int py = pcy - halfH; py <= pcy + halfH; py++) {
-        for (int px = pcx - halfW; px <= pcx + halfW; px++) {
-            screen.plotPhysicalPixel(px, py, Color::cyan());
+            for (int dy = 0; dy < swatchH - 1; dy++) {
+                for (int dx = 0; dx < swatchW - 1; dx++) {
+                    screen.plotPhysicalPixel(px + dx, py + dy, c);
+                }
+            }
         }
     }
 
-    // Draw rectangle border - Magenta
-    int borderW = halfW + 4;
-    int borderH = halfH + 4;
-    for (int px = pcx - borderW; px <= pcx + borderW; px++) {
-        screen.plotPhysicalPixel(px, pcy - borderH, Color::magenta());
-        screen.plotPhysicalPixel(px, pcy + borderH, Color::magenta());
-    }
-    for (int py = pcy - borderH; py <= pcy + borderH; py++) {
-        screen.plotPhysicalPixel(pcx - borderW, py, Color::magenta());
-        screen.plotPhysicalPixel(pcx + borderW, py, Color::magenta());
+    // =========================================================================
+    // Landscape color gradient - Right side, top half
+    // Shows 10 rows (distance) x 16 altitude variations
+    // =========================================================================
+    int landscapeStartX = W / 2 + margin;
+    int landscapeStartY = margin;
+    int landscapeW = W / 2 - margin * 2;
+    int landscapeH = H / 2 - margin * 2;
+    int tileW = landscapeW / 16;
+    int tileH = landscapeH / 10;
+
+    for (int row = 1; row <= 10; row++) {
+        for (int alt = 0; alt < 16; alt++) {
+            Color c = getLandscapeTileColor(alt, row, 0, TileType::Land);
+            int px = landscapeStartX + alt * tileW;
+            int py = landscapeStartY + (10 - row) * tileH;
+
+            for (int dy = 0; dy < tileH - 1; dy++) {
+                for (int dx = 0; dx < tileW - 1; dx++) {
+                    screen.plotPhysicalPixel(px + dx, py + dy, c);
+                }
+            }
+        }
     }
 
-    // Draw some single logical pixels to show the grid alignment
-    // These will be tiny single pixels at each logical position
-    for (int lx = 20; lx <= 60; lx += 10) {
-        screen.plotPixel(lx, 200, Color::white());
+    // =========================================================================
+    // Bottom half - split into sections
+    // =========================================================================
+    int bottomY = H / 2 + margin;
+    int bottomH = H / 2 - margin * 2;
+    int sectionW = W / 4 - margin;
+
+    // -------------------------------------------------------------------------
+    // Section 1: Sea tiles (10 rows showing distance effect)
+    // -------------------------------------------------------------------------
+    int seaX = margin;
+    int seaTileH = bottomH / 10;
+    int seaTileW = sectionW;
+
+    for (int row = 1; row <= 10; row++) {
+        Color c = getLandscapeTileColor(0, row, 0, TileType::Sea);
+        int py = bottomY + (10 - row) * seaTileH;
+
+        for (int dy = 0; dy < seaTileH - 1; dy++) {
+            for (int dx = 0; dx < seaTileW - 1; dx++) {
+                screen.plotPhysicalPixel(seaX + dx, py + dy, c);
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Section 2: Launchpad tiles (10 rows showing distance effect)
+    // -------------------------------------------------------------------------
+    int launchpadX = margin + sectionW + margin;
+
+    for (int row = 1; row <= 10; row++) {
+        Color c = getLandscapeTileColor(0, row, 0, TileType::Launchpad);
+        int py = bottomY + (10 - row) * seaTileH;
+
+        for (int dy = 0; dy < seaTileH - 1; dy++) {
+            for (int dx = 0; dx < seaTileW - 1; dx++) {
+                screen.plotPhysicalPixel(launchpadX + dx, py + dy, c);
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Section 3: Object colors (ship faces with brightness levels)
+    // -------------------------------------------------------------------------
+    int objectX = margin + (sectionW + margin) * 2;
+    uint16_t shipColors[] = {0x080, 0x040, 0x088, 0x044, 0xC80};
+    int numColors = 5;
+    int brightnessLevels = 10;
+    int objSwatchW = sectionW / numColors;
+    int objSwatchH = bottomH / brightnessLevels;
+
+    for (int bright = 0; bright < brightnessLevels; bright++) {
+        for (int i = 0; i < numColors; i++) {
+            Color c = objectColorToRGB(shipColors[i], bright * 2);
+            int px = objectX + i * objSwatchW;
+            int py = bottomY + bright * objSwatchH;
+
+            for (int dy = 0; dy < objSwatchH - 1; dy++) {
+                for (int dx = 0; dx < objSwatchW - 1; dx++) {
+                    screen.plotPhysicalPixel(px + dx, py + dy, c);
+                }
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Section 4: Smoke grey gradient and fuel bar
+    // -------------------------------------------------------------------------
+    int uiX = margin + (sectionW + margin) * 3;
+    int greySwatchH = (bottomH - 60) / 16;
+
+    // Grey gradient (16 levels)
+    for (int level = 0; level < 16; level++) {
+        Color c = GameColors::smokeGrey(level);
+        int py = bottomY + level * greySwatchH;
+
+        for (int dy = 0; dy < greySwatchH - 1; dy++) {
+            for (int dx = 0; dx < sectionW - 1; dx++) {
+                screen.plotPhysicalPixel(uiX + dx, py + dy, c);
+            }
+        }
+    }
+
+    // Fuel bar at bottom of section
+    Color fuelColor = GameColors::fuelBar();
+    int fuelY = bottomY + 16 * greySwatchH + 10;
+    int fuelH = bottomH - 16 * greySwatchH - 20;
+
+    for (int dy = 0; dy < fuelH; dy++) {
+        for (int dx = 0; dx < sectionW - 1; dx++) {
+            screen.plotPhysicalPixel(uiX + dx, fuelY + dy, fuelColor);
+        }
     }
 }
 
