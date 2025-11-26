@@ -1,0 +1,644 @@
+# Lander C++/SDL Port - Task Breakdown
+
+This document breaks down the implementation into discrete, reviewable tasks. Each task should result in compilable, testable code that can be committed independently.
+
+---
+
+## Task List
+
+### Task 1: Project Setup and Window
+**Goal**: Create the basic project structure with CMake and SDL2, displaying an empty window.
+
+**Deliverables**:
+- `CMakeLists.txt` - Build configuration with SDL2
+- `src/main.cpp` - Entry point with SDL initialization
+- `src/constants.h` - Display constants (resolution, scale factor)
+- Empty window at 1280x1024, black background
+- Clean exit on Escape key or window close
+- Basic frame timing (60 FPS cap)
+
+**Verification**: Window opens, displays black, closes cleanly on Escape.
+
+---
+
+### Task 2: Fixed-Point Math Library
+**Goal**: Implement the fixed-point number type matching the original's 32-bit format.
+
+**Deliverables**:
+- `src/fixed.h` - Fixed-point type definition and operations
+- Arithmetic: `+`, `-`, `*`, `/`
+- Comparison: `<`, `>`, `<=`, `>=`, `==`, `!=`
+- Conversion: `fromInt()`, `toInt()`, `fromFloat()`, `toFloat()`
+- Bit shifts: `operator>>`, `operator<<`
+- Constants: `TILE_SIZE`, `LAUNCHPAD_ALTITUDE`, `SEA_LEVEL`, etc.
+
+**Verification**: Unit test or manual verification that operations match expected fixed-point behavior.
+
+---
+
+### Task 3: Lookup Tables
+**Goal**: Generate the sine, arctangent, and square root lookup tables matching the original.
+
+**Deliverables**:
+- `src/lookup_tables.h` - Table declarations
+- `src/lookup_tables.cpp` - Table data and access functions
+- `sinTable[1024]` - Full-circle sine values
+- `getSin(angle)`, `getCos(angle)` functions
+- `arctanTable[1024]` - For polar coordinate conversion
+- `getArctan(x, y)` function
+
+**Verification**: Spot-check key values against original source comments.
+
+---
+
+### Task 4: Vector and Matrix Types
+**Goal**: Implement 3D vector and 3x3 matrix types for transformations.
+
+**Deliverables**:
+- `src/math3d.h` - Vec3 and Mat3x3 structures
+- `src/math3d.cpp` - Implementation
+- Vec3: add, subtract, dot product, scale
+- Mat3x3: multiply vector, multiply matrix
+- `calculateRotationMatrix(pitch, yaw)` - From two angles
+
+**Verification**: Rotate a test vector and verify output matches expected.
+
+---
+
+### Task 5: Screen Buffer and Pixel Plotting
+**Goal**: Set up the rendering surface and basic pixel operations.
+
+**Deliverables**:
+- `src/renderer.h` - Renderer class/functions
+- `src/renderer.cpp` - Implementation
+- SDL texture for rendering (1280x1024)
+- `clearScreen(color)` function
+- `plotPixel(x, y, color)` function
+- `present()` to flip buffers
+- Color type (32-bit RGBA)
+
+**Verification**: Plot some colored pixels, verify they appear correctly.
+
+---
+
+### Task 6: Color Palette
+**Goal**: Implement the 256-color palette matching the original Acorn VIDC mode.
+
+**Deliverables**:
+- Color palette array (256 entries, RGB values)
+- `getColor(index)` function returning RGB
+- Landscape color gradient function
+- Basic color constants for testing
+
+**Verification**: Display color swatches to verify palette looks correct.
+
+---
+
+### Task 7: Horizontal Line Drawing
+**Goal**: Implement optimized horizontal line drawing with clipping.
+
+**Deliverables**:
+- `drawHorizontalLine(x1, x2, y, color)` function
+- Screen bounds clipping
+- Optimized span fill
+
+**Verification**: Draw horizontal lines at various positions, verify clipping works.
+
+---
+
+### Task 8: Triangle Rasterization
+**Goal**: Implement the scan-line triangle rasterizer.
+
+**Deliverables**:
+- `drawTriangle(v0, v1, v2, color)` function
+- Vertex sorting by Y coordinate
+- Edge walking with fixed-point precision
+- Proper handling of flat-top and flat-bottom triangles
+
+**Verification**: Draw test triangles of various shapes and orientations.
+
+---
+
+### Task 9: 3D Projection
+**Goal**: Implement the perspective projection from 3D to screen coordinates.
+
+**Deliverables**:
+- `projectVertex(x, y, z)` returning screen coordinates
+- Camera-relative coordinate calculation
+- Screen coordinate scaling (320x128 → 1280x512)
+- Off-screen clipping flag
+- Projection constants from original
+
+**Verification**: Project test points and verify screen positions.
+
+---
+
+### Task 10: Landscape Altitude Generation
+**Goal**: Implement the terrain height calculation using Fourier synthesis.
+
+**Deliverables**:
+- `src/landscape.h` - Landscape functions
+- `src/landscape.cpp` - Implementation
+- `getAltitude(x, z)` - Returns terrain height at world position
+- Uses sine table for wave calculation
+- Sea level capping
+- Launchpad flat zone
+
+**Verification**: Query altitudes at various positions, verify plausible terrain.
+
+---
+
+### Task 11: Basic Landscape Rendering
+**Goal**: Render the landscape as a grid of colored tiles.
+
+**Deliverables**:
+- Tile corner coordinate calculation
+- Project all visible tile corners
+- Draw each tile as two triangles
+- Altitude-based coloring (green hills, blue sea)
+- Back-to-front rendering order
+
+**Verification**: Static landscape view renders correctly.
+
+---
+
+### Task 12: Camera System
+**Goal**: Implement camera positioning and movement with the player.
+
+**Deliverables**:
+- Camera position (x, y, z) state
+- Camera follows player position
+- Tile-aligned snapping for stable rendering
+- Landscape offset calculation
+- View matrix application to vertices
+
+**Verification**: Camera can be moved programmatically, landscape scrolls.
+
+---
+
+### Task 13: Player State and Basic Input
+**Goal**: Implement player ship state and mouse input reading.
+
+**Deliverables**:
+- `src/player.h` - Player state structure
+- `src/player.cpp` - Implementation
+- Position (x, y, z), velocity (vx, vy, vz)
+- Mouse position reading (SDL)
+- Mouse button state
+- Escape key detection
+
+**Verification**: Print mouse coordinates, button states to console.
+
+---
+
+### Task 14: Mouse Polar Conversion
+**Goal**: Convert mouse position to polar coordinates for ship control.
+
+**Deliverables**:
+- `getMousePolar(mouseX, mouseY)` returning (distance, angle)
+- Use arctangent lookup table
+- Scale to match original sensitivity
+- Center-relative calculation
+
+**Verification**: Move mouse, verify distance/angle change appropriately.
+
+---
+
+### Task 15: Ship Rotation Matrix
+**Goal**: Calculate the ship's orientation matrix from mouse input.
+
+**Deliverables**:
+- Pitch angle from mouse distance
+- Yaw angle from mouse angle
+- `calculateShipRotation(pitch, yaw)` returning Mat3x3
+- Extract thrust vector from matrix (nose direction)
+
+**Verification**: Move mouse, log rotation matrix values.
+
+---
+
+### Task 16: Ship Physics
+**Goal**: Implement ship movement physics (thrust, gravity, friction).
+
+**Deliverables**:
+- Gravity acceleration (constant downward)
+- Thrust application (from rotation matrix, when button held)
+- Hover thrust (reduced, middle button)
+- Friction/damping (velocity decay)
+- Position integration (pos += vel each frame)
+- Fuel consumption
+
+**Verification**: Ship falls with gravity, thrust counters it, friction slows movement.
+
+---
+
+### Task 17: Ship 3D Model
+**Goal**: Define the ship's 3D model data structure.
+
+**Deliverables**:
+- `src/objects.h` - Object model structures
+- Ship vertex data (9 vertices)
+- Ship face data (9 triangles)
+- Face normals for backface culling
+- Face colors
+
+**Verification**: Data structures compile, can be inspected.
+
+---
+
+### Task 18: 3D Object Rendering
+**Goal**: Implement general 3D object rendering with transformations.
+
+**Deliverables**:
+- `drawObject(model, position, rotation, scale)` function
+- Vertex transformation by rotation matrix
+- Camera-relative positioning
+- Backface culling using dot product
+- Per-face projection and triangle drawing
+
+**Verification**: Render a simple cube or the ship model statically.
+
+---
+
+### Task 19: Ship Rendering Integration
+**Goal**: Render the player's ship with correct orientation.
+
+**Deliverables**:
+- Ship rendered at player position
+- Ship rotated by player's rotation matrix
+- Visible on screen following camera
+
+**Verification**: Ship appears on screen, rotates with mouse movement.
+
+---
+
+### Task 20: Terrain Collision Detection
+**Goal**: Detect when the ship collides with the landscape.
+
+**Deliverables**:
+- `checkTerrainCollision(x, y, z)` function
+- Undercarriage offset (ship bottom below center)
+- Compare ship altitude to terrain altitude
+- Return collision state
+
+**Verification**: Flying into terrain triggers collision detection.
+
+---
+
+### Task 21: Launchpad Landing
+**Goal**: Implement safe landing detection on the launchpad.
+
+**Deliverables**:
+- Launchpad zone detection (position check)
+- Landing velocity check (below threshold)
+- Successful landing state
+- Score increment on landing
+- Reset for next round
+
+**Verification**: Land gently on launchpad, score increases.
+
+---
+
+### Task 22: Crash Handling
+**Goal**: Implement crash detection and response.
+
+**Deliverables**:
+- Crash detection (terrain collision + velocity check)
+- Life decrement
+- Ship explosion state
+- Respawn on launchpad after delay
+- Game over when lives = 0
+
+**Verification**: Crash into terrain, lose life, respawn.
+
+---
+
+### Task 23: Particle System Foundation
+**Goal**: Implement the basic particle data structure and update loop.
+
+**Deliverables**:
+- `src/particles.h` - Particle structures
+- `src/particles.cpp` - Implementation
+- Particle array (max 484)
+- Per-particle: position, velocity, lifespan, flags, color
+- `updateParticles()` - Position integration, lifespan countdown
+- `addParticle()` - Spawn new particle
+- Particle removal when lifespan expires
+
+**Verification**: Spawn particles, watch them move and disappear.
+
+---
+
+### Task 24: Particle Rendering
+**Goal**: Render particles as small sprites/points.
+
+**Deliverables**:
+- Project particle positions to screen
+- Draw as small rectangles (scaled pixels)
+- Color based on particle type/age
+- Skip off-screen particles
+
+**Verification**: Particles visible on screen, correct colors.
+
+---
+
+### Task 25: Exhaust Particles
+**Goal**: Spawn exhaust particles from ship thrust.
+
+**Deliverables**:
+- Spawn particles behind ship when thrusting
+- Initial velocity opposite to thrust direction
+- Smoke-like behavior (rising, fading)
+- Color gradient (white → gray)
+
+**Verification**: Thrust produces visible exhaust trail.
+
+---
+
+### Task 26: Bullet Particles
+**Goal**: Implement bullet firing from the ship.
+
+**Deliverables**:
+- Fire bullets on right mouse button
+- Bullets spawn in front of ship
+- High velocity in nose direction
+- Short lifespan
+- Ammo tracking
+
+**Verification**: Firing produces fast-moving bullet particles.
+
+---
+
+### Task 27: Particle Terrain Collision
+**Goal**: Particles bounce off or splash into terrain.
+
+**Deliverables**:
+- Check particle altitude vs terrain
+- Bounce particles off terrain (velocity reflection)
+- Water splash effect for sea impacts
+- Terrain impact effects (sparks)
+
+**Verification**: Particles interact with terrain correctly.
+
+---
+
+### Task 28: Explosion Particles
+**Goal**: Spawn explosion effects on crash or object destruction.
+
+**Deliverables**:
+- `spawnExplosion(x, y, z)` function
+- Multiple particles in random directions
+- Color progression (yellow → orange → red)
+- Gravity-affected debris
+
+**Verification**: Explosions look appropriate.
+
+---
+
+### Task 29: Object Map System
+**Goal**: Implement the object placement grid.
+
+**Deliverables**:
+- 256x256 byte array for object map
+- Object type enumeration (tree, building, rocket, etc.)
+- `getObjectAt(tileX, tileZ)` function
+- `setObjectAt(tileX, tileZ, type)` function
+
+**Verification**: Can read/write object map entries.
+
+---
+
+### Task 30: Random Object Placement
+**Goal**: Populate the landscape with random objects at game start.
+
+**Deliverables**:
+- `placeObjects()` function
+- Random number generator (matching original algorithm)
+- Skip sea-level tiles
+- Skip launchpad area
+- Weighted object type selection
+
+**Verification**: Objects placed at sensible locations.
+
+---
+
+### Task 31: Object 3D Models
+**Goal**: Define 3D models for all object types.
+
+**Deliverables**:
+- Small leafy tree model
+- Tall leafy tree model
+- Gazebo model
+- Building model
+- Rocket model
+- Smoking wreckage models
+
+**Verification**: Models can be loaded/inspected.
+
+---
+
+### Task 32: Object Rendering
+**Goal**: Render static objects on the landscape.
+
+**Deliverables**:
+- Iterate visible tiles
+- For each object, calculate world position
+- Draw object using `drawObject()`
+- Back-to-front ordering
+
+**Verification**: Objects visible on landscape at correct positions.
+
+---
+
+### Task 33: Graphics Buffers for Depth Sorting
+**Goal**: Implement the depth-sorted graphics buffer system.
+
+**Deliverables**:
+- `src/graphics_buffer.h/cpp`
+- One buffer per tile row (11 total)
+- Store triangle data for deferred rendering
+- `addTriangleToBuffer(row, v0, v1, v2, color)`
+- `drawBuffer(row)` function
+- Terminator markers
+
+**Verification**: Objects drawn in correct depth order.
+
+---
+
+### Task 34: Object-Buffer Integration
+**Goal**: Objects write to graphics buffers instead of immediate drawing.
+
+**Deliverables**:
+- Objects add triangles to appropriate row buffer
+- Buffers drawn after landscape row
+- Correct Z-ordering between objects and terrain
+
+**Verification**: Objects correctly sorted with landscape.
+
+---
+
+### Task 35: Bullet-Object Collision
+**Goal**: Bullets destroy objects on impact.
+
+**Deliverables**:
+- Check bullet particles against object map
+- On collision, replace object with wreckage
+- Spawn smoke particles
+- Increment score
+- Remove bullet particle
+
+**Verification**: Shooting objects destroys them.
+
+---
+
+### Task 36: Smoke from Destroyed Objects
+**Goal**: Destroyed objects emit rising smoke.
+
+**Deliverables**:
+- Wreckage objects spawn smoke particles over time
+- Smoke rises and fades
+- Smoke color (gray tones)
+
+**Verification**: Destroyed objects visibly smoke.
+
+---
+
+### Task 37: Falling Rocks
+**Goal**: Implement the falling rock hazard system.
+
+**Deliverables**:
+- `src/rocks.cpp/h`
+- Rock spawning when score ≥ 800
+- Random spawn timing
+- Rock 3D model (cube)
+- Rock physics (gravity, rotation)
+- Rock rendering as particle type
+
+**Verification**: Rocks spawn and fall when score is high enough.
+
+---
+
+### Task 38: Rock-Ship Collision
+**Goal**: Rocks kill the player on contact.
+
+**Deliverables**:
+- Distance check between rock and ship
+- Trigger crash on collision
+- Rock removed on collision
+
+**Verification**: Rock hitting ship causes crash.
+
+---
+
+### Task 39: Score Display
+**Goal**: Render the current score on screen.
+
+**Deliverables**:
+- Score variable tracking
+- Text/number rendering (simple bitmap font or rectangles)
+- Position below play area
+- High score tracking
+
+**Verification**: Score displays and updates correctly.
+
+---
+
+### Task 40: Fuel Gauge
+**Goal**: Render the fuel level indicator.
+
+**Deliverables**:
+- Fuel bar rendering (filled rectangle)
+- Fuel level tracking
+- Fuel consumption on thrust
+- Low fuel visual indication
+
+**Verification**: Fuel bar depletes when thrusting.
+
+---
+
+### Task 41: Lives Display
+**Goal**: Show remaining lives on screen.
+
+**Deliverables**:
+- Lives counter display
+- Update on crash
+- Game over state when lives = 0
+
+**Verification**: Lives display correctly, game over works.
+
+---
+
+### Task 42: Game State Machine
+**Goal**: Implement clean game state transitions.
+
+**Deliverables**:
+- States: Playing, Crashed, Landed, GameOver
+- State transition logic
+- Reset functionality for new game
+- Clean initialization
+
+**Verification**: All state transitions work correctly.
+
+---
+
+### Task 43: Frame Timing and Physics Scaling
+**Goal**: Ensure consistent physics at 60 FPS.
+
+**Deliverables**:
+- Fixed timestep physics update
+- Frame rate limiting
+- Physics values scaled for 60 FPS
+- Smooth visual updates
+
+**Verification**: Game plays consistently regardless of frame rate variations.
+
+---
+
+### Task 44: Polish and Bug Fixes
+**Goal**: Final cleanup and bug fixing.
+
+**Deliverables**:
+- Code cleanup
+- Bug fixes found during testing
+- Performance optimization if needed
+- Final verification against original
+
+**Verification**: Game plays correctly end-to-end.
+
+---
+
+## Summary
+
+| Phase | Tasks | Description |
+|-------|-------|-------------|
+| 1 | 1-4 | Foundation (project, math, tables) |
+| 2 | 5-9 | Rendering (buffer, colors, triangles, projection) |
+| 3 | 10-12 | Landscape (terrain, rendering, camera) |
+| 4 | 13-19 | Player (input, physics, model, rendering) |
+| 5 | 20-22 | Collision (terrain, landing, crash) |
+| 6 | 23-28 | Particles (system, rendering, types) |
+| 7 | 29-36 | Objects (map, models, rendering, destruction) |
+| 8 | 33-34 | Graphics buffers (depth sorting) |
+| 9 | 37-38 | Rocks (spawning, collision) |
+| 10 | 39-43 | UI and game state |
+| 11 | 44 | Polish |
+
+**Total: 44 tasks**
+
+Each task is designed to be:
+- Completable in a focused session
+- Independently testable
+- Buildable on previous work
+- Reviewable before committing
+
+---
+
+## Working Process
+
+For each task:
+1. I implement the task
+2. You review and test
+3. If approved, we commit
+4. Proceed to next task
+
+This ensures incremental progress with verification at each step.
