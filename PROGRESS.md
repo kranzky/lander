@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Current Task:** 6
+**Current Task:** 7
 
 **Last Updated:** 2025-11-26
 
@@ -14,10 +14,10 @@
 | 2 | Fixed-Point Math Library | 4589249 |
 | 3 | Lookup Tables | 2b0fbba |
 | 4 | Vector and Matrix Types | a01e19b |
-| 5 | Screen Buffer and Pixel Plotting | 15319d1 |
+| 5 | Screen Buffer and Pixel Plotting | 1d18613 |
+| 6 | Color Palette | d00fef7 |
 
 ## Remaining Tasks
-- Task 6: Color Palette
 - Task 7: Horizontal Line Drawing
 - Task 8: Triangle Rasterization
 - Task 9: 3D Projection
@@ -60,6 +60,6 @@
 ## Summary
 
 - **Total Tasks:** 44
-- **Completed:** 5
+- **Completed:** 6
 - **In Progress:** 0
-- **Remaining:** 39
+- **Remaining:** 38
