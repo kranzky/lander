@@ -11,6 +11,7 @@ find_package(SDL2 REQUIRED)
 # Source files
 set(SOURCES
     src/main.cpp
+    src/screen.cpp
 )
 
 # Create executable
@@ -63,8 +64,16 @@ add_executable(test_math3d
 )
 target_include_directories(test_math3d PRIVATE src)
 
+# Test for screen buffer
+add_executable(test_screen
+    test/test_screen.cpp
+    src/screen.cpp
+)
+target_include_directories(test_screen PRIVATE src)
+
 # Enable testing
 enable_testing()
 add_test(NAME test_fixed COMMAND test_fixed)
 add_test(NAME test_lookup_tables COMMAND test_lookup_tables)
 add_test(NAME test_math3d COMMAND test_math3d)
+add_test(NAME test_screen COMMAND test_screen)

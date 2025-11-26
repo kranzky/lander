@@ -69,15 +69,22 @@ This document breaks down the implementation into discrete, reviewable tasks. Ea
 **Goal**: Set up the rendering surface and basic pixel operations.
 
 **Deliverables**:
-- `src/renderer.h` - Renderer class/functions
-- `src/renderer.cpp` - Implementation
-- SDL texture for rendering (1280x1024)
-- `clearScreen(color)` function
-- `plotPixel(x, y, color)` function
-- `present()` to flip buffers
-- Color type (32-bit RGBA)
+- `src/screen.h` - ScreenBuffer class and Color type
+- `src/screen.cpp` - Implementation
+- `src/stb_image_write.h` - PNG output library
+- SDL texture for rendering (1280x1024 physical)
+- Logical coordinate system (320x256) for game logic
+- `clear(color)` function
+- `plotPixel(x, y, color)` - plot at scaled logical position (single physical pixel)
+- `plotPhysicalPixel(px, py, color)` - direct physical pixel access for smooth rendering
+- `toPhysicalX/Y()` - coordinate conversion helpers
+- `savePNG(filename)` - screenshot output
+- `--screenshot <file>` command line flag
 
-**Verification**: Plot some colored pixels, verify they appear correctly.
+**Verification**: Plot test pattern, verify smooth rendering via screenshot.
+
+**Note**: Logical coordinates scale to physical (4x), but plot single pixels for smooth rendering.
+Future tasks will add sub-pixel precision (Fixed → physical) for smooth animation.
 
 ---
 
@@ -125,11 +132,12 @@ This document breaks down the implementation into discrete, reviewable tasks. Ea
 **Deliverables**:
 - `projectVertex(x, y, z)` returning screen coordinates
 - Camera-relative coordinate calculation
-- Screen coordinate scaling (320x128 → 1280x512)
+- Sub-pixel precision: Fixed coordinates scale directly to physical pixels for smooth movement
+- `plotPixelF(Fixed x, Fixed y, color)` for sub-pixel accurate rendering
 - Off-screen clipping flag
 - Projection constants from original
 
-**Verification**: Project test points and verify screen positions.
+**Verification**: Project test points and verify screen positions. Verify smooth sub-pixel movement.
 
 ---
 

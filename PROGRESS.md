@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Current Task:** 5
+**Current Task:** 6
 
 **Last Updated:** 2025-11-26
 
@@ -13,10 +13,10 @@
 | 1 | Project Setup and Window | 8c03cbc |
 | 2 | Fixed-Point Math Library | 4589249 |
 | 3 | Lookup Tables | 2b0fbba |
-| 4 | Vector and Matrix Types | 955a22a |
+| 4 | Vector and Matrix Types | a01e19b |
+| 5 | Screen Buffer and Pixel Plotting | 15319d1 |
 
 ## Remaining Tasks
-- Task 5: Screen Buffer and Pixel Plotting
 - Task 6: Color Palette
 - Task 7: Horizontal Line Drawing
 - Task 8: Triangle Rasterization
@@ -60,6 +60,6 @@
 ## Summary
 
 - **Total Tasks:** 44
-- **Completed:** 4
+- **Completed:** 5
 - **In Progress:** 0
-- **Remaining:** 40
+- **Remaining:** 39
