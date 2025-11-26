@@ -39,3 +39,15 @@ if(MSVC)
         $<TARGET_FILE_DIR:lander>
     )
 endif()
+
+# =============================================================================
+# Tests
+# =============================================================================
+
+# Test for fixed-point math
+add_executable(test_fixed test/test_fixed.cpp)
+target_include_directories(test_fixed PRIVATE src)
+
+# Enable testing
+enable_testing()
+add_test(NAME test_fixed COMMAND test_fixed)
