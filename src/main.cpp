@@ -153,6 +153,7 @@ void Game::drawTestPattern() {
 
     // =========================================================================
     // Full 256-color VIDC palette display (16x16 grid) - Left side
+    // Uses drawHorizontalLine for efficient rectangle filling
     // =========================================================================
     int paletteW = (W / 2) - margin * 2;
     int paletteH = (H / 2) - margin * 2;
@@ -167,10 +168,9 @@ void Game::drawTestPattern() {
             int px = margin + col * swatchW;
             int py = margin + row * swatchH;
 
+            // Fill rectangle using horizontal lines
             for (int dy = 0; dy < swatchH - 1; dy++) {
-                for (int dx = 0; dx < swatchW - 1; dx++) {
-                    screen.plotPhysicalPixel(px + dx, py + dy, c);
-                }
+                screen.drawHorizontalLine(px, px + swatchW - 2, py + dy, c);
             }
         }
     }
@@ -193,9 +193,7 @@ void Game::drawTestPattern() {
             int py = landscapeStartY + (10 - row) * tileH;
 
             for (int dy = 0; dy < tileH - 1; dy++) {
-                for (int dx = 0; dx < tileW - 1; dx++) {
-                    screen.plotPhysicalPixel(px + dx, py + dy, c);
-                }
+                screen.drawHorizontalLine(px, px + tileW - 2, py + dy, c);
             }
         }
     }
@@ -219,9 +217,7 @@ void Game::drawTestPattern() {
         int py = bottomY + (10 - row) * seaTileH;
 
         for (int dy = 0; dy < seaTileH - 1; dy++) {
-            for (int dx = 0; dx < seaTileW - 1; dx++) {
-                screen.plotPhysicalPixel(seaX + dx, py + dy, c);
-            }
+            screen.drawHorizontalLine(seaX, seaX + seaTileW - 2, py + dy, c);
         }
     }
 
@@ -235,9 +231,7 @@ void Game::drawTestPattern() {
         int py = bottomY + (10 - row) * seaTileH;
 
         for (int dy = 0; dy < seaTileH - 1; dy++) {
-            for (int dx = 0; dx < seaTileW - 1; dx++) {
-                screen.plotPhysicalPixel(launchpadX + dx, py + dy, c);
-            }
+            screen.drawHorizontalLine(launchpadX, launchpadX + seaTileW - 2, py + dy, c);
         }
     }
 
@@ -258,9 +252,7 @@ void Game::drawTestPattern() {
             int py = bottomY + bright * objSwatchH;
 
             for (int dy = 0; dy < objSwatchH - 1; dy++) {
-                for (int dx = 0; dx < objSwatchW - 1; dx++) {
-                    screen.plotPhysicalPixel(px + dx, py + dy, c);
-                }
+                screen.drawHorizontalLine(px, px + objSwatchW - 2, py + dy, c);
             }
         }
     }
@@ -277,9 +269,7 @@ void Game::drawTestPattern() {
         int py = bottomY + level * greySwatchH;
 
         for (int dy = 0; dy < greySwatchH - 1; dy++) {
-            for (int dx = 0; dx < sectionW - 1; dx++) {
-                screen.plotPhysicalPixel(uiX + dx, py + dy, c);
-            }
+            screen.drawHorizontalLine(uiX, uiX + sectionW - 2, py + dy, c);
         }
     }
 
@@ -289,10 +279,27 @@ void Game::drawTestPattern() {
     int fuelH = bottomH - 16 * greySwatchH - 20;
 
     for (int dy = 0; dy < fuelH; dy++) {
-        for (int dx = 0; dx < sectionW - 1; dx++) {
-            screen.plotPhysicalPixel(uiX + dx, fuelY + dy, fuelColor);
-        }
+        screen.drawHorizontalLine(uiX, uiX + sectionW - 2, fuelY + dy, fuelColor);
     }
+
+    // =========================================================================
+    // Horizontal line demonstration - draw some colored lines across the screen
+    // This specifically tests the drawHorizontalLine function
+    // =========================================================================
+
+    // Draw a series of colored lines at the very bottom of the screen
+    int lineY = H - 10;
+    screen.drawHorizontalLine(0, W/4 - 1, lineY, Color::red());
+    screen.drawHorizontalLine(W/4, W/2 - 1, lineY, Color::green());
+    screen.drawHorizontalLine(W/2, 3*W/4 - 1, lineY, Color::blue());
+    screen.drawHorizontalLine(3*W/4, W - 1, lineY, Color::yellow());
+
+    // Draw lines that test clipping (extend beyond screen bounds)
+    screen.drawHorizontalLine(-100, 100, H - 6, Color::cyan());      // Clips left
+    screen.drawHorizontalLine(W - 100, W + 100, H - 6, Color::magenta()); // Clips right
+
+    // Draw a white line across the entire width
+    screen.drawHorizontalLine(0, W - 1, H - 2, Color::white());
 }
 
 void Game::render() {

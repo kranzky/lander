@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Current Task:** 7
+**Current Task:** 8
 
 **Last Updated:** 2025-11-26
 
@@ -16,9 +16,9 @@
 | 4 | Vector and Matrix Types | a01e19b |
 | 5 | Screen Buffer and Pixel Plotting | 1d18613 |
 | 6 | Color Palette | d00fef7 |
+| 7 | Horizontal Line Drawing | 0a76143 |
 
 ## Remaining Tasks
-- Task 7: Horizontal Line Drawing
 - Task 8: Triangle Rasterization
 - Task 9: 3D Projection
 - Task 10: Landscape Altitude Generation
@@ -60,6 +60,6 @@
 ## Summary
 
 - **Total Tasks:** 44
-- **Completed:** 6
+- **Completed:** 7
 - **In Progress:** 0
-- **Remaining:** 38
+- **Remaining:** 37
