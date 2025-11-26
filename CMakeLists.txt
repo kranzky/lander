@@ -55,7 +55,16 @@ add_executable(test_lookup_tables
 )
 target_include_directories(test_lookup_tables PRIVATE src)
 
+# Test for 3D math (vectors and matrices)
+add_executable(test_math3d
+    test/test_math3d.cpp
+    src/math3d.cpp
+    src/lookup_tables.cpp
+)
+target_include_directories(test_math3d PRIVATE src)
+
 # Enable testing
 enable_testing()
 add_test(NAME test_fixed COMMAND test_fixed)
 add_test(NAME test_lookup_tables COMMAND test_lookup_tables)
+add_test(NAME test_math3d COMMAND test_math3d)
