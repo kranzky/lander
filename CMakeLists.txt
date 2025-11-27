@@ -19,6 +19,7 @@ set(SOURCES
     src/landscape.cpp
     src/landscape_renderer.cpp
     src/camera.cpp
+    src/player.cpp
 )
 
 # Create executable
@@ -92,6 +93,7 @@ add_executable(test_projection
     src/math3d.cpp
     src/lookup_tables.cpp
     src/screen.cpp
+    src/camera.cpp
 )
 target_include_directories(test_projection PRIVATE src)
 

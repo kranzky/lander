@@ -14,20 +14,20 @@ Camera::Camera()
 
 void Camera::followTarget(const Vec3& targetPosition, bool clampHeight) {
     // Camera follows target with fixed offset
-    // Based on original Lander.arm lines 2064-2087
 
     // X: follow target directly
     position.x = targetPosition.x;
 
-    // Y: optionally clamp to not rise above 0 (prevents camera from rising with ship)
-    // In original coordinate system, lower Y = higher altitude
-    if (clampHeight && targetPosition.y.raw < 0) {
+    // Y: camera is offset above the player (lower Y = higher altitude)
+    // Apply Y offset first, then optionally clamp
+    Fixed targetY = Fixed::fromRaw(targetPosition.y.raw + CameraConstants::CAMERA_Y_OFFSET.raw);
+    if (clampHeight && targetY.raw < CameraConstants::MAX_CAMERA_Y.raw) {
         position.y = CameraConstants::MAX_CAMERA_Y;
     } else {
-        position.y = targetPosition.y;
+        position.y = targetY;
     }
 
-    // Z: offset behind target by CAMERA_PLAYER_Z (5 tiles)
+    // Z: offset behind target by CAMERA_PLAYER_Z
     // "Behind" means lower Z value (camera looks toward positive Z)
     position.z = targetPosition.z - CameraConstants::CAMERA_PLAYER_Z;
 

@@ -51,9 +51,12 @@ private:
     CornerData currentRow[MAX_CORNERS];
     CornerData previousRow[MAX_CORNERS];
 
-    // Project a landscape corner to screen coordinates
+    // Project a landscape corner to screen coordinates (world coordinates)
     CornerData projectCorner(Fixed worldX, Fixed worldY, Fixed worldZ,
                              Fixed cameraX, Fixed cameraY, Fixed cameraZ);
+
+    // Project a corner using camera-relative coordinates directly
+    CornerData projectCornerRelative(Fixed relX, Fixed relY, Fixed relZ);
 
     // Draw a single tile (quadrilateral) given 4 corners
     void drawTile(ScreenBuffer& screen,

@@ -6,6 +6,7 @@
 #include "palette.h"
 #include "landscape_renderer.h"
 #include "camera.h"
+#include "player.h"
 #include "fixed.h"
 
 // =============================================================================
@@ -40,15 +41,13 @@ private:
     ScreenBuffer screen;
     LandscapeRenderer landscapeRenderer;
     Camera camera;
+    Player player;
     bool running = false;
     Uint32 lastFrameTime = 0;
 
     // Screenshot mode
     bool screenshotMode = false;
     const char* screenshotFilename = nullptr;
-
-    // Simulated player position (for testing camera)
-    Vec3 playerPosition;
 
     // FPS counter
     Uint32 fpsLastTime = 0;
@@ -115,14 +114,9 @@ bool Game::init() {
     running = true;
     lastFrameTime = SDL_GetTicks();
 
-    // Initialize player position at center of landscape
-    // Camera offset is 5 tiles behind, so player Z of -5 gives camera Z of -10
-    playerPosition.x = Fixed::fromInt(6);   // Center of 12-tile width
-    playerPosition.y = Fixed::fromInt(-2);  // Above terrain (negative Y = higher)
-    playerPosition.z = Fixed::fromInt(-5);  // Camera will be at Z=-10
-
+    // Player initializes itself with default position
     // Camera follows the player with a fixed offset (5 tiles behind on Z)
-    camera.followTarget(playerPosition, false);
+    camera.followTarget(player.getPosition(), false);
 
     // Report status
     int drawW, drawH;
@@ -167,36 +161,27 @@ void Game::handleEvents() {
 }
 
 void Game::update() {
-    // Poll keyboard state for continuous movement
+    // Update mouse input
+    int mouseX, mouseY;
+    uint32_t mouseButtons = SDL_GetMouseState(&mouseX, &mouseY);
+    player.updateInput(mouseX, mouseY, mouseButtons);
+
+    // Poll keyboard state for debug movement
     const Uint8* keyState = SDL_GetKeyboardState(nullptr);
 
-    // Movement speed: 0.1 tiles per frame (about 6 tiles per second at 60fps)
-    constexpr int32_t MOVE_SPEED = 0x00199999;  // ~0.1 in 8.24 fixed-point
-
-    // Cursor keys: translate camera in X/Z plane
-    if (keyState[SDL_SCANCODE_LEFT]) {
-        playerPosition.x = Fixed::fromRaw(playerPosition.x.raw - MOVE_SPEED);
-    }
-    if (keyState[SDL_SCANCODE_RIGHT]) {
-        playerPosition.x = Fixed::fromRaw(playerPosition.x.raw + MOVE_SPEED);
-    }
-    if (keyState[SDL_SCANCODE_UP]) {
-        playerPosition.z = Fixed::fromRaw(playerPosition.z.raw + MOVE_SPEED);
-    }
-    if (keyState[SDL_SCANCODE_DOWN]) {
-        playerPosition.z = Fixed::fromRaw(playerPosition.z.raw - MOVE_SPEED);
-    }
-
-    // A/Z keys: adjust height
-    if (keyState[SDL_SCANCODE_A]) {
-        playerPosition.y = Fixed::fromRaw(playerPosition.y.raw - MOVE_SPEED);
-    }
-    if (keyState[SDL_SCANCODE_Z]) {
-        playerPosition.y = Fixed::fromRaw(playerPosition.y.raw + MOVE_SPEED);
-    }
+    // Apply debug keyboard movement (cursor keys + A/Z)
+    player.applyDebugMovement(
+        keyState[SDL_SCANCODE_LEFT],
+        keyState[SDL_SCANCODE_RIGHT],
+        keyState[SDL_SCANCODE_UP],
+        keyState[SDL_SCANCODE_DOWN],
+        keyState[SDL_SCANCODE_A],
+        keyState[SDL_SCANCODE_Z],
+        PlayerConstants::DEBUG_MOVE_SPEED
+    );
 
     // Update camera to follow player (no height clamping for debugging)
-    camera.followTarget(playerPosition, false);
+    camera.followTarget(player.getPosition(), false);
 }
 
 // Simple 3x5 pixel font for digits 0-9
@@ -292,25 +277,50 @@ void Game::drawFPS() {
     }
 
     Color white = Color::white();
+    Color yellow = Color(255, 255, 0);
+    Color cyan = Color(0, 255, 255);
     int x = 8;
     int y = 8;
 
     // Draw FPS
     drawNumber(x, y, fpsDisplay, white);
 
-    // Draw camera position on second line
-    // Convert fixed-point to integer tiles for display
+    // Draw player position on second line (in yellow)
+    int playerX = player.getX().toInt();
+    int playerY = player.getY().toInt();
+    int playerZ = player.getZ().toInt();
+
+    y += 14;
+    x = 8;
+    x = drawNumber(x, y, playerX, yellow);
+    x += 4;
+    x = drawNumber(x, y, playerY, yellow);
+    x += 4;
+    drawNumber(x, y, playerZ, yellow);
+
+    // Draw camera position on third line (in cyan)
     int camX = camera.getX().toInt();
     int camY = camera.getY().toInt();
     int camZ = camera.getZ().toInt();
 
-    y += 14;  // Move to next line
+    y += 14;
     x = 8;
-    x = drawNumber(x, y, camX, white);
-    x += 4;  // Small gap
-    x = drawNumber(x, y, camY, white);
+    x = drawNumber(x, y, camX, cyan);
     x += 4;
-    drawNumber(x, y, camZ, white);
+    x = drawNumber(x, y, camY, cyan);
+    x += 4;
+    drawNumber(x, y, camZ, cyan);
+
+    // Draw mouse state on fourth line (relative coords and buttons)
+    const InputState& input = player.getInput();
+    y += 14;
+    x = 8;
+    x = drawNumber(x, y, input.mouseRelX, white);
+    x += 4;
+    x = drawNumber(x, y, input.mouseRelY, white);
+    x += 8;
+    // Show button state as number (0-7)
+    drawNumber(x, y, input.buttons, white);
 }
 
 void Game::drawTestPattern() {

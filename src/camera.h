@@ -72,9 +72,11 @@ private:
 // =============================================================================
 
 namespace CameraConstants {
-    // Distance behind player along z-axis (5 tiles)
-    // From original: CAMERA_PLAYER_Z = (TILES_Z - 6) * TILE_SIZE = 5 * TILE_SIZE
+    // Distance behind player along z-axis (5 tiles as in original)
     constexpr Fixed CAMERA_PLAYER_Z = Fixed::fromRaw(5 * GameConstants::TILE_SIZE.raw);
+
+    // Height offset - camera is at same altitude as player (no Y offset)
+    constexpr Fixed CAMERA_Y_OFFSET = Fixed::fromRaw(0);  // No offset
 
     // Maximum camera Y value (clamped to not rise above 0)
     // In the original coordinate system, lower Y = higher altitude

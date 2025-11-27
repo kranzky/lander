@@ -50,6 +50,25 @@ LandscapeRenderer::CornerData LandscapeRenderer::projectCorner(
     return corner;
 }
 
+LandscapeRenderer::CornerData LandscapeRenderer::projectCornerRelative(
+    Fixed relX, Fixed relY, Fixed relZ)
+{
+    CornerData corner;
+    corner.altitude = Fixed();  // Set by caller
+    corner.valid = false;
+
+    // Project to screen (coordinates are already camera-relative)
+    ProjectedVertex proj = projectVertex(relX, relY, relZ);
+
+    if (proj.visible) {
+        corner.screenX = proj.screenX;
+        corner.screenY = proj.screenY;
+        corner.valid = true;
+    }
+
+    return corner;
+}
+
 // =============================================================================
 // Tile Type Detection
 // =============================================================================
@@ -126,46 +145,84 @@ void LandscapeRenderer::drawTile(
 
 void LandscapeRenderer::render(ScreenBuffer& screen, const Camera& camera)
 {
-    // The landscape is a grid of TILES_X-1 by TILES_Z-1 tiles
-    // (TILES_X and TILES_Z are the number of corners)
+    // The landscape is rendered as a grid of tiles that scrolls with the camera.
+    // The tile grid follows the camera position, creating infinite scrolling terrain.
+    //
+    // Two coordinate systems are used:
+    // 1. Screen-relative coordinates: used for projection (based on landscape offset)
+    // 2. World coordinates: used for altitude lookup (based on camera tile position)
+    //
+    // The camera's fractional position provides smooth sub-tile scrolling.
 
-    // Get camera position from Camera object
-    Fixed camX = camera.getX();
+    // Get camera position components
     Fixed camY = camera.getY();
-    Fixed camZ = camera.getZ();
+    Fixed camXTile = camera.getXTile();  // Integer tile position
+    Fixed camZTile = camera.getZTile();
+    Fixed camXFrac = camera.getXFraction();  // Fractional position within tile
+    Fixed camZFrac = camera.getZFraction();
+
+    // Landscape offset for screen positioning (matches original Lander.arm)
+    // X: -5.5 tiles (centers the grid on screen)
+    // Z: 20 tiles (pushes landscape forward from camera)
+    constexpr int32_t LANDSCAPE_X_RAW = (TILES_X - 2) * TILE_SIZE.raw / 2;  // 5.5 tiles
+    constexpr int32_t LANDSCAPE_Z_RAW = ((TILES_Z - 1) + 10) * TILE_SIZE.raw;  // 20 tiles
+
+    // Screen-relative starting position = landscapeOffset - camera_fraction
+    // This creates smooth scrolling as camera moves within a tile
+    int32_t startX = -LANDSCAPE_X_RAW - camXFrac.raw;
+    int32_t startZ = LANDSCAPE_Z_RAW - camZFrac.raw;
+
+    // World coordinate base - the tile grid follows the camera
+    // Convert camera tile position to integer tile indices
+    int camTileX = camXTile.toInt();
+    int camTileZ = camZTile.toInt();
+
+    // Center the grid on camera position
+    int halfTilesX = TILES_X / 2;
 
     // Process rows from back (far) to front (near)
     // Row 0 is furthest, Row TILES_Z-1 is nearest
     for (int row = 0; row < TILES_Z; row++) {
-        // Calculate world Z for this row of corners
-        // Landscape starts at the back and comes toward camera
-        Fixed worldZ = Fixed::fromRaw((TILES_Z - 1 - row) * TILE_SIZE.raw);
+        // Calculate screen-relative Z for this row of corners
+        int32_t relZRaw = startZ - (row * TILE_SIZE.raw);
+        Fixed relZ = Fixed::fromRaw(relZRaw);
+
+        // World Z for this row - tiles extend forward from camera
+        // Row 0 = back (camTileZ + TILES_Z - 1), Row TILES_Z-1 = front (camTileZ)
+        int worldZInt = camTileZ + (TILES_Z - 1 - row);
 
         // Process each corner in this row
         for (int col = 0; col < TILES_X; col++) {
-            // Calculate world X for this corner
-            // Centered: col 0 is left edge, col TILES_X-1 is right edge
-            Fixed worldX = Fixed::fromRaw(col * TILE_SIZE.raw);
+            // Calculate screen-relative X for this corner
+            int32_t relXRaw = startX + (col * TILE_SIZE.raw);
+            Fixed relX = Fixed::fromRaw(relXRaw);
+
+            // World X for this corner - centered on camera tile position
+            int worldXInt = camTileX - halfTilesX + col;
+
+            // Convert to Fixed for altitude lookup
+            Fixed worldX = Fixed::fromInt(worldXInt);
+            Fixed worldZ = Fixed::fromInt(worldZInt);
 
             // Get altitude at this corner
             Fixed altitude = getLandscapeAltitude(worldX, worldZ);
 
-            // Project corner to screen
-            currentRow[col] = projectCorner(worldX, altitude, worldZ,
-                                            camX, camY, camZ);
+            // The relative Y is altitude minus camera Y
+            Fixed relY = Fixed::fromRaw(altitude.raw - camY.raw);
+
+            // Project corner to screen (coordinates are already camera-relative)
+            currentRow[col] = projectCornerRelative(relX, relY, relZ);
+            currentRow[col].altitude = altitude;
         }
 
         // Draw tiles (need at least one previous row)
         if (row > 0) {
             for (int col = 0; col < TILES_X - 1; col++) {
-                // Four corners of this tile:
-                // topLeft = previousRow[col]     (back-left)
-                // topRight = previousRow[col+1]  (back-right)
-                // bottomLeft = currentRow[col]   (front-left)
-                // bottomRight = currentRow[col+1] (front-right)
-
-                Fixed tileX = Fixed::fromRaw(col * TILE_SIZE.raw);
-                Fixed tileZ = Fixed::fromRaw((TILES_Z - row) * TILE_SIZE.raw);
+                // World tile coordinates for color/type lookup
+                int worldXInt = camTileX - halfTilesX + col;
+                int worldZInt = camTileZ + (TILES_Z - row);
+                Fixed tileX = Fixed::fromInt(worldXInt);
+                Fixed tileZ = Fixed::fromInt(worldZInt);
 
                 drawTile(screen,
                          previousRow[col], previousRow[col + 1],
