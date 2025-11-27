@@ -2,9 +2,9 @@
 
 ## Current Status
 
-**Current Task:** 9
+**Current Task:** 10
 
-**Last Updated:** 2025-11-26
+**Last Updated:** 2025-11-27
 
 ## Completed Tasks
 
@@ -18,9 +18,9 @@
 | 6 | Color Palette | d00fef7 |
 | 7 | Horizontal Line Drawing | 0a76143 |
 | 8 | Triangle Rasterization | 5e57684 |
+| 9 | 3D Projection | (pending) |
 
 ## Remaining Tasks
-- Task 9: 3D Projection
 - Task 10: Landscape Altitude Generation
 - Task 11: Basic Landscape Rendering
 - Task 12: Camera System

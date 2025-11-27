@@ -79,6 +79,16 @@ add_executable(test_palette
 )
 target_include_directories(test_palette PRIVATE src)
 
+# Test for 3D projection
+add_executable(test_projection
+    test/test_projection.cpp
+    src/projection.cpp
+    src/math3d.cpp
+    src/lookup_tables.cpp
+    src/screen.cpp
+)
+target_include_directories(test_projection PRIVATE src)
+
 # Enable testing
 enable_testing()
 add_test(NAME test_fixed COMMAND test_fixed)
@@ -86,3 +96,4 @@ add_test(NAME test_lookup_tables COMMAND test_lookup_tables)
 add_test(NAME test_math3d COMMAND test_math3d)
 add_test(NAME test_screen COMMAND test_screen)
 add_test(NAME test_palette COMMAND test_palette)
+add_test(NAME test_projection COMMAND test_projection)
