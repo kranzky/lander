@@ -15,6 +15,7 @@
 #include <cmath>
 #include "projection.h"
 #include "screen.h"
+#include "camera.h"
 
 // Test counters
 static int tests_run = 0;
@@ -369,7 +370,7 @@ void test_camera_transform() {
     TEST("Camera worldToCamera transform works");
 
     Camera camera;
-    camera.position = Vec3(
+    camera.setPosition(
         Fixed::fromInt(10),
         Fixed::fromInt(5),
         Fixed::fromInt(20)

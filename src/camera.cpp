@@ -31,13 +31,6 @@ void Camera::followTarget(const Vec3& targetPosition, bool clampHeight) {
     // "Behind" means lower Z value (camera looks toward positive Z)
     position.z = targetPosition.z - CameraConstants::CAMERA_PLAYER_Z;
 
-    // Clamp camera Z to stay negative (prevents projection issues when Z >= 0)
-    // The projection math breaks down when camera Z approaches or exceeds 0
-    // because landscape tiles end up at or behind the camera
-    if (position.z.raw >= 0) {
-        position.z = Fixed::fromRaw(-1);  // Just below 0
-    }
-
     // Update tile-snapped positions
     updateTilePositions();
 }
