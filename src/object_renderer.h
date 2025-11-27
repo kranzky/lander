@@ -1,0 +1,55 @@
+#ifndef LANDER_OBJECT_RENDERER_H
+#define LANDER_OBJECT_RENDERER_H
+
+#include "object3d.h"
+#include "math3d.h"
+#include "screen.h"
+#include "projection.h"
+
+// =============================================================================
+// 3D Object Renderer
+// =============================================================================
+//
+// Based on the original DrawObject routine (Lander.arm lines 4979-5640).
+//
+// The rendering pipeline:
+// 1. Transform each vertex by the object's rotation matrix
+// 2. Add the object's world position to get final 3D coordinates
+// 3. Project each vertex to screen coordinates
+// 4. For each face:
+//    a. Transform the face normal by the rotation matrix
+//    b. Check visibility using dot product (backface culling)
+//    c. Calculate lighting based on normal direction
+//    d. Draw the triangle with the lit color
+//
+// =============================================================================
+
+// Maximum vertices per object (ship has 9, other objects have fewer)
+constexpr int MAX_VERTICES = 16;
+
+// Projected vertex data
+struct ProjectedVertex2D {
+    int x;
+    int y;
+    bool visible;
+};
+
+// Draw a 3D object
+// Arguments:
+//   blueprint - The object's model data
+//   position  - Object position relative to camera (in world space)
+//   rotation  - Object's rotation matrix (identity for static objects)
+//   screen    - Screen buffer to draw to
+void drawObject(
+    const ObjectBlueprint& blueprint,
+    const Vec3& position,
+    const Mat3x3& rotation,
+    ScreenBuffer& screen
+);
+
+// Calculate lit color from base color and face normal
+// The light source is from above and slightly to the left
+// Returns a Color struct
+Color calculateLitColor(uint16_t baseColor, const Vec3& rotatedNormal);
+
+#endif // LANDER_OBJECT_RENDERER_H

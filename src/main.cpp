@@ -367,11 +367,11 @@ void Game::run() {
         update();
         render();
 
-        // Frame rate limiting
-        Uint32 frameTime = SDL_GetTicks() - frameStart;
-        if (frameTime < FRAME_TIME_MS) {
-            SDL_Delay(FRAME_TIME_MS - frameTime);
-        }
+        // Frame rate limiting (disabled for benchmarking)
+        // Uint32 frameTime = SDL_GetTicks() - frameStart;
+        // if (frameTime < FRAME_TIME_MS) {
+        //     SDL_Delay(FRAME_TIME_MS - frameTime);
+        // }
     }
 }
 

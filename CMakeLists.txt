@@ -22,6 +22,7 @@ set(SOURCES
     src/player.cpp
     src/polar_coords.cpp
     src/object3d.cpp
+    src/object_renderer.cpp
 )
 
 # Create executable
@@ -122,6 +123,19 @@ add_executable(test_object3d
 )
 target_include_directories(test_object3d PRIVATE src)
 
+# Test for object rendering
+add_executable(test_object_renderer
+    test/test_object_renderer.cpp
+    src/object_renderer.cpp
+    src/object3d.cpp
+    src/math3d.cpp
+    src/lookup_tables.cpp
+    src/screen.cpp
+    src/projection.cpp
+    src/camera.cpp
+)
+target_include_directories(test_object_renderer PRIVATE src)
+
 # Enable testing
 enable_testing()
 add_test(NAME test_fixed COMMAND test_fixed)
@@ -133,3 +147,4 @@ add_test(NAME test_projection COMMAND test_projection)
 add_test(NAME test_landscape COMMAND test_landscape)
 add_test(NAME test_polar_coords COMMAND test_polar_coords)
 add_test(NAME test_object3d COMMAND test_object3d)
+add_test(NAME test_object_renderer COMMAND test_object_renderer)
