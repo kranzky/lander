@@ -13,6 +13,11 @@ set(SOURCES
     src/main.cpp
     src/screen.cpp
     src/palette.cpp
+    src/projection.cpp
+    src/math3d.cpp
+    src/lookup_tables.cpp
+    src/landscape.cpp
+    src/landscape_renderer.cpp
 )
 
 # Create executable

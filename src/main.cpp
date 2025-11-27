@@ -4,6 +4,8 @@
 #include "constants.h"
 #include "screen.h"
 #include "palette.h"
+#include "landscape_renderer.h"
+#include "fixed.h"
 
 // =============================================================================
 // Lander - C++/SDL Port
@@ -35,12 +37,17 @@ private:
     SDL_Renderer* renderer = nullptr;
     SDL_Texture* texture = nullptr;
     ScreenBuffer screen;
+    LandscapeRenderer landscapeRenderer;
     bool running = false;
     Uint32 lastFrameTime = 0;
 
     // Screenshot mode
     bool screenshotMode = false;
     const char* screenshotFilename = nullptr;
+
+    // Camera position (for landscape viewing)
+    Fixed cameraX;
+    Fixed cameraZ;
 };
 
 bool Game::init() {
@@ -97,6 +104,21 @@ bool Game::init() {
     running = true;
     lastFrameTime = SDL_GetTicks();
 
+    // Initialize camera position
+    // Camera at center-x of landscape (6 tiles), looking forward into the scene
+    // The landscape spans x=0 to 12 tiles, so center is at x=6
+    // Camera is positioned behind the landscape (negative z) looking forward
+    // The original camera position in Lander looks at the landscape from above/behind
+    cameraX = Fixed::fromInt(6);  // Center of 12-tile width
+    cameraZ = Fixed::fromInt(-2); // 2 tiles behind the landscape start
+
+    // Set camera height (altitude Y)
+    // In the original, Y axis points DOWN (larger Y = lower altitude)
+    // The terrain altitudes are around 3-5 tiles (LAUNCHPAD_ALTITUDE = 3.3125)
+    // To look DOWN at the terrain from above, camera Y must be LESS than terrain Y
+    // (smaller Y = physically higher position)
+    landscapeRenderer.setCameraY(Fixed::fromInt(2)); // At terrain level
+
     // Report status
     int drawW, drawH;
     SDL_GL_GetDrawableSize(window, &drawW, &drawH);
@@ -147,40 +169,8 @@ void Game::drawTestPattern() {
     // Clear to black
     screen.clear(Color::black());
 
-    const int W = ScreenBuffer::PHYSICAL_WIDTH;   // 1280
-    const int H = ScreenBuffer::PHYSICAL_HEIGHT;  // 1024
-
-    // =========================================================================
-    // Triangle demonstration - draw various triangles to test rasterization
-    // =========================================================================
-
-    // Large triangles spread across the screen
-    int centerX = W / 2;
-    int centerY = H / 2;
-
-    // Red: pointing up (top center)
-    screen.drawTriangle(centerX - 150, 50, centerX + 150, 50, centerX, 250, Color::red());
-
-    // Green: pointing down (bottom center)
-    screen.drawTriangle(centerX - 150, H - 50, centerX + 150, H - 50, centerX, H - 250, Color::green());
-
-    // Blue: pointing right (left side)
-    screen.drawTriangle(50, centerY - 150, 50, centerY + 150, 250, centerY, Color::blue());
-
-    // Yellow: pointing left (right side)
-    screen.drawTriangle(W - 50, centerY - 150, W - 50, centerY + 150, W - 250, centerY, Color::yellow());
-
-    // Cyan: large center triangle
-    screen.drawTriangle(centerX, centerY - 200, centerX - 200, centerY + 150, centerX + 200, centerY + 150, Color::cyan());
-
-    // Magenta: overlapping triangle (tests drawing order)
-    screen.drawTriangle(centerX - 100, centerY, centerX + 100, centerY, centerX, centerY + 200, Color::magenta());
-
-    // White: thin triangles in corners
-    screen.drawTriangle(50, 50, 200, 50, 125, 150, Color::white());
-    screen.drawTriangle(W - 200, 50, W - 50, 50, W - 125, 150, Color::white());
-    screen.drawTriangle(50, H - 50, 200, H - 50, 125, H - 150, Color::white());
-    screen.drawTriangle(W - 200, H - 50, W - 50, H - 50, W - 125, H - 150, Color::white());
+    // Render the landscape
+    landscapeRenderer.render(screen, cameraX, cameraZ);
 }
 
 void Game::render() {

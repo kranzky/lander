@@ -38,19 +38,47 @@ ProjectedVertex projectVertex(Fixed x, Fixed y, Fixed z) {
     result.visible = true;
 
     // Calculate perspective division: x/z and y/z
-    // The result is in 8.24 fixed-point, representing pixel offset
-    // A result of 1.0 (0x01000000) means 1 pixel offset in original coords
-    Fixed xDivZ = x / z;
-    Fixed yDivZ = y / z;
+    // The result is in 8.24 fixed-point format
+    //
+    // In the original Lander, the projection is: screen = center + (x/z) * scale
+    // where the scale factor relates world units to screen pixels.
+    //
+    // With TILE_SIZE = 0x01000000 (1.0 in 8.24), a typical scene has:
+    // - x offset of ~6 tiles from center (half of 12 tile width)
+    // - z distance of ~10 tiles
+    // - This gives x/z = 0.6 tiles
+    //
+    // To fill the screen (~160 pixels from center), we need:
+    // - 0.6 tiles -> ~100 pixels
+    // - So scale factor is about 160 pixels per tile
+    //
+    // In 8.24 format, division result for 6/10 = 0x00999999
+    // We want this to become ~100 pixels
+    // The integer part of 0x00999999 >> 24 = 0, so we need fractional scaling
+    //
+    // Solution: scale the numerator before dividing, or scale result after
+    // We'll use a focal length multiplier that effectively scales x and y
+    // before the division.
+    //
+    // Original uses approximately 256 (or 0x100) as focal length
+    // So: screen_x = center + (x * 256) / z = center + x/z * 256
 
-    // Convert to screen coordinates
-    // Original: screen_x = 160 + x/z, screen_y = 64 + y/z
-    // We scale by 4x for our higher resolution
-    // The division result's integer part gives us the pixel offset
-    int offsetX = xDivZ.toInt();
-    int offsetY = yDivZ.toInt();
+    // Focal length: how many pixels per unit distance at z=1
+    // A value of 256 means at z=1 tile, x=1 tile maps to 256 pixels
+    // This gives a reasonable field of view
+    constexpr int FOCAL_LENGTH = 256;
 
-    // Apply scale and center offset
+    // Scale x and y by focal length before projection
+    // Use 64-bit to avoid overflow
+    int64_t scaledX = static_cast<int64_t>(x.raw) * FOCAL_LENGTH;
+    int64_t scaledY = static_cast<int64_t>(y.raw) * FOCAL_LENGTH;
+
+    // Divide by z (in raw format)
+    // Result is in pixels (no longer in 8.24 format)
+    int offsetX = static_cast<int>(scaledX / z.raw);
+    int offsetY = static_cast<int>(scaledY / z.raw);
+
+    // Apply our 4x resolution scale and center offset
     result.screenX = ProjectionConstants::CENTER_X + (offsetX * ProjectionConstants::SCALE);
     result.screenY = ProjectionConstants::CENTER_Y + (offsetY * ProjectionConstants::SCALE);
 
