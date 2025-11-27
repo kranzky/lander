@@ -8,6 +8,8 @@
 #include "camera.h"
 #include "player.h"
 #include "fixed.h"
+#include "object_renderer.h"
+#include "object3d.h"
 
 // =============================================================================
 // Lander - C++/SDL Port
@@ -34,6 +36,7 @@ private:
     void update();
     void render();
     void drawTestPattern();
+    void drawShip();
 
     SDL_Window* window = nullptr;
     SDL_Renderer* renderer = nullptr;
@@ -165,6 +168,9 @@ void Game::update() {
     int mouseX, mouseY;
     uint32_t mouseButtons = SDL_GetMouseState(&mouseX, &mouseY);
     player.updateInput(mouseX, mouseY, mouseButtons);
+
+    // Update ship orientation based on mouse position
+    player.updateOrientation();
 
     // Poll keyboard state for debug movement
     const Uint8* keyState = SDL_GetKeyboardState(nullptr);
@@ -323,12 +329,40 @@ void Game::drawFPS() {
     drawNumber(x, y, input.buttons, white);
 }
 
+void Game::drawShip() {
+    // In the original Lander, the ship is always drawn at a fixed screen position:
+    // X = 0 (centered horizontally)
+    // Y = player's Y relative to camera (for altitude)
+    // Z = LANDSCAPE_Z_MID (15 tiles in front of camera)
+    //
+    // This keeps the ship at a consistent visual size and position on screen
+    // while the landscape scrolls beneath it.
+
+    Vec3 shipScreenPos;
+    shipScreenPos.x = Fixed::fromInt(0);  // Centered horizontally
+
+    // Y position: use player's actual Y relative to camera
+    // This allows the ship to move up/down visually as altitude changes
+    Vec3 actualRelPos = camera.worldToCamera(player.getPosition());
+    shipScreenPos.y = actualRelPos.y;
+
+    // Z position: fixed distance in front of camera (15 tiles like original)
+    // LANDSCAPE_Z_MID = LANDSCAPE_Z - CAMERA_PLAYER_Z = 20 - 5 = 15 tiles
+    shipScreenPos.z = Fixed::fromInt(15);
+
+    // Draw the ship using the object renderer
+    drawObject(shipBlueprint, shipScreenPos, player.getRotationMatrix(), screen);
+}
+
 void Game::drawTestPattern() {
     // Clear to black
     screen.clear(Color::black());
 
     // Render the landscape using the camera
     landscapeRenderer.render(screen, camera);
+
+    // Render the player's ship
+    drawShip();
 
     // Draw FPS overlay
     drawFPS();
