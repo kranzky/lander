@@ -89,6 +89,14 @@ add_executable(test_projection
 )
 target_include_directories(test_projection PRIVATE src)
 
+# Test for landscape altitude generation
+add_executable(test_landscape
+    test/test_landscape.cpp
+    src/landscape.cpp
+    src/lookup_tables.cpp
+)
+target_include_directories(test_landscape PRIVATE src)
+
 # Enable testing
 enable_testing()
 add_test(NAME test_fixed COMMAND test_fixed)
@@ -97,3 +105,4 @@ add_test(NAME test_math3d COMMAND test_math3d)
 add_test(NAME test_screen COMMAND test_screen)
 add_test(NAME test_palette COMMAND test_palette)
 add_test(NAME test_projection COMMAND test_projection)
+add_test(NAME test_landscape COMMAND test_landscape)
