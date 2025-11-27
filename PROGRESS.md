@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Current Task:** 16
+**Current Task:** 17
 
 **Last Updated:** 2025-11-27
 
@@ -25,12 +25,12 @@
 | 13 | Player State and Basic Input | 8d361ef |
 | 14 | Mouse Polar Conversion | 2a3270d |
 | 15 | Ship Rotation Matrix | ab77a9a |
+| 16 | Ship 3D Model | 69707a1 |
 
 ## Remaining Tasks
-- Task 16: Ship Physics
-- Task 17: Ship 3D Model
-- Task 18: 3D Object Rendering
-- Task 19: Ship Rendering Integration
+- Task 17: 3D Object Rendering
+- Task 18: Ship Rendering Integration
+- Task 19: Ship Physics
 - Task 20: Terrain Collision Detection
 - Task 21: Launchpad Landing
 - Task 22: Crash Handling
@@ -60,6 +60,6 @@
 ## Summary
 
 - **Total Tasks:** 44
-- **Completed:** 15
+- **Completed:** 16
 - **In Progress:** 0
-- **Remaining:** 29
+- **Remaining:** 28

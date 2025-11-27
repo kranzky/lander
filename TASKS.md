@@ -225,36 +225,22 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 16: Ship Physics
-**Goal**: Implement ship movement physics (thrust, gravity, friction).
-
-**Deliverables**:
-- Gravity acceleration (constant downward)
-- Thrust application (from rotation matrix, when button held)
-- Hover thrust (reduced, middle button)
-- Friction/damping (velocity decay)
-- Position integration (pos += vel each frame)
-- Fuel consumption
-
-**Verification**: Ship falls with gravity, thrust counters it, friction slows movement.
-
----
-
-### Task 17: Ship 3D Model
+### Task 16: Ship 3D Model
 **Goal**: Define the ship's 3D model data structure.
 
 **Deliverables**:
-- `src/objects.h` - Object model structures
+- `src/object3d.h` - Object model structures
+- `src/object3d.cpp` - Ship model data
 - Ship vertex data (9 vertices)
 - Ship face data (9 triangles)
 - Face normals for backface culling
 - Face colors
 
-**Verification**: Data structures compile, can be inspected.
+**Verification**: Data structures compile, unit tests pass.
 
 ---
 
-### Task 18: 3D Object Rendering
+### Task 17: 3D Object Rendering
 **Goal**: Implement general 3D object rendering with transformations.
 
 **Deliverables**:
@@ -268,7 +254,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 19: Ship Rendering Integration
+### Task 18: Ship Rendering Integration
 **Goal**: Render the player's ship with correct orientation.
 
 **Deliverables**:
@@ -277,6 +263,21 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 - Visible on screen following camera
 
 **Verification**: Ship appears on screen, rotates with mouse movement.
+
+---
+
+### Task 19: Ship Physics
+**Goal**: Implement ship movement physics (thrust, gravity, friction).
+
+**Deliverables**:
+- Gravity acceleration (constant downward)
+- Thrust application (from rotation matrix, when button held)
+- Hover thrust (reduced, middle button)
+- Friction/damping (velocity decay)
+- Position integration (pos += vel each frame)
+- Fuel consumption
+
+**Verification**: Ship falls with gravity, thrust counters it, friction slows movement.
 
 ---
 
