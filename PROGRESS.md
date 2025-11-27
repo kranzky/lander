@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Current Task:** 15
+**Current Task:** 16
 
 **Last Updated:** 2025-11-27
 
@@ -24,9 +24,9 @@
 | 12 | Camera System | 1512ba1 |
 | 13 | Player State and Basic Input | 8d361ef |
 | 14 | Mouse Polar Conversion | 2a3270d |
+| 15 | Ship Rotation Matrix | ab77a9a |
 
 ## Remaining Tasks
-- Task 15: Ship Rotation Matrix
 - Task 16: Ship Physics
 - Task 17: Ship 3D Model
 - Task 18: 3D Object Rendering
@@ -60,6 +60,6 @@
 ## Summary
 
 - **Total Tasks:** 44
-- **Completed:** 14
+- **Completed:** 15
 - **In Progress:** 0
-- **Remaining:** 30
+- **Remaining:** 29

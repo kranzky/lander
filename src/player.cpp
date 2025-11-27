@@ -8,6 +8,9 @@ Player::Player()
     : position()
     , velocity()
     , exhaustDirection()
+    , shipDirection(0)
+    , shipPitch(1)  // Slightly pitched up for take-off (matching original)
+    , rotationMatrix(Mat3x3::identity())
     , input()
     , fuelLevel(PlayerConstants::INITIAL_FUEL)
 {
@@ -33,6 +36,11 @@ void Player::reset() {
 
     // Reset fuel
     fuelLevel = PlayerConstants::INITIAL_FUEL;
+
+    // Reset orientation (matching original: direction=0, pitch=1 for slight upward tilt)
+    shipDirection = 0;
+    shipPitch = 1;
+    rotationMatrix = calculateRotationMatrix(shipPitch, shipDirection);
 
     // Clear input
     input = InputState();
@@ -117,4 +125,81 @@ void Player::burnFuel(int amount) {
     if (fuelLevel < 0) {
         fuelLevel = 0;
     }
+}
+
+// =============================================================================
+// Ship Orientation Update
+// =============================================================================
+//
+// This is a direct port of the ship orientation code from MoveAndDrawPlayer
+// (Lander.arm lines 1805-1867). The algorithm:
+//
+// 1. Convert mouse (x, y) to polar coordinates (angle, distance)
+// 2. Smooth the transition from current angles to target angles:
+//    - delta = current - target
+//    - Cap delta to ±0x30000000 to prevent jerky movements
+//    - new = current - delta/2 (halving gives smooth interpolation)
+// 3. Calculate the rotation matrix from the smoothed angles
+//
+// The polar distance is scaled up (LSL #1) to range 0 to 0x7FFFFFFE
+// so that moving the mouse to the edge produces full pitch.
+//
+// =============================================================================
+
+void Player::updateOrientation() {
+    // Convert mouse position to polar coordinates
+    // The polar conversion expects input shifted << 22, so scale our ±512 range
+    int32_t scaledX = input.mouseRelX << 22;
+    int32_t scaledY = input.mouseRelY << 22;
+
+    PolarCoordinates polar = getMouseInPolarCoordinates(scaledX, scaledY);
+
+    // Extract target angle and distance
+    int32_t targetAngle = polar.angle;
+    int32_t targetDistance = polar.distance;
+
+    // Scale distance to range 0 to 0x7FFFFFFE as in original (lines 1800-1803)
+    // The original clamps distance to 0x40000000 then shifts left by 1
+    if (static_cast<uint32_t>(targetDistance) >= 0x40000000u) {
+        targetDistance = 0x40000000 - 1;
+    }
+    targetDistance <<= 1;
+
+    // Calculate delta from current direction to target angle (lines 1809-1824)
+    int32_t deltaDirection = shipDirection - targetAngle;
+
+    // Cap deltaDirection to ±0x30000000 to prevent jerky movement
+    if (deltaDirection >= 0) {
+        if (deltaDirection > 0x30000000) {
+            deltaDirection = 0x30000000;
+        }
+    } else {
+        if (deltaDirection < -0x30000000) {
+            deltaDirection = -0x30000000;
+        }
+    }
+
+    // Calculate delta from current pitch to target distance (lines 1828-1843)
+    int32_t deltaPitch = shipPitch - targetDistance;
+
+    // Cap deltaPitch to ±0x30000000
+    if (deltaPitch > 0) {
+        if (deltaPitch > 0x30000000) {
+            deltaPitch = 0x30000000;
+        }
+    } else {
+        if (deltaPitch < -0x30000000) {
+            deltaPitch = -0x30000000;
+        }
+    }
+
+    // Update angles by halving the delta (smooth interpolation) (lines 1855-1865)
+    // newPitch = pitch - deltaPitch/2
+    // newDirection = direction - deltaDirection/2
+    shipPitch = shipPitch - (deltaPitch >> 1);
+    shipDirection = shipDirection - (deltaDirection >> 1);
+
+    // Calculate the rotation matrix from the updated angles (line 1867)
+    // Note: CalculateRotationMatrix takes (angleA=pitch, angleB=direction)
+    rotationMatrix = calculateRotationMatrix(shipPitch, shipDirection);
 }

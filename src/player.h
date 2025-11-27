@@ -3,6 +3,7 @@
 
 #include "fixed.h"
 #include "math3d.h"
+#include "polar_coords.h"
 #include "constants.h"
 
 // =============================================================================
@@ -68,6 +69,11 @@ public:
     void applyDebugMovement(bool left, bool right, bool forward, bool back,
                            bool up, bool down, Fixed speed);
 
+    // Update ship orientation from current mouse input
+    // Converts mouse position to polar coordinates, then smoothly interpolates
+    // shipDirection and shipPitch toward target values, and computes rotation matrix
+    void updateOrientation();
+
     // Position accessors
     const Vec3& getPosition() const { return position; }
     Fixed getX() const { return position.x; }
@@ -94,6 +100,15 @@ public:
     const Vec3& getExhaustDirection() const { return exhaustDirection; }
     void setExhaustDirection(const Vec3& dir) { exhaustDirection = dir; }
 
+    // Ship orientation angles (32-bit angle format: 0x80000000 = 180 degrees)
+    int32_t getShipDirection() const { return shipDirection; }
+    int32_t getShipPitch() const { return shipPitch; }
+    void setShipDirection(int32_t dir) { shipDirection = dir; }
+    void setShipPitch(int32_t pitch) { shipPitch = pitch; }
+
+    // Ship rotation matrix (computed from direction and pitch)
+    const Mat3x3& getRotationMatrix() const { return rotationMatrix; }
+
     // Input state
     const InputState& getInput() const { return input; }
 
@@ -112,6 +127,15 @@ private:
 
     // Exhaust direction vector (for particle spawning)
     Vec3 exhaustDirection;
+
+    // Ship orientation angles (32-bit angle format)
+    // shipDirection = yaw (rotation around Y axis) - controlled by polar angle from mouse X
+    // shipPitch = pitch (tilt forward/back) - controlled by polar distance from mouse
+    int32_t shipDirection;
+    int32_t shipPitch;
+
+    // Rotation matrix computed from shipDirection and shipPitch
+    Mat3x3 rotationMatrix;
 
     // Current input state
     InputState input;
