@@ -71,22 +71,4 @@ ProjectedVertex projectVertex(Fixed x, Fixed y, Fixed z);
 // Project a Vec3 onto the screen (convenience wrapper)
 ProjectedVertex projectVertex(const Vec3& v);
 
-// =============================================================================
-// Camera Structure
-// =============================================================================
-
-// The camera position in world space. In the original, the camera follows the
-// player and is positioned at the back of the visible landscape.
-struct Camera {
-    Vec3 position;      // Camera position in world space
-
-    Camera() : position() {}
-
-    // Transform a world position to camera-relative coordinates
-    // Simply subtracts camera position from world position
-    Vec3 worldToCamera(const Vec3& worldPos) const {
-        return worldPos - position;
-    }
-};
-
 #endif // LANDER_PROJECTION_H

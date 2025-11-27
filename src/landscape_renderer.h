@@ -8,6 +8,7 @@
 #include "projection.h"
 #include "landscape.h"
 #include "palette.h"
+#include "camera.h"
 
 // =============================================================================
 // Landscape Renderer
@@ -32,15 +33,10 @@ public:
     LandscapeRenderer();
 
     // Render the landscape to the screen buffer
-    // cameraX, cameraZ: World position of camera (player position)
-    void render(ScreenBuffer& screen, Fixed cameraX, Fixed cameraZ);
-
-    // Set camera Y position (altitude above ground)
-    void setCameraY(Fixed y) { cameraY = y; }
+    // Takes a Camera object for camera position
+    void render(ScreenBuffer& screen, const Camera& camera);
 
 private:
-    // Camera height above the landscape
-    Fixed cameraY;
 
     // Storage for projected corner coordinates
     // We need two rows: current and previous

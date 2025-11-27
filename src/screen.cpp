@@ -53,6 +53,24 @@ void ScreenBuffer::plotPhysicalPixel(int px, int py, Color color) {
 }
 
 void ScreenBuffer::drawTriangle(int x0, int y0, int x1, int y1, int x2, int y2, Color color) {
+    // Early rejection: if all vertices are way off screen, skip
+    // This prevents massive iteration counts when projection produces huge coordinates
+    constexpr int MAX_COORD = 10000;  // Reasonable maximum for clipping
+    if ((x0 < -MAX_COORD && x1 < -MAX_COORD && x2 < -MAX_COORD) ||
+        (x0 > MAX_COORD && x1 > MAX_COORD && x2 > MAX_COORD) ||
+        (y0 < -MAX_COORD && y1 < -MAX_COORD && y2 < -MAX_COORD) ||
+        (y0 > MAX_COORD && y1 > MAX_COORD && y2 > MAX_COORD)) {
+        return;
+    }
+
+    // Clamp extreme coordinates to prevent huge loops
+    auto clampCoord = [MAX_COORD](int c) {
+        return std::max(-MAX_COORD, std::min(MAX_COORD, c));
+    };
+    x0 = clampCoord(x0); y0 = clampCoord(y0);
+    x1 = clampCoord(x1); y1 = clampCoord(y1);
+    x2 = clampCoord(x2); y2 = clampCoord(y2);
+
     // Sort vertices by y-coordinate (y0 <= y1 <= y2)
     // This matches the original Lander algorithm which processes from bottom to top
     if (y0 > y1) {

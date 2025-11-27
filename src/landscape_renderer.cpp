@@ -10,7 +10,6 @@ using namespace GameConstants;
 // =============================================================================
 
 LandscapeRenderer::LandscapeRenderer()
-    : cameraY(Fixed::fromInt(0))
 {
     // Initialize corner storage
     for (int i = 0; i < MAX_CORNERS; i++) {
@@ -125,24 +124,15 @@ void LandscapeRenderer::drawTile(
 // Main Render Function
 // =============================================================================
 
-void LandscapeRenderer::render(ScreenBuffer& screen, Fixed cameraX, Fixed cameraZ)
+void LandscapeRenderer::render(ScreenBuffer& screen, const Camera& camera)
 {
     // The landscape is a grid of TILES_X-1 by TILES_Z-1 tiles
     // (TILES_X and TILES_Z are the number of corners)
 
-    // Camera position:
-    // - X: centered on landscape (LANDSCAPE_X_HALF)
-    // - Y: cameraY (height above ground)
-    // - Z: at the back of the visible area
-
-    // The original positions the camera so that:
-    // - The landscape extends from z=1 to z=TILES_Z in camera space
-    // - X is centered (landscape from -HALF_TILES_X to +HALF_TILES_X)
-
-    // For now, use a fixed camera position for testing
-    Fixed camX = cameraX;
-    Fixed camY = cameraY;
-    Fixed camZ = cameraZ;
+    // Get camera position from Camera object
+    Fixed camX = camera.getX();
+    Fixed camY = camera.getY();
+    Fixed camZ = camera.getZ();
 
     // Process rows from back (far) to front (near)
     // Row 0 is furthest, Row TILES_Z-1 is nearest

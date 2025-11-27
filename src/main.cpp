@@ -5,6 +5,7 @@
 #include "screen.h"
 #include "palette.h"
 #include "landscape_renderer.h"
+#include "camera.h"
 #include "fixed.h"
 
 // =============================================================================
@@ -38,6 +39,7 @@ private:
     SDL_Texture* texture = nullptr;
     ScreenBuffer screen;
     LandscapeRenderer landscapeRenderer;
+    Camera camera;
     bool running = false;
     Uint32 lastFrameTime = 0;
 
@@ -45,9 +47,18 @@ private:
     bool screenshotMode = false;
     const char* screenshotFilename = nullptr;
 
-    // Camera position (for landscape viewing)
-    Fixed cameraX;
-    Fixed cameraZ;
+    // Simulated player position (for testing camera)
+    Vec3 playerPosition;
+
+    // FPS counter
+    Uint32 fpsLastTime = 0;
+    int fpsFrameCount = 0;
+    int fpsDisplay = 0;
+
+    void drawFPS();
+    void drawDigit(int x, int y, int digit, Color color);
+    void drawMinus(int x, int y, Color color);
+    int drawNumber(int x, int y, int value, Color color);
 };
 
 bool Game::init() {
@@ -104,20 +115,14 @@ bool Game::init() {
     running = true;
     lastFrameTime = SDL_GetTicks();
 
-    // Initialize camera position
-    // Camera at center-x of landscape (6 tiles), looking forward into the scene
-    // The landscape spans x=0 to 12 tiles, so center is at x=6
-    // Camera is positioned behind the landscape (negative z) looking forward
-    // The original camera position in Lander looks at the landscape from above/behind
-    cameraX = Fixed::fromInt(6);  // Center of 12-tile width
-    cameraZ = Fixed::fromInt(-2); // 2 tiles behind the landscape start
+    // Initialize player position at center of landscape
+    // Camera offset is 5 tiles behind, so player Z of -5 gives camera Z of -10
+    playerPosition.x = Fixed::fromInt(6);   // Center of 12-tile width
+    playerPosition.y = Fixed::fromInt(-2);  // Above terrain (negative Y = higher)
+    playerPosition.z = Fixed::fromInt(-5);  // Camera will be at Z=-10
 
-    // Set camera height (altitude Y)
-    // In the original, Y axis points DOWN (larger Y = lower altitude)
-    // The terrain altitudes are around 3-5 tiles (LAUNCHPAD_ALTITUDE = 3.3125)
-    // To look DOWN at the terrain from above, camera Y must be LESS than terrain Y
-    // (smaller Y = physically higher position)
-    landscapeRenderer.setCameraY(Fixed::fromInt(2)); // At terrain level
+    // Camera follows the player with a fixed offset (5 tiles behind on Z)
+    camera.followTarget(playerPosition, false);
 
     // Report status
     int drawW, drawH;
@@ -162,15 +167,161 @@ void Game::handleEvents() {
 }
 
 void Game::update() {
-    // Game logic will go here
+    // Poll keyboard state for continuous movement
+    const Uint8* keyState = SDL_GetKeyboardState(nullptr);
+
+    // Movement speed: 0.1 tiles per frame (about 6 tiles per second at 60fps)
+    constexpr int32_t MOVE_SPEED = 0x00199999;  // ~0.1 in 8.24 fixed-point
+
+    // Cursor keys: translate camera in X/Z plane
+    if (keyState[SDL_SCANCODE_LEFT]) {
+        playerPosition.x = Fixed::fromRaw(playerPosition.x.raw - MOVE_SPEED);
+    }
+    if (keyState[SDL_SCANCODE_RIGHT]) {
+        playerPosition.x = Fixed::fromRaw(playerPosition.x.raw + MOVE_SPEED);
+    }
+    if (keyState[SDL_SCANCODE_UP]) {
+        playerPosition.z = Fixed::fromRaw(playerPosition.z.raw + MOVE_SPEED);
+    }
+    if (keyState[SDL_SCANCODE_DOWN]) {
+        playerPosition.z = Fixed::fromRaw(playerPosition.z.raw - MOVE_SPEED);
+    }
+
+    // A/Z keys: adjust height
+    if (keyState[SDL_SCANCODE_A]) {
+        playerPosition.y = Fixed::fromRaw(playerPosition.y.raw - MOVE_SPEED);
+    }
+    if (keyState[SDL_SCANCODE_Z]) {
+        playerPosition.y = Fixed::fromRaw(playerPosition.y.raw + MOVE_SPEED);
+    }
+
+    // Update camera to follow player (no height clamping for debugging)
+    camera.followTarget(playerPosition, false);
+}
+
+// Simple 3x5 pixel font for digits 0-9
+static const uint8_t DIGIT_FONT[10][5] = {
+    {0b111, 0b101, 0b101, 0b101, 0b111},  // 0
+    {0b010, 0b110, 0b010, 0b010, 0b111},  // 1
+    {0b111, 0b001, 0b111, 0b100, 0b111},  // 2
+    {0b111, 0b001, 0b111, 0b001, 0b111},  // 3
+    {0b101, 0b101, 0b111, 0b001, 0b001},  // 4
+    {0b111, 0b100, 0b111, 0b001, 0b111},  // 5
+    {0b111, 0b100, 0b111, 0b101, 0b111},  // 6
+    {0b111, 0b001, 0b001, 0b001, 0b001},  // 7
+    {0b111, 0b101, 0b111, 0b101, 0b111},  // 8
+    {0b111, 0b101, 0b111, 0b001, 0b111},  // 9
+};
+
+void Game::drawDigit(int x, int y, int digit, Color color) {
+    if (digit < 0 || digit > 9) return;
+    const int scale = 2;  // 2x scale for visibility
+    for (int row = 0; row < 5; row++) {
+        for (int col = 0; col < 3; col++) {
+            if (DIGIT_FONT[digit][row] & (0b100 >> col)) {
+                // Draw scaled pixel
+                for (int sy = 0; sy < scale; sy++) {
+                    for (int sx = 0; sx < scale; sx++) {
+                        screen.plotPhysicalPixel(x + col * scale + sx, y + row * scale + sy, color);
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Draw a minus sign
+void Game::drawMinus(int x, int y, Color color) {
+    const int scale = 2;
+    for (int sx = 0; sx < 3 * scale; sx++) {
+        for (int sy = 0; sy < scale; sy++) {
+            screen.plotPhysicalPixel(x + sx, y + 4 + sy, color);
+        }
+    }
+}
+
+// Draw a signed integer, returns x position after last digit
+int Game::drawNumber(int x, int y, int value, Color color) {
+    int digitWidth = 8;
+
+    if (value < 0) {
+        drawMinus(x, y, color);
+        x += digitWidth;
+        value = -value;
+    }
+
+    // Handle zero specially
+    if (value == 0) {
+        drawDigit(x, y, 0, color);
+        return x + digitWidth;
+    }
+
+    // Count digits and draw from left to right
+    int temp = value;
+    int numDigits = 0;
+    while (temp > 0) {
+        numDigits++;
+        temp /= 10;
+    }
+
+    // Calculate divisor for leftmost digit
+    int divisor = 1;
+    for (int i = 1; i < numDigits; i++) {
+        divisor *= 10;
+    }
+
+    // Draw each digit
+    while (divisor > 0) {
+        int digit = (value / divisor) % 10;
+        drawDigit(x, y, digit, color);
+        x += digitWidth;
+        divisor /= 10;
+    }
+
+    return x;
+}
+
+void Game::drawFPS() {
+    // Update FPS counter
+    fpsFrameCount++;
+    Uint32 currentTime = SDL_GetTicks();
+    if (currentTime - fpsLastTime >= 1000) {
+        fpsDisplay = fpsFrameCount;
+        fpsFrameCount = 0;
+        fpsLastTime = currentTime;
+    }
+
+    Color white = Color::white();
+    int x = 8;
+    int y = 8;
+
+    // Draw FPS
+    drawNumber(x, y, fpsDisplay, white);
+
+    // Draw camera position on second line
+    // Convert fixed-point to integer tiles for display
+    int camX = camera.getX().toInt();
+    int camY = camera.getY().toInt();
+    int camZ = camera.getZ().toInt();
+
+    y += 14;  // Move to next line
+    x = 8;
+    x = drawNumber(x, y, camX, white);
+    x += 4;  // Small gap
+    x = drawNumber(x, y, camY, white);
+    x += 4;
+    drawNumber(x, y, camZ, white);
 }
 
 void Game::drawTestPattern() {
     // Clear to black
     screen.clear(Color::black());
 
-    // Render the landscape
-    landscapeRenderer.render(screen, cameraX, cameraZ);
+    // Render the landscape using the camera
+    landscapeRenderer.render(screen, camera);
+
+    // Draw FPS overlay
+    drawFPS();
 }
 
 void Game::render() {

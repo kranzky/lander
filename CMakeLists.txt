@@ -18,6 +18,7 @@ set(SOURCES
     src/lookup_tables.cpp
     src/landscape.cpp
     src/landscape_renderer.cpp
+    src/camera.cpp
 )
 
 # Create executable
