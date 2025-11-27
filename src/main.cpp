@@ -57,6 +57,11 @@ private:
     int fpsFrameCount = 0;
     int fpsDisplay = 0;
 
+    // Accumulated mouse position (simulates absolute positioning from relative movement)
+    // Decays toward center each frame for spring-like return behavior
+    int accumulatedMouseX = 0;
+    int accumulatedMouseY = 0;
+
     void drawFPS();
     void drawDigit(int x, int y, int digit, Color color);
     void drawMinus(int x, int y, Color color);
@@ -121,6 +126,9 @@ bool Game::init() {
     // Camera follows the player with a fixed offset (5 tiles behind on Z)
     camera.followTarget(player.getPosition(), false);
 
+    // Enable relative mouse mode to capture the cursor
+    SDL_SetRelativeMouseMode(SDL_TRUE);
+
     // Report status
     int drawW, drawH;
     SDL_GL_GetDrawableSize(window, &drawW, &drawH);
@@ -164,10 +172,22 @@ void Game::handleEvents() {
 }
 
 void Game::update() {
-    // Update mouse input
-    int mouseX, mouseY;
-    uint32_t mouseButtons = SDL_GetMouseState(&mouseX, &mouseY);
-    player.updateInput(mouseX, mouseY, mouseButtons);
+    // Get relative mouse movement (cursor is captured)
+    int relX, relY;
+    uint32_t mouseButtons = SDL_GetRelativeMouseState(&relX, &relY);
+
+    // Accumulate mouse position with scaling for sensitivity
+    accumulatedMouseX += relX * 2;
+    accumulatedMouseY += relY * 2;
+
+    // Apply decay toward center - this gives spring-like behavior
+    // Without decay, the position would stay at extremes forever
+    accumulatedMouseX = (accumulatedMouseX * 31) / 32;
+    accumulatedMouseY = (accumulatedMouseY * 31) / 32;
+
+    // Pass accumulated position directly as relative coordinates
+    // The values represent offset from center in the ±512 range that polar coords expect
+    player.updateInputRelative(accumulatedMouseX, accumulatedMouseY, mouseButtons);
 
     // Update ship orientation based on mouse position
     player.updateOrientation();

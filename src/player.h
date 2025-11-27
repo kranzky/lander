@@ -62,8 +62,11 @@ public:
     // Initialize player at starting position (launchpad)
     void reset();
 
-    // Update input state from SDL
+    // Update input state from SDL (absolute screen coordinates)
     void updateInput(int mouseX, int mouseY, uint32_t sdlButtonState);
+
+    // Update input state from relative mouse coordinates (already in ±range format)
+    void updateInputRelative(int relX, int relY, uint32_t sdlButtonState);
 
     // Apply keyboard-based movement (for testing/debugging)
     void applyDebugMovement(bool left, bool right, bool forward, bool back,

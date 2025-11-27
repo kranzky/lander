@@ -93,6 +93,28 @@ void Player::updateInput(int mouseX, int mouseY, uint32_t sdlButtonState) {
     }
 }
 
+void Player::updateInputRelative(int relX, int relY, uint32_t sdlButtonState) {
+    // Store accumulated position as raw coordinates
+    input.mouseX = relX;
+    input.mouseY = relY;
+
+    // Use directly as relative coordinates (already in appropriate range)
+    input.mouseRelX = relX;
+    input.mouseRelY = relY;
+
+    // Convert SDL button state to original Lander format
+    input.buttons = 0;
+    if (sdlButtonState & 0x04) {  // SDL_BUTTON_RIGHT (button 3)
+        input.buttons |= MouseButton::FIRE;
+    }
+    if (sdlButtonState & 0x02) {  // SDL_BUTTON_MIDDLE (button 2)
+        input.buttons |= MouseButton::HOVER;
+    }
+    if (sdlButtonState & 0x01) {  // SDL_BUTTON_LEFT (button 1)
+        input.buttons |= MouseButton::THRUST;
+    }
+}
+
 void Player::applyDebugMovement(bool left, bool right, bool forward, bool back,
                                 bool up, bool down, Fixed speed) {
     // Simple translation for debugging/testing
