@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Current Task:** 12
+**Current Task:** 15
 
 **Last Updated:** 2025-11-27
 
@@ -21,11 +21,11 @@
 | 9 | 3D Projection | 93f4063 |
 | 10 | Landscape Altitude Generation | b83c21f |
 | 11 | Basic Landscape Rendering | 8d7c7f7 |
+| 12 | Camera System | 1512ba1 |
+| 13 | Player State and Basic Input | 8d361ef |
+| 14 | Mouse Polar Conversion | 2a3270d |
 
 ## Remaining Tasks
-- Task 12: Camera System
-- Task 13: Player State and Basic Input
-- Task 14: Mouse Polar Conversion
 - Task 15: Ship Rotation Matrix
 - Task 16: Ship Physics
 - Task 17: Ship 3D Model
@@ -60,6 +60,6 @@
 ## Summary
 
 - **Total Tasks:** 44
-- **Completed:** 11
+- **Completed:** 14
 - **In Progress:** 0
-- **Remaining:** 33
+- **Remaining:** 30

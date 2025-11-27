@@ -20,6 +20,7 @@ set(SOURCES
     src/landscape_renderer.cpp
     src/camera.cpp
     src/player.cpp
+    src/polar_coords.cpp
 )
 
 # Create executable
@@ -105,6 +106,14 @@ add_executable(test_landscape
 )
 target_include_directories(test_landscape PRIVATE src)
 
+# Test for polar coordinate conversion
+add_executable(test_polar_coords
+    test/test_polar_coords.cpp
+    src/polar_coords.cpp
+    src/lookup_tables.cpp
+)
+target_include_directories(test_polar_coords PRIVATE src)
+
 # Enable testing
 enable_testing()
 add_test(NAME test_fixed COMMAND test_fixed)
@@ -114,3 +123,4 @@ add_test(NAME test_screen COMMAND test_screen)
 add_test(NAME test_palette COMMAND test_palette)
 add_test(NAME test_projection COMMAND test_projection)
 add_test(NAME test_landscape COMMAND test_landscape)
+add_test(NAME test_polar_coords COMMAND test_polar_coords)
