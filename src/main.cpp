@@ -209,8 +209,11 @@ void Game::handleEvents() {
 }
 
 void Game::triggerCrash() {
-    // Store explosion position for particle effects (future task)
+    // Store explosion position for particle effects
     explosionPos = player.getPosition();
+
+    // Spawn explosion particles (50 clusters = 200 particles for ship crash)
+    spawnExplosionParticles(explosionPos, 50);
 
     // Transition to exploding state
     gameState = GameState::EXPLODING;
@@ -336,7 +339,10 @@ void Game::update() {
     }
 
     // Spawn bullet particle when firing (right button)
-    if (input.isFiring()) {
+    // Only fire every 4th frame (quarter rate)
+    static int bulletFrameCounter = 0;
+    bulletFrameCounter++;
+    if (input.isFiring() && (bulletFrameCounter & 3) == 0) {
         // Gun direction is the nose vector from the rotation matrix
         Vec3 gunDir = player.getRotationMatrix().nose();
         spawnBulletParticle(player.getPosition(), player.getVelocity(), gunDir);

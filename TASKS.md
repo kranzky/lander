@@ -628,6 +628,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 - Sutherland-Hodgman triangle clipping for smooth screen-edge rendering (Zarch-style)
 - Allow the player to change the size of the region of landscape that is visible
 - Integrate sound effects from the Amiga version of Virus
+- Minimap like Zarch
 - Title screen with rotating ship
 - Final verification against original
 - Release build deployed to itch.io for Mac and Windows

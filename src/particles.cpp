@@ -26,27 +26,32 @@
 // Global instance
 ParticleSystem particleSystem;
 
-ParticleSystem::ParticleSystem() : particleCount(0) {
+ParticleSystem::ParticleSystem() : particleCount(0)
+{
     clear();
 }
 
-void ParticleSystem::clear() {
+void ParticleSystem::clear()
+{
     particleCount = 0;
     // Mark all particles as inactive
-    for (int i = 0; i < ParticleConstants::MAX_PARTICLES; i++) {
+    for (int i = 0; i < ParticleConstants::MAX_PARTICLES; i++)
+    {
         particles[i].lifespan = 0;
         particles[i].flags = 0;
     }
 }
 
-bool ParticleSystem::addParticle(const Vec3& pos, const Vec3& vel, int32_t lifespan, uint32_t flags) {
+bool ParticleSystem::addParticle(const Vec3 &pos, const Vec3 &vel, int32_t lifespan, uint32_t flags)
+{
     // Check if room for more particles
-    if (particleCount >= ParticleConstants::MAX_PARTICLES) {
+    if (particleCount >= ParticleConstants::MAX_PARTICLES)
+    {
         return false;
     }
 
     // Add new particle at the end
-    Particle& p = particles[particleCount];
+    Particle &p = particles[particleCount];
     p.position = pos;
     p.velocity = vel;
     p.lifespan = lifespan;
@@ -56,22 +61,27 @@ bool ParticleSystem::addParticle(const Vec3& pos, const Vec3& vel, int32_t lifes
     return true;
 }
 
-void ParticleSystem::removeParticle(int index) {
+void ParticleSystem::removeParticle(int index)
+{
     // Swap with last particle and decrement count (swap-and-pop)
-    if (index < particleCount - 1) {
+    if (index < particleCount - 1)
+    {
         particles[index] = particles[particleCount - 1];
     }
     particleCount--;
 }
 
-void ParticleSystem::update() {
+void ParticleSystem::update()
+{
     // Process all particles (iterate backwards so removal doesn't skip)
-    for (int i = particleCount - 1; i >= 0; i--) {
-        Particle& p = particles[i];
+    for (int i = particleCount - 1; i >= 0; i--)
+    {
+        Particle &p = particles[i];
 
         // Decrement lifespan
         p.lifespan--;
-        if (p.lifespan <= 0) {
+        if (p.lifespan <= 0)
+        {
             // Particle expired - remove it
             removeParticle(i);
             continue;
@@ -83,44 +93,49 @@ void ParticleSystem::update() {
         p.position.z = Fixed::fromRaw(p.position.z.raw + p.velocity.z.raw);
 
         // Apply gravity if flag is set
-        if (p.hasGravity()) {
+        if (p.hasGravity())
+        {
             p.velocity.y = Fixed::fromRaw(p.velocity.y.raw + ParticleConstants::PARTICLE_GRAVITY);
         }
 
         // Check terrain collision
         // Particles have a 10-tile Z offset to match the ship's visual position.
         // For terrain collision, subtract this offset to get the actual world Z.
-        constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10 * 0x01000000;  // 10 tiles
+        constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10 * 0x01000000; // 10 tiles
         Fixed worldZ = Fixed::fromRaw(p.position.z.raw - SHIP_VISUAL_Z_OFFSET);
         Fixed terrainY = getLandscapeAltitude(p.position.x, worldZ);
 
         // If particle is below terrain (positive Y is down)
-        if (p.position.y.raw > terrainY.raw) {
+        if (p.position.y.raw > terrainY.raw)
+        {
             // Place particle on surface
             p.position.y = terrainY;
 
             // Check if this is a water impact (terrain at sea level)
             bool isWater = (terrainY.raw == GameConstants::SEA_LEVEL.raw);
 
-            if (isWater && p.splashesInSea()) {
+            if (isWater && p.splashesInSea())
+            {
                 // Splash into sea - spawn spray particles and delete this particle
                 Vec3 splashPos = p.position;
                 // Raise splash position slightly above sea
-                constexpr int32_t SPLASH_HEIGHT = 0x01000000 / 16;  // 1/16 tile
+                constexpr int32_t SPLASH_HEIGHT = 0x01000000 / 16; // 1/16 tile
                 splashPos.y = Fixed::fromRaw(splashPos.y.raw - SPLASH_HEIGHT);
                 spawnSplashParticles(splashPos, p.velocity, p.hasBigSplash());
                 removeParticle(i);
                 continue;
             }
 
-            if (!isWater && p.explodesOnGround()) {
+            if (!isWater && p.explodesOnGround())
+            {
                 // Bullet hit terrain - spawn sparks and delete this particle
                 spawnSparkParticles(p.position, p.velocity);
                 removeParticle(i);
                 continue;
             }
 
-            if (!p.bouncesOffTerrain()) {
+            if (!p.bouncesOffTerrain())
+            {
                 // Particle doesn't bounce - just delete it
                 removeParticle(i);
                 continue;
@@ -150,17 +165,19 @@ void ParticleSystem::update() {
 //
 // =============================================================================
 
-namespace {
+namespace
+{
     // Particle rendering constants
     // Original: 3x2 pixels for particles, 3x1 for shadows at 320x256
     // Scaled 2x for better visual appearance at 1280x1024
-    constexpr int PARTICLE_WIDTH = 6;    // 3 * 2
-    constexpr int PARTICLE_HEIGHT = 4;   // 2 * 2
-    constexpr int SHADOW_WIDTH = 6;      // 3 * 2
-    constexpr int SHADOW_HEIGHT = 2;     // 1 * 2
+    constexpr int PARTICLE_WIDTH = 6;  // 3 * 2
+    constexpr int PARTICLE_HEIGHT = 4; // 2 * 2
+    constexpr int SHADOW_WIDTH = 6;    // 3 * 2
+    constexpr int SHADOW_HEIGHT = 4;   // 1 * 2 * 2 (doubled)
 
     // Draw a filled rectangle at the given screen coordinates
-    void drawRect(ScreenBuffer& screen, int x, int y, int width, int height, Color color) {
+    void drawRect(ScreenBuffer &screen, int x, int y, int width, int height, Color color)
+    {
         // Center the rectangle on the coordinate
         int left = x - width / 2;
         int top = y - height / 2;
@@ -169,28 +186,37 @@ namespace {
         int right = left + width;
         int bottom = top + height;
 
-        if (left < 0) left = 0;
-        if (top < 0) top = 0;
-        if (right > ScreenBuffer::PHYSICAL_WIDTH) right = ScreenBuffer::PHYSICAL_WIDTH;
-        if (bottom > ScreenBuffer::PHYSICAL_HEIGHT) bottom = ScreenBuffer::PHYSICAL_HEIGHT;
+        if (left < 0)
+            left = 0;
+        if (top < 0)
+            top = 0;
+        if (right > ScreenBuffer::PHYSICAL_WIDTH)
+            right = ScreenBuffer::PHYSICAL_WIDTH;
+        if (bottom > ScreenBuffer::PHYSICAL_HEIGHT)
+            bottom = ScreenBuffer::PHYSICAL_HEIGHT;
 
         // Draw the rectangle
-        for (int py = top; py < bottom; py++) {
-            for (int px = left; px < right; px++) {
+        for (int py = top; py < bottom; py++)
+        {
+            for (int px = left; px < right; px++)
+            {
                 screen.plotPhysicalPixel(px, py, color);
             }
         }
     }
 }
 
-void renderParticles(const Camera& camera, ScreenBuffer& screen) {
+void renderParticles(const Camera &camera, ScreenBuffer &screen)
+{
     int count = particleSystem.getParticleCount();
 
-    for (int i = 0; i < count; i++) {
-        const Particle& p = particleSystem.getParticle(i);
+    for (int i = 0; i < count; i++)
+    {
+        const Particle &p = particleSystem.getParticle(i);
 
         // Skip rocks - they're rendered as 3D objects (handled elsewhere)
-        if (p.isRock()) {
+        if (p.isRock())
+        {
             continue;
         }
 
@@ -198,7 +224,8 @@ void renderParticles(const Camera& camera, ScreenBuffer& screen) {
         Vec3 cameraRelPos = camera.worldToCamera(p.position);
 
         // Skip particles behind the camera
-        if (cameraRelPos.z.raw <= 0) {
+        if (cameraRelPos.z.raw <= 0)
+        {
             continue;
         }
 
@@ -212,7 +239,7 @@ void renderParticles(const Camera& camera, ScreenBuffer& screen) {
         // This matches how drawObjectShadow works for the ship: it uses worldPos
         // (actual player position) for terrain lookup but cameraRelPos (visual
         // position) for projection.
-        constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10 * 0x01000000;  // 10 tiles
+        constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10 * 0x01000000; // 10 tiles
         Fixed terrainLookupZ = Fixed::fromRaw(p.position.z.raw - SHIP_VISUAL_Z_OFFSET);
         Fixed terrainY = getLandscapeAltitude(p.position.x, terrainLookupZ);
 
@@ -221,13 +248,15 @@ void renderParticles(const Camera& camera, ScreenBuffer& screen) {
         Vec3 shadowWorldPos;
         shadowWorldPos.x = p.position.x;
         shadowWorldPos.y = terrainY;
-        shadowWorldPos.z = p.position.z;  // Keep the visual Z offset for projection
+        shadowWorldPos.z = p.position.z; // Keep the visual Z offset for projection
         Vec3 shadowRelPos = camera.worldToCamera(shadowWorldPos);
 
         // Draw shadow first (so it appears under the particle)
-        if (shadowRelPos.z.raw > 0) {
+        if (shadowRelPos.z.raw > 0)
+        {
             ProjectedVertex shadowProj = projectVertex(shadowRelPos);
-            if (shadowProj.visible && shadowProj.onScreen) {
+            if (shadowProj.visible && shadowProj.onScreen)
+            {
                 drawRect(screen, shadowProj.screenX, shadowProj.screenY,
                          SHADOW_WIDTH, SHADOW_HEIGHT, Color::black());
             }
@@ -235,34 +264,42 @@ void renderParticles(const Camera& camera, ScreenBuffer& screen) {
 
         // Project and draw particle
         ProjectedVertex proj = projectVertex(cameraRelPos);
-        if (proj.visible && proj.onScreen) {
+        if (proj.visible && proj.onScreen)
+        {
             // Get particle color from palette (VIDC 256-color format)
             uint8_t colorIndex = p.getColorIndex();
             Color color = vidc256ToColor(colorIndex);
 
             // If particle has fading flag, cycle through white -> yellow -> orange -> red
             // Based on remaining lifespan (higher lifespan = newer = whiter)
-            if (p.hasFading()) {
+            if (p.hasFading())
+            {
                 // Scale lifespan to 0-255 range (BASE_LIFESPAN is ~16 frames)
-                int life = p.lifespan * 16;  // 16 frames * 16 = 256
-                if (life > 255) life = 255;
+                int life = p.lifespan * 16; // 16 frames * 16 = 256
+                if (life > 255)
+                    life = 255;
 
                 // White (255,255,255) -> Yellow (255,255,0) -> Orange (255,128,0) -> Red (255,0,0)
                 // life 255-192: white to yellow (reduce blue)
                 // life 192-64:  yellow to orange (reduce green from 255 to 128)
                 // life 64-0:    orange to red (reduce green from 128 to 0)
                 color.r = 255;
-                if (life > 192) {
+                if (life > 192)
+                {
                     // White to yellow: blue fades out
                     color.g = 255;
-                    color.b = static_cast<uint8_t>((life - 192) * 4);  // 255 -> 0
-                } else if (life > 64) {
+                    color.b = static_cast<uint8_t>((life - 192) * 4); // 255 -> 0
+                }
+                else if (life > 64)
+                {
                     // Yellow to orange: green fades from 255 to 128
-                    color.g = static_cast<uint8_t>(128 + (life - 64));  // 255 -> 128
+                    color.g = static_cast<uint8_t>(128 + (life - 64)); // 255 -> 128
                     color.b = 0;
-                } else {
+                }
+                else
+                {
                     // Orange to red: green fades from 128 to 0
-                    color.g = static_cast<uint8_t>(life * 2);  // 128 -> 0
+                    color.g = static_cast<uint8_t>(life * 2); // 128 -> 0
                     color.b = 0;
                 }
             }
@@ -289,29 +326,32 @@ void renderParticles(const Camera& camera, ScreenBuffer& screen) {
 //
 // =============================================================================
 
-namespace {
+namespace
+{
     // Simple pseudo-random number generator for particle variation
     // Uses a static seed that advances each call
     uint32_t exhaustRandomSeed = 0x12345678;
 
-    int32_t exhaustRandom() {
+    int32_t exhaustRandom()
+    {
         // Linear congruential generator
         exhaustRandomSeed = exhaustRandomSeed * 1103515245 + 12345;
         return static_cast<int32_t>(exhaustRandomSeed);
     }
 
     // Add a single exhaust particle with randomization
-    void addExhaustParticle(const Vec3& basePos, const Vec3& baseVel,
-                            int32_t baseLifespan, uint32_t flags) {
+    void addExhaustParticle(const Vec3 &basePos, const Vec3 &baseVel,
+                            int32_t baseLifespan, uint32_t flags)
+    {
         // Add random variation to velocity
         // Original uses +/- 2^(32 - 10) = +/- 0x400000
         // Scaled for our 8.24 format: >> 7 gives similar range
-        constexpr int32_t VEL_RANDOM_RANGE = 0x80000;  // ~0.5 tiles/frame variation
+        constexpr int32_t VEL_RANDOM_RANGE = 0x80000; // ~0.5 tiles/frame variation
 
         Vec3 particleVel = baseVel;
-        particleVel.x = Fixed::fromRaw(particleVel.x.raw + ((exhaustRandom() >> 8) % VEL_RANDOM_RANGE) - VEL_RANDOM_RANGE/2);
-        particleVel.y = Fixed::fromRaw(particleVel.y.raw + ((exhaustRandom() >> 8) % VEL_RANDOM_RANGE) - VEL_RANDOM_RANGE/2);
-        particleVel.z = Fixed::fromRaw(particleVel.z.raw + ((exhaustRandom() >> 8) % VEL_RANDOM_RANGE) - VEL_RANDOM_RANGE/2);
+        particleVel.x = Fixed::fromRaw(particleVel.x.raw + ((exhaustRandom() >> 8) % VEL_RANDOM_RANGE) - VEL_RANDOM_RANGE / 2);
+        particleVel.y = Fixed::fromRaw(particleVel.y.raw + ((exhaustRandom() >> 8) % VEL_RANDOM_RANGE) - VEL_RANDOM_RANGE / 2);
+        particleVel.z = Fixed::fromRaw(particleVel.z.raw + ((exhaustRandom() >> 8) % VEL_RANDOM_RANGE) - VEL_RANDOM_RANGE / 2);
 
         // Add random variation to lifespan (0 to 8 extra frames)
         int32_t lifespan = baseLifespan + ((exhaustRandom() >> 24) & 0x07);
@@ -320,11 +360,12 @@ namespace {
     }
 }
 
-void spawnExhaustParticles(const Vec3& pos, const Vec3& vel, const Vec3& exhaust, bool fullThrust) {
+void spawnExhaustParticles(const Vec3 &pos, const Vec3 &vel, const Vec3 &exhaust, bool fullThrust)
+{
     // Calculate particle velocity: shipVel + exhaustDir * exhaustSpeed
     // The exhaust direction is normalized (~1.0 in 8.24), scale for exhaust speed
     // Exhaust should move in the exhaust direction relative to the ship
-    constexpr int32_t EXHAUST_SPEED_SHIFT = 3;  // >> 3 = 0.125 tiles/frame exhaust speed (halved)
+    constexpr int32_t EXHAUST_SPEED_SHIFT = 3; // >> 3 = 0.125 tiles/frame exhaust speed (halved)
 
     Vec3 particleVel;
     particleVel.x = Fixed::fromRaw(vel.x.raw + (exhaust.x.raw >> EXHAUST_SPEED_SHIFT));
@@ -339,7 +380,7 @@ void spawnExhaustParticles(const Vec3& pos, const Vec3& vel, const Vec3& exhaust
     //
     // For shadow rendering, we subtract this offset to look up terrain at the
     // player's actual world Z position.
-    constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10 * 0x01000000;  // 10 tiles in 8.24 format
+    constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10 * 0x01000000; // 10 tiles in 8.24 format
 
     Vec3 particlePos;
     particlePos.x = pos.x;
@@ -353,11 +394,12 @@ void spawnExhaustParticles(const Vec3& pos, const Vec3& vel, const Vec3& exhaust
 
     // Base lifespan: 8 frames at 15fps = ~64 frames at 120fps
     // But we want shorter exhaust trails, so scale down
-    constexpr int32_t BASE_LIFESPAN = 16;  // Tuned for visual appeal
+    constexpr int32_t BASE_LIFESPAN = 16; // Tuned for visual appeal
 
     // Spawn particles
     int count = fullThrust ? 8 : 2;
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++)
+    {
         addExhaustParticle(particlePos, particleVel, BASE_LIFESPAN, flags);
     }
 }
@@ -378,17 +420,18 @@ void spawnExhaustParticles(const Vec3& pos, const Vec3& vel, const Vec3& exhaust
 //
 // =============================================================================
 
-void spawnBulletParticle(const Vec3& pos, const Vec3& vel, const Vec3& gunDir) {
+void spawnBulletParticle(const Vec3 &pos, const Vec3 &vel, const Vec3 &gunDir)
+{
     // Calculate bullet velocity: playerVel + gunDir * speed
     // Original uses gunDir >> 8, but we need faster bullets at 120fps
-    // gunDir is normalized (~1.0 in 8.24), so >> 1 gives ~0.5 tiles/frame
+    // gunDir is normalized (~1.0 in 8.24), so >> 2 gives ~0.25 tiles/frame
     Vec3 bulletVel;
-    bulletVel.x = Fixed::fromRaw(vel.x.raw + (gunDir.x.raw >> 1));
-    bulletVel.y = Fixed::fromRaw(vel.y.raw + (gunDir.y.raw >> 1));
-    bulletVel.z = Fixed::fromRaw(vel.z.raw + (gunDir.z.raw >> 1));
+    bulletVel.x = Fixed::fromRaw(vel.x.raw + (gunDir.x.raw >> 2));
+    bulletVel.y = Fixed::fromRaw(vel.y.raw + (gunDir.y.raw >> 2));
+    bulletVel.z = Fixed::fromRaw(vel.z.raw + (gunDir.z.raw >> 2));
 
     // Calculate spawn position: at ship's visual position (same offset as exhaust)
-    constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10 * 0x01000000;  // 10 tiles in 8.24 format
+    constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10 * 0x01000000; // 10 tiles in 8.24 format
 
     Vec3 bulletPos;
     bulletPos.x = pos.x;
@@ -403,7 +446,7 @@ void spawnBulletParticle(const Vec3& pos, const Vec3& vel, const Vec3& gunDir) {
                      ParticleFlags::BIG_SPLASH | ParticleFlags::EXPLODES_ON_GROUND | 0xFF;
 
     // Lifespan: reduced for shorter bullet range
-    constexpr int32_t BULLET_LIFESPAN = 60;  // ~0.5 second at 120fps
+    constexpr int32_t BULLET_LIFESPAN = 60; // ~0.5 second at 120fps
 
     particleSystem.addParticle(bulletPos, bulletVel, BULLET_LIFESPAN, flags);
 }
@@ -421,16 +464,19 @@ void spawnBulletParticle(const Vec3& pos, const Vec3& vel, const Vec3& gunDir) {
 //
 // =============================================================================
 
-void spawnSplashParticles(const Vec3& pos, const Vec3& impactVel, bool bigSplash) {
-    int count = bigSplash ? 65 : 4;
+void spawnSplashParticles(const Vec3 &pos, const Vec3 &impactVel, bool bigSplash)
+{
+    // Spawn 1-3 particles (random count)
+    int count = 1 + ((exhaustRandom() >> 30) & 0x03); // 1 to 3
 
     // Use impact velocity as bias (scaled down) for splash direction
     // X and Z inherit some of the bullet's horizontal momentum
     // Y is always upward (negative) regardless of impact direction
-    int32_t biasX = impactVel.x.raw >> 4;  // 1/16 of impact velocity
+    int32_t biasX = impactVel.x.raw >> 4; // 1/16 of impact velocity
     int32_t biasZ = impactVel.z.raw >> 4;
 
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++)
+    {
         // Random velocity with impact bias
         int32_t vx = biasX + (exhaustRandom() >> 13) - 0x040000;
         int32_t vy = -(exhaustRandom() >> 12) - 0x080000; // Always upward
@@ -442,7 +488,7 @@ void spawnSplashParticles(const Vec3& pos, const Vec3& impactVel, bool bigSplash
         vel.z = Fixed::fromRaw(vz);
 
         // Light blue color (VIDC palette index for cyan/light blue)
-        uint8_t colorIndex = 0xCB;  // Light blue (R=51, G=187, B=255)
+        uint8_t colorIndex = 0xCB; // Light blue (R=51, G=187, B=255)
 
         // Flags: GRAVITY only (no bounce, no splash - spray just fades)
         uint32_t flags = ParticleFlags::GRAVITY | colorIndex;
@@ -467,18 +513,20 @@ void spawnSplashParticles(const Vec3& pos, const Vec3& impactVel, bool bigSplash
 //
 // =============================================================================
 
-void spawnSparkParticles(const Vec3& pos, const Vec3& impactVel) {
+void spawnSparkParticles(const Vec3 &pos, const Vec3 &impactVel)
+{
     constexpr int SPARK_COUNT = 8;
 
     // Use impact velocity as bias (scaled down) for spark direction
     // Sparks bounce back so we negate Y and add some horizontal spread
-    int32_t biasX = impactVel.x.raw >> 4;  // 1/16 of impact velocity
+    int32_t biasX = impactVel.x.raw >> 4; // 1/16 of impact velocity
     int32_t biasZ = impactVel.z.raw >> 4;
 
-    for (int i = 0; i < SPARK_COUNT; i++) {
+    for (int i = 0; i < SPARK_COUNT; i++)
+    {
         // Random velocity with impact bias
         int32_t vx = biasX + (exhaustRandom() >> 13) - 0x040000;
-        int32_t vy = (exhaustRandom() >> 12) - 0x0C0000;  // Upward (bounce back)
+        int32_t vy = (exhaustRandom() >> 12) - 0x0C0000; // Upward (bounce back)
         int32_t vz = biasZ + (exhaustRandom() >> 13) - 0x040000;
 
         Vec3 vel;
@@ -488,7 +536,7 @@ void spawnSparkParticles(const Vec3& pos, const Vec3& impactVel) {
 
         // Yellow/orange color - use FADING flag to get white->yellow->orange->red
         // Color index doesn't matter much when FADING is set
-        uint8_t colorIndex = 0xFF;  // White base
+        uint8_t colorIndex = 0xFF; // White base
 
         // Flags: FADING | GRAVITY | BOUNCES (sparks can bounce)
         uint32_t flags = ParticleFlags::FADING | ParticleFlags::GRAVITY |
@@ -498,5 +546,160 @@ void spawnSparkParticles(const Vec3& pos, const Vec3& impactVel) {
         int32_t lifespan = 12 + ((exhaustRandom() >> 28) & 0x0F);
 
         particleSystem.addParticle(pos, vel, lifespan, flags);
+    }
+}
+
+// =============================================================================
+// Explosion Particle Spawning Implementation
+// =============================================================================
+//
+// Port of AddExplosionToBuffer from Lander.arm (lines 4406-4438).
+//
+// An explosion consists of clusters, each with 4 particles:
+// - 2x Spark particles (white fading to red)
+// - 1x Debris particle (purple-brown-green bouncing)
+// - 1x Smoke particle (grey rising)
+//
+// Cluster count parameter determines explosion size:
+// - Small explosion (bullets hitting things): 3 clusters = 12 particles
+// - Medium explosion (objects destroyed): 20 clusters = 80 particles
+// - Large explosion (ship crash): 50 clusters = 200 particles
+//
+// =============================================================================
+
+// Helper to generate random VIDC color for debris (purple-brown-green)
+static uint8_t generateDebrisColor()
+{
+    // From original: R=4-11, G=2-9, B=4-7
+    uint32_t rand1 = exhaustRandom();
+    uint32_t rand2 = exhaustRandom();
+
+    int red = 4 + (rand1 & 0x07);          // 4-11
+    int green = 2 + ((rand1 >> 8) & 0x07); // 2-9
+    int blue = 4 + ((rand2 >> 16) & 0x03); // 4-7
+
+    // Build VIDC color using palette.cpp encoding
+    return buildVidcColor(red, green, blue);
+}
+
+// Helper to generate random VIDC color for smoke (grey)
+static uint8_t generateSmokeColor()
+{
+    // From original: all channels equal, 3-10
+    uint32_t rand = exhaustRandom();
+    int intensity = 3 + (rand & 0x07); // 3-10
+
+    return buildVidcColor(intensity, intensity, intensity);
+}
+
+void spawnExplosionParticles(const Vec3 &pos, int clusterCount)
+{
+    // Offset position upward slightly (10 tiles in z-offset for visual display)
+    constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10 * 0x01000000;
+    Vec3 explosionPos = pos;
+    explosionPos.z = Fixed::fromRaw(pos.z.raw + SHIP_VISUAL_Z_OFFSET);
+
+    // Frame rate scaling: original was 15fps, we run at 120fps (8x faster)
+    // Add 3 bits to shift values to slow down velocities by 8x
+    constexpr int FPS_SHIFT = 3;
+
+    for (int cluster = 0; cluster < clusterCount; cluster++)
+    {
+        // === SPARK PARTICLE 1 ===
+        {
+            // Random velocity (original: shift 8, scaled for 120fps: shift 11)
+            int32_t vx = (static_cast<int32_t>(exhaustRandom()) >> (8 + FPS_SHIFT));
+            int32_t vy = (static_cast<int32_t>(exhaustRandom()) >> (8 + FPS_SHIFT));
+            int32_t vz = (static_cast<int32_t>(exhaustRandom()) >> (8 + FPS_SHIFT));
+
+            Vec3 vel;
+            vel.x = Fixed::fromRaw(vx);
+            vel.y = Fixed::fromRaw(vy);
+            vel.z = Fixed::fromRaw(vz);
+
+            // Spark: FADING | SPLASH | BOUNCES | GRAVITY
+            uint32_t flags = ParticleFlags::FADING | ParticleFlags::SPLASH |
+                             ParticleFlags::BOUNCES | ParticleFlags::GRAVITY;
+
+            // Lifespan: 8 base + random 0-8 (original: 8 + random>>29)
+            int32_t lifespan = 64 + ((exhaustRandom() >> 26) & 0x3F); // Scaled for 120fps
+
+            particleSystem.addParticle(explosionPos, vel, lifespan, flags);
+        }
+
+        // === DEBRIS PARTICLE ===
+        {
+            // Random velocity (original: shift 10, scaled for 120fps: shift 13)
+            int32_t vx = (static_cast<int32_t>(exhaustRandom()) >> (10 + FPS_SHIFT));
+            int32_t vy = (static_cast<int32_t>(exhaustRandom()) >> (10 + FPS_SHIFT));
+            int32_t vz = (static_cast<int32_t>(exhaustRandom()) >> (10 + FPS_SHIFT));
+
+            Vec3 vel;
+            vel.x = Fixed::fromRaw(vx);
+            vel.y = Fixed::fromRaw(vy);
+            vel.z = Fixed::fromRaw(vz);
+
+            // Debris color (purple-brown-green)
+            uint8_t color = generateDebrisColor();
+
+            // Debris: SPLASH | BOUNCES | GRAVITY
+            uint32_t flags = ParticleFlags::SPLASH | ParticleFlags::BOUNCES |
+                             ParticleFlags::GRAVITY | color;
+
+            // Lifespan: 15 base + random 0-64 (scaled for 120fps)
+            int32_t lifespan = 120 + ((exhaustRandom() >> 24) & 0xFF);
+
+            particleSystem.addParticle(explosionPos, vel, lifespan, flags);
+        }
+
+        // === SMOKE PARTICLE ===
+        {
+            // Smoke rises slowly - base upward velocity with small random spread
+            // Original: MVN R4, #SMOKE_RISING_SPEED (negative = upward)
+            // Scaled for 120fps (divide by 8)
+            constexpr int32_t SMOKE_RISING_SPEED = -0x8000; // Slow rise (was -0x40000)
+
+            int32_t vx = (static_cast<int32_t>(exhaustRandom()) >> (13 + FPS_SHIFT));
+            int32_t vy = SMOKE_RISING_SPEED + (static_cast<int32_t>(exhaustRandom()) >> (13 + FPS_SHIFT));
+            int32_t vz = (static_cast<int32_t>(exhaustRandom()) >> (13 + FPS_SHIFT));
+
+            Vec3 vel;
+            vel.x = Fixed::fromRaw(vx);
+            vel.y = Fixed::fromRaw(vy);
+            vel.z = Fixed::fromRaw(vz);
+
+            // Smoke color (grey)
+            uint8_t color = generateSmokeColor();
+
+            // Smoke: BOUNCES only (no gravity - it rises!)
+            uint32_t flags = ParticleFlags::BOUNCES | color;
+
+            // Lifespan: 15 base + random 0-128 (scaled for 120fps)
+            int32_t lifespan = 120 + ((exhaustRandom() >> 23) & 0x1FF);
+
+            particleSystem.addParticle(explosionPos, vel, lifespan, flags);
+        }
+
+        // === SPARK PARTICLE 2 ===
+        {
+            // Random velocity (same as spark 1, scaled for 120fps)
+            int32_t vx = (static_cast<int32_t>(exhaustRandom()) >> (8 + FPS_SHIFT));
+            int32_t vy = (static_cast<int32_t>(exhaustRandom()) >> (8 + FPS_SHIFT));
+            int32_t vz = (static_cast<int32_t>(exhaustRandom()) >> (8 + FPS_SHIFT));
+
+            Vec3 vel;
+            vel.x = Fixed::fromRaw(vx);
+            vel.y = Fixed::fromRaw(vy);
+            vel.z = Fixed::fromRaw(vz);
+
+            // Spark: FADING | SPLASH | BOUNCES | GRAVITY
+            uint32_t flags = ParticleFlags::FADING | ParticleFlags::SPLASH |
+                             ParticleFlags::BOUNCES | ParticleFlags::GRAVITY;
+
+            // Lifespan: same as spark 1
+            int32_t lifespan = 64 + ((exhaustRandom() >> 26) & 0x3F);
+
+            particleSystem.addParticle(explosionPos, vel, lifespan, flags);
+        }
     }
 }

@@ -208,4 +208,27 @@ void spawnSplashParticles(const Vec3& pos, const Vec3& impactVel, bool bigSplash
 // impactVel: velocity of the impacting particle (used as bias for sparks)
 void spawnSparkParticles(const Vec3& pos, const Vec3& impactVel);
 
+// =============================================================================
+// Explosion Particle Spawning
+// =============================================================================
+//
+// Port of AddExplosionToBuffer from Lander.arm (lines 4406-4438).
+//
+// An explosion consists of clusters of 4 particles each:
+// - 2x Spark particles (white fading to red, with FADING flag)
+// - 1x Debris particle (purple-brown-green, bounces)
+// - 1x Smoke particle (grey, rises slowly)
+//
+// Cluster count determines explosion size:
+// - Small (3): 12 particles - bullet/object impacts
+// - Medium (20): 80 particles - destroyed objects
+// - Large (50): 200 particles - ship crash
+//
+// =============================================================================
+
+// Spawn explosion particles (spark, debris, smoke clusters)
+// pos: explosion center position
+// clusterCount: number of 4-particle clusters (3=small, 20=medium, 50=large)
+void spawnExplosionParticles(const Vec3& pos, int clusterCount);
+
 #endif // LANDER_PARTICLES_H
