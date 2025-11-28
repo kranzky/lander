@@ -210,6 +210,12 @@ namespace PlayerConstants {
     // In our coordinate system, positive Y is down, so this is the max Y value
     constexpr Fixed SEA_LEVEL = Fixed::fromRaw(0x05500000);
 
+    // Highest altitude for engines to work (52 tiles above origin)
+    // Original: HIGHEST_ALTITUDE = TILE_SIZE * 52
+    // In our coordinate system, negative Y is up, so this is -52 tiles
+    // Engines cut out above this altitude (player falls back down)
+    constexpr Fixed HIGHEST_ALTITUDE = Fixed::fromRaw(static_cast<int32_t>(0xCC000000));  // -52 tiles
+
     // ==========================================================================
     // Landing Constants (from original Lander.arm)
     // ==========================================================================

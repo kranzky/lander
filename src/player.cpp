@@ -256,8 +256,17 @@ bool Player::updatePhysics() {
     Fixed exhaustY = roofVec.y;
     Fixed exhaustZ = roofVec.z;
 
-    // Check if full thrust (left mouse button)
+    // Check if full thrust (left mouse button) and hover (middle button)
     bool fullThrust = input.isThrusting();
+    bool hover = input.isHovering();
+
+    // Check if above the altitude where engines work (52 tiles up)
+    // If too high, cut the engines - ship will fall back down due to gravity
+    // In our coordinate system, negative Y is up, so check if Y < HIGHEST_ALTITUDE
+    if (position.y.raw < PlayerConstants::HIGHEST_ALTITUDE.raw) {
+        fullThrust = false;
+        hover = false;
+    }
 
     // Apply friction: velocity *= 63/64 (subtract velocity >> 6)
     velocity.x = Fixed::fromRaw(velocity.x.raw - (velocity.x.raw >> PlayerConstants::FRICTION_SHIFT));
@@ -278,7 +287,7 @@ bool Player::updatePhysics() {
     position.z = Fixed::fromRaw(position.z.raw + velocity.z.raw);
 
     // Apply hover thrust if middle button pressed (applied after position update for inertia feel)
-    if (input.isHovering()) {
+    if (hover) {
         velocity.x = Fixed::fromRaw(velocity.x.raw - (exhaustX.raw >> PlayerConstants::HOVER_THRUST_SHIFT));
         velocity.y = Fixed::fromRaw(velocity.y.raw - (exhaustY.raw >> PlayerConstants::HOVER_THRUST_SHIFT));
         velocity.z = Fixed::fromRaw(velocity.z.raw - (exhaustZ.raw >> PlayerConstants::HOVER_THRUST_SHIFT));
@@ -286,6 +295,18 @@ bool Player::updatePhysics() {
 
     // Apply gravity (positive Y is down in Lander coordinate system)
     velocity.y = Fixed::fromRaw(velocity.y.raw + PlayerConstants::GRAVITY);
+
+    // Clamp altitude to prevent fixed-point overflow
+    // The 8.24 format wraps at -128 tiles (0x80000000), which causes visual glitches
+    // We clamp to -120 tiles to leave some margin
+    constexpr int32_t MAX_ALTITUDE = -120 * GameConstants::TILE_SIZE.raw;  // -120 tiles
+    if (position.y.raw < MAX_ALTITUDE) {
+        position.y = Fixed::fromRaw(MAX_ALTITUDE);
+        // Also zero upward velocity to prevent bouncing against the ceiling
+        if (velocity.y.raw < 0) {
+            velocity.y = Fixed::fromInt(0);
+        }
+    }
 
     // Update exhaust direction for particle spawning (later tasks)
     exhaustDirection.x = exhaustX;

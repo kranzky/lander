@@ -625,6 +625,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 - Bug fixes found during testing
 - Performance optimization if needed
 - Sutherland-Hodgman triangle clipping for smooth screen-edge rendering (Zarch-style)
+- Allow the player to change the size of the region of landscape that is visible
 - Final verification against original
 
 **Verification**: Game plays correctly end-to-end.
