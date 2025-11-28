@@ -12,6 +12,7 @@
 #include "object_renderer.h"
 #include "object3d.h"
 #include "particles.h"
+#include "object_map.h"
 
 // =============================================================================
 // Lander - C++/SDL Port
@@ -162,6 +163,9 @@ bool Game::init() {
 
     // Enable relative mouse mode to capture the cursor
     SDL_SetRelativeMouseMode(SDL_TRUE);
+
+    // Initialize the object map with random objects
+    placeObjectsOnMap();
 
     // Report status
     int drawW, drawH;
@@ -623,6 +627,11 @@ void Game::drawTestPattern() {
 
     // Render the landscape using the camera
     landscapeRenderer.render(screen, camera);
+
+    // Render objects on the landscape (trees, buildings, rockets, etc.)
+    // These are rendered after landscape but before particles for now
+    // Task 34-35 will add proper depth sorting with graphics buffers
+    landscapeRenderer.renderObjects(screen, camera);
 
     // Render particles (between landscape and ship for proper layering)
     renderParticles(camera, screen);

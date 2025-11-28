@@ -237,3 +237,110 @@ void LandscapeRenderer::render(ScreenBuffer& screen, const Camera& camera)
         }
     }
 }
+
+// =============================================================================
+// Object Rendering
+// =============================================================================
+//
+// Port of DrawObjects from Lander.arm (lines 4679-4948).
+//
+// Iterates through the visible tiles from back to front, checking the object
+// map for each tile. If an object is found, calculates its camera-relative
+// position and draws it using drawObject().
+//
+// Static objects use an identity rotation matrix. The original game stores
+// this at rotationMatrix (3x3 identity) for non-rotating objects.
+//
+// =============================================================================
+
+void LandscapeRenderer::renderObjects(ScreenBuffer& screen, const Camera& camera)
+{
+    // Get camera position for relative coordinate calculation
+    Fixed camX = camera.getX();
+    Fixed camY = camera.getY();
+    Fixed camZ = camera.getZ();
+
+    // Get tile position of camera (integer tile coordinate)
+    Fixed camXTile = camera.getXTile();
+    Fixed camZTile = camera.getZTile();
+
+    int camTileX = camXTile.toInt();
+    int camTileZ = camZTile.toInt();
+
+    // Center the grid on camera position
+    int halfTilesX = TILES_X / 2;
+
+    // Identity matrix for static objects
+    static const Mat3x3 identityMatrix = Mat3x3::identity();
+
+    // Process rows from back (far) to front (near) - same order as DrawObjects
+    // This ensures distant objects are drawn before closer ones
+    for (int row = 0; row < TILES_Z; row++) {
+        // World Z for this row - tiles extend forward from camera
+        // Row 0 = back (camTileZ + TILES_Z - 1), Row TILES_Z-1 = front (camTileZ)
+        int worldZInt = camTileZ + (TILES_Z - 1 - row);
+
+        // Process each column left to right
+        // Start from col=1 to prevent objects extending past the left landscape edge
+        // (col=0 would position objects 0.5 tiles left of the leftmost landscape tile)
+        for (int col = 1; col < TILES_X; col++) {
+            // World X for this tile - centered on camera
+            int worldXInt = camTileX - halfTilesX + col;
+
+            // Get object at this tile location
+            // The object map wraps around at 256 tiles (8-bit coordinates)
+            uint8_t tileX = static_cast<uint8_t>(worldXInt);
+            uint8_t tileZ = static_cast<uint8_t>(worldZInt);
+
+            uint8_t objectType = objectMap.getObjectAt(tileX, tileZ);
+
+            // Skip if no object at this tile
+            if (objectType == ObjectType::NONE) {
+                continue;
+            }
+
+            // Get the blueprint for this object type
+            const ObjectBlueprint* blueprint = getObjectBlueprint(objectType);
+            if (blueprint == nullptr) {
+                continue;
+            }
+
+            // Calculate object's world position (center of tile)
+            Fixed worldX = Fixed::fromInt(worldXInt);
+            Fixed worldZ = Fixed::fromInt(worldZInt);
+
+            // Get terrain altitude at this position
+            Fixed altitude = getLandscapeAltitude(worldX, worldZ);
+
+            // Skip objects on sea level (original does this check)
+            if (altitude == SEA_LEVEL) {
+                continue;
+            }
+
+            // Calculate camera-relative position
+            // Z: Use LANDSCAPE_Z_FRONT offset to match landscape projection.
+            Vec3 cameraRelPos;
+            cameraRelPos.x = Fixed::fromRaw(worldX.raw - camX.raw);
+            cameraRelPos.y = Fixed::fromRaw(altitude.raw - camY.raw);
+            cameraRelPos.z = Fixed::fromRaw(worldZ.raw - camZ.raw + LANDSCAPE_Z_FRONT.raw);
+
+            // Get world position for shadow calculation
+            Vec3 worldPos;
+            worldPos.x = worldX;
+            worldPos.y = altitude;
+            worldPos.z = worldZ;
+
+            Vec3 cameraWorldPos;
+            cameraWorldPos.x = camX;
+            cameraWorldPos.y = camY;
+            cameraWorldPos.z = camZ;
+
+            // Draw shadow first (so it appears under the object)
+            drawObjectShadow(*blueprint, cameraRelPos, identityMatrix,
+                           worldPos, cameraWorldPos, screen);
+
+            // Draw the object
+            drawObject(*blueprint, cameraRelPos, identityMatrix, screen);
+        }
+    }
+}

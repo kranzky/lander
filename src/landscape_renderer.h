@@ -9,6 +9,9 @@
 #include "landscape.h"
 #include "palette.h"
 #include "camera.h"
+#include "object_map.h"
+#include "object3d.h"
+#include "object_renderer.h"
 
 // =============================================================================
 // Landscape Renderer
@@ -35,6 +38,11 @@ public:
     // Render the landscape to the screen buffer
     // Takes a Camera object for camera position
     void render(ScreenBuffer& screen, const Camera& camera);
+
+    // Render all visible objects on the landscape
+    // Called separately from render() so it can be called after particles
+    // for proper depth layering
+    void renderObjects(ScreenBuffer& screen, const Camera& camera);
 
 private:
 

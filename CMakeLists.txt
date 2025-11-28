@@ -24,6 +24,7 @@ set(SOURCES
     src/object3d.cpp
     src/object_renderer.cpp
     src/particles.cpp
+    src/object_map.cpp
 )
 
 # Create executable
