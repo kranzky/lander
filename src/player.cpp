@@ -1,5 +1,6 @@
 #include "player.h"
 #include "landscape.h"
+#include "object3d.h"
 
 // =============================================================================
 // Player Implementation
@@ -291,18 +292,52 @@ bool Player::updatePhysics() {
     exhaustDirection.y = exhaustY;
     exhaustDirection.z = exhaustZ;
 
-    // Check terrain collision - get altitude at player's (x, z) position
-    Fixed terrainY = getLandscapeAltitude(position.x, position.z);
+    // Check terrain collision for all ship vertices
+    // This prevents the ship from sinking into the terrain when tilted
+    // We transform each vertex by the rotation matrix, add the ship position,
+    // and check against terrain altitude at that world position.
+    // Track the maximum penetration depth to push the ship up appropriately.
 
-    // Check if player is below terrain (positive Y = down, so player.y > terrain.y means below)
     bool hitTerrain = false;
-    if (position.y.raw > terrainY.raw) {
-        position.y = terrainY;
+    int32_t maxPenetration = 0;  // How far below terrain the deepest vertex is
+
+    for (uint32_t i = 0; i < shipBlueprint.vertexCount; i++) {
+        const ObjectVertex& vertex = shipBlueprint.vertices[i];
+
+        // Get vertex in local coordinates
+        Vec3 localVert;
+        localVert.x = Fixed::fromRaw(vertex.x);
+        localVert.y = Fixed::fromRaw(vertex.y);
+        localVert.z = Fixed::fromRaw(vertex.z);
+
+        // Transform by rotation matrix
+        Vec3 rotatedVert = rotationMatrix * localVert;
+
+        // Calculate world position of this vertex
+        Fixed worldX = Fixed::fromRaw(position.x.raw + rotatedVert.x.raw);
+        Fixed worldY = Fixed::fromRaw(position.y.raw + rotatedVert.y.raw);
+        Fixed worldZ = Fixed::fromRaw(position.z.raw + rotatedVert.z.raw);
+
+        // Get terrain altitude at this vertex's (x, z) position
+        Fixed terrainY = getLandscapeAltitude(worldX, worldZ);
+
+        // Check if vertex is below terrain (positive Y = down)
+        int32_t penetration = worldY.raw - terrainY.raw;
+        if (penetration > 0) {
+            hitTerrain = true;
+            if (penetration > maxPenetration) {
+                maxPenetration = penetration;
+            }
+        }
+    }
+
+    // If any vertex hit terrain, push the ship up by the maximum penetration amount
+    if (hitTerrain) {
+        position.y = Fixed::fromRaw(position.y.raw - maxPenetration);
         // Stop downward velocity when hitting terrain
         if (velocity.y.raw > 0) {
             velocity.y = Fixed::fromInt(0);
         }
-        hitTerrain = true;
     }
 
     return hitTerrain;

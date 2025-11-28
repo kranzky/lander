@@ -294,7 +294,21 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 21: Launchpad Landing
+### Task 21: Shadow Rendering
+**Goal**: Project ship shadow onto terrain.
+
+**Deliverables**:
+- `drawObjectShadow()` function in object_renderer
+- For each vertex, calculate world position and look up terrain altitude
+- Project shadow vertices (same X/Z but Y = terrain altitude)
+- Draw upward-facing faces as black triangles
+- Shadow rendered before ship so it appears underneath
+
+**Verification**: Ship shadow visible on launchpad and terrain.
+
+---
+
+### Task 22: Launchpad Landing
 **Goal**: Implement safe landing detection on the launchpad.
 
 **Deliverables**:
@@ -308,7 +322,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 22: Crash Handling
+### Task 23: Crash Handling
 **Goal**: Implement crash detection and response.
 
 **Deliverables**:
@@ -322,7 +336,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 23: Particle System Foundation
+### Task 24: Particle System Foundation
 **Goal**: Implement the basic particle data structure and update loop.
 
 **Deliverables**:
@@ -338,7 +352,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 24: Particle Rendering
+### Task 25: Particle Rendering
 **Goal**: Render particles as small sprites/points.
 
 **Deliverables**:
@@ -351,7 +365,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 25: Exhaust Particles
+### Task 26: Exhaust Particles
 **Goal**: Spawn exhaust particles from ship thrust.
 
 **Deliverables**:
@@ -364,7 +378,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 26: Bullet Particles
+### Task 27: Bullet Particles
 **Goal**: Implement bullet firing from the ship.
 
 **Deliverables**:
@@ -378,7 +392,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 27: Particle Terrain Collision
+### Task 28: Particle Terrain Collision
 **Goal**: Particles bounce off or splash into terrain.
 
 **Deliverables**:
@@ -391,7 +405,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 28: Explosion Particles
+### Task 29: Explosion Particles
 **Goal**: Spawn explosion effects on crash or object destruction.
 
 **Deliverables**:
@@ -404,7 +418,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 29: Object Map System
+### Task 30: Object Map System
 **Goal**: Implement the object placement grid.
 
 **Deliverables**:
@@ -417,7 +431,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 30: Random Object Placement
+### Task 31: Random Object Placement
 **Goal**: Populate the landscape with random objects at game start.
 
 **Deliverables**:
@@ -431,7 +445,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 31: Object 3D Models
+### Task 32: Object 3D Models
 **Goal**: Define 3D models for all object types.
 
 **Deliverables**:
@@ -446,7 +460,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 32: Object Rendering
+### Task 33: Object Rendering
 **Goal**: Render static objects on the landscape.
 
 **Deliverables**:
@@ -459,7 +473,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 33: Graphics Buffers for Depth Sorting
+### Task 34: Graphics Buffers for Depth Sorting
 **Goal**: Implement the depth-sorted graphics buffer system.
 
 **Deliverables**:
@@ -474,7 +488,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 34: Object-Buffer Integration
+### Task 35: Object-Buffer Integration
 **Goal**: Objects write to graphics buffers instead of immediate drawing.
 
 **Deliverables**:
@@ -486,7 +500,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 35: Bullet-Object Collision
+### Task 36: Bullet-Object Collision
 **Goal**: Bullets destroy objects on impact.
 
 **Deliverables**:
@@ -500,7 +514,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 36: Smoke from Destroyed Objects
+### Task 37: Smoke from Destroyed Objects
 **Goal**: Destroyed objects emit rising smoke.
 
 **Deliverables**:
@@ -512,7 +526,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 37: Falling Rocks
+### Task 38: Falling Rocks
 **Goal**: Implement the falling rock hazard system.
 
 **Deliverables**:
@@ -527,7 +541,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 38: Rock-Ship Collision
+### Task 39: Rock-Ship Collision
 **Goal**: Rocks kill the player on contact.
 
 **Deliverables**:
@@ -539,7 +553,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 39: Score Display
+### Task 40: Score Display
 **Goal**: Render the current score on screen.
 
 **Deliverables**:
@@ -552,7 +566,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 40: Fuel Gauge
+### Task 41: Fuel Gauge
 **Goal**: Render the fuel level indicator.
 
 **Deliverables**:
@@ -565,7 +579,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 41: Lives Display
+### Task 42: Lives Display
 **Goal**: Show remaining lives on screen.
 
 **Deliverables**:
@@ -577,7 +591,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 42: Game State Machine
+### Task 43: Game State Machine
 **Goal**: Implement clean game state transitions.
 
 **Deliverables**:
@@ -590,7 +604,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 43: Frame Timing and Physics Scaling
+### Task 44: Frame Timing and Physics Scaling
 **Goal**: Ensure consistent physics at 60 FPS.
 
 **Deliverables**:
@@ -603,7 +617,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 44: Polish and Bug Fixes
+### Task 45: Polish and Bug Fixes
 **Goal**: Final cleanup and bug fixing.
 
 **Deliverables**:
@@ -624,15 +638,15 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 | 2 | 5-9 | Rendering (buffer, colors, triangles, projection) |
 | 3 | 10-12 | Landscape (terrain, rendering, camera) |
 | 4 | 13-19 | Player (input, physics, model, rendering) |
-| 5 | 20-22 | Collision (terrain, landing, crash) |
-| 6 | 23-28 | Particles (system, rendering, types) |
-| 7 | 29-36 | Objects (map, models, rendering, destruction) |
-| 8 | 33-34 | Graphics buffers (depth sorting) |
-| 9 | 37-38 | Rocks (spawning, collision) |
-| 10 | 39-43 | UI and game state |
-| 11 | 44 | Polish |
+| 5 | 20-23 | Collision (terrain, shadow, landing, crash) |
+| 6 | 24-29 | Particles (system, rendering, types) |
+| 7 | 30-37 | Objects (map, models, rendering, destruction) |
+| 8 | 34-35 | Graphics buffers (depth sorting) |
+| 9 | 38-39 | Rocks (spawning, collision) |
+| 10 | 40-44 | UI and game state |
+| 11 | 45 | Polish |
 
-**Total: 44 tasks**
+**Total: 45 tasks**
 
 Each task is designed to be:
 - Completable in a focused session
