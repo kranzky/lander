@@ -605,15 +605,16 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 ---
 
 ### Task 44: Frame Timing and Physics Scaling
-**Goal**: Ensure consistent physics at 60 FPS.
+**Goal**: Implement user-selectable frame rates with appropriate physics scaling.
 
 **Deliverables**:
-- Fixed timestep physics update
-- Frame rate limiting
-- Physics values scaled for 60 FPS
-- Smooth visual updates
+- Support for 120/60/30/15 FPS options (user-selectable via key or menu)
+- Lookup table for physics constants at each frame rate (gravity, thrust, friction)
+- Original Lander ran at ~15 FPS; current implementation scaled for ~120 FPS
+- Frame rate limiting with vsync support
+- Smooth visual updates at all supported frame rates
 
-**Verification**: Game plays consistently regardless of frame rate variations.
+**Verification**: Game plays consistently at all supported frame rates with matching physics feel.
 
 ---
 

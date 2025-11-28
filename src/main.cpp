@@ -16,6 +16,20 @@
 // Original game by David Braben (1987) for Acorn Archimedes
 // =============================================================================
 
+// Game states
+enum class GameState {
+    PLAYING,      // Normal gameplay
+    EXPLODING,    // Crash animation playing (ship hidden)
+    GAME_OVER     // No lives remaining
+};
+
+// Game constants
+namespace GameConfig {
+    constexpr int INITIAL_LIVES = 3;
+    constexpr int EXPLOSION_DURATION = 60;  // Frames for explosion animation (~0.5 sec at 120fps)
+    constexpr int GAME_OVER_DELAY = 180;    // Frames before game restarts (~1.5 sec at 120fps)
+}
+
 class Game {
 public:
     Game() = default;
@@ -65,6 +79,17 @@ private:
     // Landing state
     LandingState landingState = LandingState::FLYING;
     int crashRecoveryTimer = 0;  // Frames before CRASHED can reset to FLYING
+
+    // Game state
+    GameState gameState = GameState::PLAYING;
+    int lives = GameConfig::INITIAL_LIVES;
+    int stateTimer = 0;  // Timer for explosion/game over animations
+    Vec3 explosionPos;   // Position where explosion occurred (for future particle effects)
+
+    // Helper methods
+    void triggerCrash();
+    void respawnPlayer();
+    void resetGame();
 
     void drawFPS();
     void drawDigit(int x, int y, int digit, Color color);
@@ -175,7 +200,77 @@ void Game::handleEvents() {
     }
 }
 
+void Game::triggerCrash() {
+    // Store explosion position for particle effects (future task)
+    explosionPos = player.getPosition();
+
+    // Transition to exploding state
+    gameState = GameState::EXPLODING;
+    stateTimer = GameConfig::EXPLOSION_DURATION;
+
+    // Decrement lives
+    lives--;
+}
+
+void Game::respawnPlayer() {
+    // Reset player to launchpad
+    player.reset();
+
+    // Reset landing state
+    landingState = LandingState::FLYING;
+    crashRecoveryTimer = 0;
+
+    // Reset mouse accumulation so ship starts level
+    accumulatedMouseX = 0;
+    accumulatedMouseY = 0;
+
+    // Back to playing
+    gameState = GameState::PLAYING;
+}
+
+void Game::resetGame() {
+    // Full game reset
+    lives = GameConfig::INITIAL_LIVES;
+    player.reset();
+    landingState = LandingState::FLYING;
+    crashRecoveryTimer = 0;
+    accumulatedMouseX = 0;
+    accumulatedMouseY = 0;
+    gameState = GameState::PLAYING;
+    stateTimer = 0;
+}
+
 void Game::update() {
+    // Handle game state transitions
+    if (gameState == GameState::EXPLODING) {
+        // During explosion, just count down timer
+        stateTimer--;
+        if (stateTimer <= 0) {
+            if (lives > 0) {
+                // Respawn player on launchpad
+                respawnPlayer();
+            } else {
+                // Game over
+                gameState = GameState::GAME_OVER;
+                stateTimer = GameConfig::GAME_OVER_DELAY;
+            }
+        }
+        // Camera stays at explosion position during explosion
+        camera.followTarget(explosionPos, false);
+        return;
+    }
+
+    if (gameState == GameState::GAME_OVER) {
+        // During game over, count down then restart
+        stateTimer--;
+        if (stateTimer <= 0) {
+            resetGame();
+        }
+        return;
+    }
+
+    // Normal gameplay (GameState::PLAYING)
+
     // Get relative mouse movement (cursor is captured)
     int relX, relY;
     uint32_t mouseButtons = SDL_GetRelativeMouseState(&relX, &relY);
@@ -212,21 +307,19 @@ void Game::update() {
             // Player is taking off - transition to flying
             landingState = LandingState::FLYING;
         } else if (landingState == LandingState::CRASHED) {
-            // Already crashed - stay crashed, just stop downward movement
-            if (vel.y.raw > 0) {
-                vel.y = Fixed::fromInt(0);
-                player.setVelocity(vel);
-            }
+            // Already in crashed state - trigger the crash sequence
+            triggerCrash();
         } else {
             // Check for landing/refueling
             LandingState newState = player.checkLanding();
 
-            // If transitioning TO crashed, start the recovery timer
             if (newState == LandingState::CRASHED) {
-                crashRecoveryTimer = 120;  // 1 second at 120fps before can recover
+                // Crashed! Trigger crash sequence
+                landingState = newState;
+                triggerCrash();
+            } else {
+                landingState = newState;
             }
-
-            landingState = newState;
 
             // If not landed, stop downward movement to prevent bouncing through terrain
             if (landingState != LandingState::LANDED) {
@@ -235,15 +328,6 @@ void Game::update() {
                     player.setVelocity(vel);
                 }
             }
-        }
-        // Note: Crash explosion will be implemented in Task 23
-    } else if (landingState == LandingState::CRASHED) {
-        // Decrement crash recovery timer
-        if (crashRecoveryTimer > 0) {
-            crashRecoveryTimer--;
-        } else {
-            // Timer expired and no longer touching terrain - allow recovery
-            landingState = LandingState::FLYING;
         }
     }
 
@@ -408,9 +492,40 @@ void Game::drawFPS() {
             break;
     }
     drawNumber(x, y, stateValue, stateColor);
+
+    // Draw lives on fifth line
+    y += 14;
+    x = 8;
+    Color livesColor = lives > 1 ? Color(0, 255, 0) : Color(255, 0, 0);  // Green if >1, red if 1 or 0
+    x = drawNumber(x, y, lives, livesColor);
+
+    // Draw game state indicator
+    x += 16;
+    Color gameStateColor;
+    int gameStateValue;
+    switch (gameState) {
+        case GameState::PLAYING:
+            gameStateColor = white;
+            gameStateValue = 0;
+            break;
+        case GameState::EXPLODING:
+            gameStateColor = Color(255, 128, 0);  // Orange
+            gameStateValue = 1;
+            break;
+        case GameState::GAME_OVER:
+            gameStateColor = Color(255, 0, 0);  // Red
+            gameStateValue = 2;
+            break;
+    }
+    drawNumber(x, y, gameStateValue, gameStateColor);
 }
 
 void Game::drawShip() {
+    // Don't draw the ship during explosion or game over
+    if (gameState != GameState::PLAYING) {
+        return;
+    }
+
     // In the original Lander, the ship is always drawn at a fixed screen position:
     // X = 0 (centered horizontally)
     // Y = player's Y relative to camera (for altitude)

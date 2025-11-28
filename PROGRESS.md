@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Current Task:** 22
+**Current Task:** 24
 
 **Last Updated:** 2025-11-28
 
@@ -29,12 +29,13 @@
 | 17 | 3D Object Rendering | feda269 |
 | 18 | Ship Rendering Integration | 5914889 |
 | 19 | Ship Physics | 97b34c6 |
-| 20 | Terrain Collision Detection | 5c17565 |
-| 21 | Shadow Rendering | 6d3427f |
+| 20 | Terrain Collision Detection | 7af9a99 |
+| 21 | Shadow Rendering | 775ff55 |
+| 22 | Launchpad Landing | 95e4d49 |
+| - | Altitude limit fix (engine cutout at 52 tiles, hard clamp at 120) | d8e1c4e |
+| 23 | Crash Handling | 095f3b4 |
 
 ## Remaining Tasks
-- Task 22: Launchpad Landing
-- Task 23: Crash Handling
 - Task 24: Particle System Foundation
 - Task 25: Particle Rendering
 - Task 26: Exhaust Particles
@@ -61,6 +62,6 @@
 ## Summary
 
 - **Total Tasks:** 45
-- **Completed:** 21
-- **In Progress:** 0
-- **Remaining:** 24
+- **Completed:** 23
+- **In Progress:** 1
+- **Remaining:** 21

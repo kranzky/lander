@@ -167,12 +167,12 @@ private:
 // =============================================================================
 
 namespace PlayerConstants {
-    // Starting position - above the launchpad at world origin
+    // Starting position - on the launchpad at world origin
     // Launchpad is at world (0-8, 0-8), so start player at center of launchpad
-    // Player at (4, -2, 4), camera will be 5 tiles behind at (4, -2, -1)
+    // Player starts on the pad (at LAUNCHPAD_Y), camera will be 5 tiles behind
     constexpr Fixed START_X = Fixed::fromRaw(0x04000000);      // 4 tiles (center of launchpad)
-    constexpr Fixed START_Y = Fixed::fromRaw(static_cast<int32_t>(0xFE000000));  // -2 tiles (above ground)
     constexpr Fixed START_Z = Fixed::fromRaw(0x04000000);      // 4 tiles (center of launchpad)
+    // START_Y is defined after LAUNCHPAD_Y below
 
     // Initial fuel level
     constexpr int INITIAL_FUEL = 65536;
@@ -232,6 +232,9 @@ namespace PlayerConstants {
     // Y position of ship when landed (launchpad altitude minus undercarriage)
     constexpr Fixed LAUNCHPAD_Y = Fixed::fromRaw(
         LAUNCHPAD_ALTITUDE.raw - UNDERCARRIAGE_Y.raw);
+
+    // Starting Y position - on the launchpad (same as LAUNCHPAD_Y)
+    constexpr Fixed START_Y = LAUNCHPAD_Y;
 
     // Maximum safe landing velocity (sum of |vx| + |vy| + |vz|)
     // Tuned for gameplay feel - allows gentle landings but crashes on hard impacts
