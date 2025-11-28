@@ -2,9 +2,9 @@
 
 ## Current Status
 
-**Current Task:** 19
+**Current Task:** 20
 
-**Last Updated:** 2025-11-27
+**Last Updated:** 2025-11-28
 
 ## Completed Tasks
 
@@ -28,9 +28,9 @@
 | 16 | Ship 3D Model | 69707a1 |
 | 17 | 3D Object Rendering | feda269 |
 | 18 | Ship Rendering Integration | 5914889 |
+| 19 | Ship Physics | b7024cd |
 
 ## Remaining Tasks
-- Task 19: Ship Physics
 - Task 20: Terrain Collision Detection
 - Task 21: Launchpad Landing
 - Task 22: Crash Handling
@@ -54,12 +54,12 @@
 - Task 40: Fuel Gauge
 - Task 41: Lives Display
 - Task 42: Game State Machine
-- Task 43: Frame Timing and Physics Scaling
+- Task 43: Frame Timing and Physics Scaling (limit to 120/60/30/15fps with lookup table for physics values, user-selectable)
 - Task 44: Polish and Bug Fixes
 
 ## Summary
 
 - **Total Tasks:** 44
-- **Completed:** 18
+- **Completed:** 19
 - **In Progress:** 0
-- **Remaining:** 26
+- **Remaining:** 25

@@ -225,3 +225,81 @@ void Player::updateOrientation() {
     // Note: CalculateRotationMatrix takes (angleA=pitch, angleB=direction)
     rotationMatrix = calculateRotationMatrix(shipPitch, shipDirection);
 }
+
+// =============================================================================
+// Ship Physics Update
+// =============================================================================
+//
+// Port of the physics code from MoveAndDrawPlayer Part 2 (Lander.arm lines 1930-2048)
+//
+// Physics simulation:
+// 1. Apply friction to velocity (multiply by 63/64)
+// 2. Apply thrust from engines (based on button state)
+// 3. Apply velocity to position
+// 4. Apply hover thrust (with slight delay for inertia feel)
+// 5. Apply gravity to Y velocity
+// 6. Clamp position to sea level floor
+//
+// The exhaust/thrust vector is the "roof" row of the rotation matrix,
+// which points through the ship's floor (direction of thrust plume).
+//
+// =============================================================================
+
+bool Player::updatePhysics() {
+    // Get the exhaust/thrust vector from the rotation matrix
+    // This is the "roof" vector - pointing through the ship's floor
+    // In the rotation matrix, this is the second column (Y axis of ship frame)
+    const Vec3& roofVec = rotationMatrix.roof();
+    Fixed exhaustX = roofVec.x;
+    Fixed exhaustY = roofVec.y;
+    Fixed exhaustZ = roofVec.z;
+
+    // Check if full thrust (left mouse button)
+    bool fullThrust = input.isThrusting();
+
+    // Apply friction: velocity *= 63/64 (subtract velocity >> 6)
+    velocity.x = Fixed::fromRaw(velocity.x.raw - (velocity.x.raw >> PlayerConstants::FRICTION_SHIFT));
+    velocity.y = Fixed::fromRaw(velocity.y.raw - (velocity.y.raw >> PlayerConstants::FRICTION_SHIFT));
+    velocity.z = Fixed::fromRaw(velocity.z.raw - (velocity.z.raw >> PlayerConstants::FRICTION_SHIFT));
+
+    // Apply full thrust if left button pressed
+    // Thrust is SUBTRACTED because exhaust points down, thrust pushes up
+    if (fullThrust) {
+        velocity.x = Fixed::fromRaw(velocity.x.raw - (exhaustX.raw >> PlayerConstants::FULL_THRUST_SHIFT));
+        velocity.y = Fixed::fromRaw(velocity.y.raw - (exhaustY.raw >> PlayerConstants::FULL_THRUST_SHIFT));
+        velocity.z = Fixed::fromRaw(velocity.z.raw - (exhaustZ.raw >> PlayerConstants::FULL_THRUST_SHIFT));
+    }
+
+    // Apply velocity to position
+    position.x = Fixed::fromRaw(position.x.raw + velocity.x.raw);
+    position.y = Fixed::fromRaw(position.y.raw + velocity.y.raw);
+    position.z = Fixed::fromRaw(position.z.raw + velocity.z.raw);
+
+    // Apply hover thrust if middle button pressed (applied after position update for inertia feel)
+    if (input.isHovering()) {
+        velocity.x = Fixed::fromRaw(velocity.x.raw - (exhaustX.raw >> PlayerConstants::HOVER_THRUST_SHIFT));
+        velocity.y = Fixed::fromRaw(velocity.y.raw - (exhaustY.raw >> PlayerConstants::HOVER_THRUST_SHIFT));
+        velocity.z = Fixed::fromRaw(velocity.z.raw - (exhaustZ.raw >> PlayerConstants::HOVER_THRUST_SHIFT));
+    }
+
+    // Apply gravity (positive Y is down in Lander coordinate system)
+    velocity.y = Fixed::fromRaw(velocity.y.raw + PlayerConstants::GRAVITY);
+
+    // Update exhaust direction for particle spawning (later tasks)
+    exhaustDirection.x = exhaustX;
+    exhaustDirection.y = exhaustY;
+    exhaustDirection.z = exhaustZ;
+
+    // Clamp position to sea level floor (temporary collision until terrain collision implemented)
+    bool hitFloor = false;
+    if (position.y.raw > PlayerConstants::SEA_LEVEL.raw) {
+        position.y = PlayerConstants::SEA_LEVEL;
+        // Stop downward velocity when hitting floor
+        if (velocity.y.raw > 0) {
+            velocity.y = Fixed::fromInt(0);
+        }
+        hitFloor = true;
+    }
+
+    return hitFloor;
+}

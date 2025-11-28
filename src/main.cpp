@@ -177,13 +177,15 @@ void Game::update() {
     uint32_t mouseButtons = SDL_GetRelativeMouseState(&relX, &relY);
 
     // Accumulate mouse position with scaling for sensitivity
+    // No decay - ship maintains orientation until player moves mouse (like original)
     accumulatedMouseX += relX * 2;
     accumulatedMouseY += relY * 2;
 
-    // Apply decay toward center - this gives spring-like behavior
-    // Without decay, the position would stay at extremes forever
-    accumulatedMouseX = (accumulatedMouseX * 31) / 32;
-    accumulatedMouseY = (accumulatedMouseY * 31) / 32;
+    // Clamp to valid range (±512)
+    if (accumulatedMouseX < -512) accumulatedMouseX = -512;
+    if (accumulatedMouseX > 512) accumulatedMouseX = 512;
+    if (accumulatedMouseY < -512) accumulatedMouseY = -512;
+    if (accumulatedMouseY > 512) accumulatedMouseY = 512;
 
     // Pass accumulated position directly as relative coordinates
     // The values represent offset from center in the ±512 range that polar coords expect
@@ -192,19 +194,8 @@ void Game::update() {
     // Update ship orientation based on mouse position
     player.updateOrientation();
 
-    // Poll keyboard state for debug movement
-    const Uint8* keyState = SDL_GetKeyboardState(nullptr);
-
-    // Apply debug keyboard movement (cursor keys + A/Z)
-    player.applyDebugMovement(
-        keyState[SDL_SCANCODE_LEFT],
-        keyState[SDL_SCANCODE_RIGHT],
-        keyState[SDL_SCANCODE_UP],
-        keyState[SDL_SCANCODE_DOWN],
-        keyState[SDL_SCANCODE_A],
-        keyState[SDL_SCANCODE_Z],
-        PlayerConstants::DEBUG_MOVE_SPEED
-    );
+    // Update ship physics (gravity, thrust, friction)
+    player.updatePhysics();
 
     // Update camera to follow player (no height clamping for debugging)
     camera.followTarget(player.getPosition(), false);

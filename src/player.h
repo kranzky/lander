@@ -77,6 +77,10 @@ public:
     // shipDirection and shipPitch toward target values, and computes rotation matrix
     void updateOrientation();
 
+    // Update physics: apply gravity, thrust, friction, and update position
+    // Returns true if the ship hit the sea level floor
+    bool updatePhysics();
+
     // Position accessors
     const Vec3& getPosition() const { return position; }
     Fixed getX() const { return position.x; }
@@ -164,6 +168,36 @@ namespace PlayerConstants {
 
     // Debug movement speed (tiles per frame)
     constexpr Fixed DEBUG_MOVE_SPEED = Fixed::fromRaw(0x00199999);  // ~0.1 tiles
+
+    // ==========================================================================
+    // Physics Constants (from original Lander.arm)
+    // ==========================================================================
+    // Original ran at ~15fps; we run at ~120fps (8x faster)
+    // All per-frame values are scaled down by 8 (>> 3) to compensate
+    // ==========================================================================
+
+    // Gravity: Original 0x30000 per frame at 15fps
+    // At 120fps: 0x30000 >> 3 = 0x6000
+    constexpr int32_t GRAVITY = 0x6000;
+
+    // Friction: Original velocity *= 63/64 per frame (subtract velocity >> 6)
+    // At 8x frame rate, we need much less friction per frame
+    // Use >> 9 (subtract 1/512 per frame) for similar decay over time
+    constexpr int FRICTION_SHIFT = 9;  // Divide by 512
+
+    // Thrust: Original exhaust >> 11 on 31-bit values at 15fps
+    // We use 24-bit Fixed (+7 shift) and 8x frame rate (+3 shift)
+    // Net: 11 - 7 + 3 = 7
+    constexpr int FULL_THRUST_SHIFT = 7;  // Divide by 128
+
+    // Hover: Original exhaust >> 13 on 31-bit values at 15fps
+    // Net: 13 - 7 + 3 = 9
+    constexpr int HOVER_THRUST_SHIFT = 9;  // Divide by 512
+
+    // Sea level: Y position floor (landscape water level)
+    // Original: SEA_LEVEL = &05500000 (5.3125 tiles)
+    // In our coordinate system, positive Y is down, so this is the max Y value
+    constexpr Fixed SEA_LEVEL = Fixed::fromRaw(0x05500000);
 }
 
 #endif // LANDER_PLAYER_H
