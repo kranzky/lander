@@ -1,5 +1,6 @@
 #include "object_renderer.h"
 #include "palette.h"
+#include "landscape.h"
 
 // =============================================================================
 // 3D Object Renderer Implementation
@@ -187,6 +188,135 @@ void drawObject(
             projectedVertices[v1].x, projectedVertices[v1].y,
             projectedVertices[v2].x, projectedVertices[v2].y,
             litColor
+        );
+    }
+}
+
+// =============================================================================
+// Shadow Rendering Implementation
+// =============================================================================
+//
+// Port of DrawObject Part 4 from Lander.arm lines 5385-5465.
+//
+// Shadow algorithm:
+// 1. For each vertex, calculate its world position (object position + rotated vertex)
+// 2. Look up terrain altitude at that world (x, z) coordinate
+// 3. Project the shadow vertex (same x, z but y = terrain altitude)
+// 4. For each face whose rotated normal points upward (negative Y), draw it as
+//    a black triangle using the shadow vertices
+//
+// =============================================================================
+
+void drawObjectShadow(
+    const ObjectBlueprint& blueprint,
+    const Vec3& cameraRelPos,
+    const Mat3x3& rotation,
+    const Vec3& worldPos,
+    const Vec3& cameraWorldPos,
+    ScreenBuffer& screen
+) {
+    // Check if object has shadow rendering enabled
+    // NO_SHADOW flag set = no shadow, NO_SHADOW flag clear = has shadow
+    if ((blueprint.flags & ObjectFlags::NO_SHADOW) != 0) {
+        return;
+    }
+
+    // Arrays to store shadow projected vertices
+    ProjectedVertex2D shadowVertices[MAX_VERTICES];
+
+    bool isRotating = (blueprint.flags & ObjectFlags::ROTATES) != 0;
+
+    // ==========================================================================
+    // Part 1: Calculate shadow vertices (project each vertex onto terrain)
+    // ==========================================================================
+
+    for (uint32_t i = 0; i < blueprint.vertexCount && i < MAX_VERTICES; i++) {
+        const ObjectVertex& vertex = blueprint.vertices[i];
+
+        // Get vertex coordinates as Fixed values
+        Vec3 v;
+        v.x = Fixed::fromRaw(vertex.x);
+        v.y = Fixed::fromRaw(vertex.y);
+        v.z = Fixed::fromRaw(vertex.z);
+
+        // Transform vertex by rotation matrix if object rotates
+        Vec3 rotated;
+        if (isRotating) {
+            rotated = rotation * v;
+        } else {
+            rotated = v;
+        }
+
+        // Calculate world position of this vertex
+        Fixed worldX = Fixed::fromRaw(worldPos.x.raw + rotated.x.raw);
+        Fixed worldZ = Fixed::fromRaw(worldPos.z.raw + rotated.z.raw);
+
+        // Get terrain altitude at this world position
+        Fixed terrainY = getLandscapeAltitude(worldX, worldZ);
+
+        // Calculate camera-relative position of shadow vertex
+        // X and Z are same as object vertex, Y is terrain altitude relative to camera
+        Vec3 shadowPos;
+        shadowPos.x = Fixed::fromRaw(cameraRelPos.x.raw + rotated.x.raw);
+        shadowPos.y = Fixed::fromRaw(terrainY.raw - cameraWorldPos.y.raw);
+        shadowPos.z = Fixed::fromRaw(cameraRelPos.z.raw + rotated.z.raw);
+
+        // Project shadow vertex to screen
+        ProjectedVertex projected = projectVertex(shadowPos);
+
+        shadowVertices[i].x = projected.screenX;
+        shadowVertices[i].y = projected.screenY;
+        shadowVertices[i].visible = projected.visible;
+    }
+
+    // ==========================================================================
+    // Part 2: Draw shadows for upward-facing faces
+    // ==========================================================================
+    // Only faces with normals pointing up (negative Y) cast shadows
+
+    Color black = Color::black();
+
+    for (uint32_t i = 0; i < blueprint.faceCount; i++) {
+        const ObjectFace& face = blueprint.faces[i];
+
+        // Get face normal as Vec3
+        Vec3 normal;
+        normal.x = Fixed::fromRaw(face.normalX);
+        normal.y = Fixed::fromRaw(face.normalY);
+        normal.z = Fixed::fromRaw(face.normalZ);
+
+        // Transform normal by rotation matrix if object rotates
+        Vec3 rotatedNormal;
+        if (isRotating) {
+            rotatedNormal = rotation * normal;
+        } else {
+            rotatedNormal = normal;
+        }
+
+        // Only draw shadow if face normal points upward (negative Y)
+        // This matches the original: "we only draw shadows for faces that point up"
+        if (rotatedNormal.y.raw >= 0) {
+            continue;
+        }
+
+        // Get vertex indices
+        int v0 = face.vertex0;
+        int v1 = face.vertex1;
+        int v2 = face.vertex2;
+
+        // Skip if any shadow vertex is behind camera
+        if (!shadowVertices[v0].visible ||
+            !shadowVertices[v1].visible ||
+            !shadowVertices[v2].visible) {
+            continue;
+        }
+
+        // Draw the shadow triangle in black
+        screen.drawTriangle(
+            shadowVertices[v0].x, shadowVertices[v0].y,
+            shadowVertices[v1].x, shadowVertices[v1].y,
+            shadowVertices[v2].x, shadowVertices[v2].y,
+            black
         );
     }
 }

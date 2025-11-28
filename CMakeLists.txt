@@ -133,6 +133,7 @@ add_executable(test_object_renderer
     src/screen.cpp
     src/projection.cpp
     src/camera.cpp
+    src/landscape.cpp
 )
 target_include_directories(test_object_renderer PRIVATE src)
 

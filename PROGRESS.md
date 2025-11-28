@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Current Task:** 21
+**Current Task:** 22
 
 **Last Updated:** 2025-11-28
 
@@ -30,9 +30,9 @@
 | 18 | Ship Rendering Integration | 5914889 |
 | 19 | Ship Physics | 97b34c6 |
 | 20 | Terrain Collision Detection | 5c17565 |
+| 21 | Shadow Rendering | 6d3427f |
 
 ## Remaining Tasks
-- Task 21: Shadow Rendering (project object vertices onto terrain, draw black triangles for upward-facing faces)
 - Task 22: Launchpad Landing
 - Task 23: Crash Handling
 - Task 24: Particle System Foundation
@@ -61,6 +61,6 @@
 ## Summary
 
 - **Total Tasks:** 45
-- **Completed:** 20
+- **Completed:** 21
 - **In Progress:** 0
-- **Remaining:** 25
+- **Remaining:** 24

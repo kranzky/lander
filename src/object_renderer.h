@@ -52,4 +52,24 @@ void drawObject(
 // Returns a Color struct
 Color calculateLitColor(uint16_t baseColor, const Vec3& rotatedNormal);
 
+// Draw a 3D object's shadow
+// Projects vertices onto the terrain and draws black triangles for upward-facing faces
+// Based on DrawObject Part 4 (Lander.arm lines 5385-5465)
+//
+// Arguments:
+//   blueprint       - The object's model data
+//   cameraRelPos    - Object position relative to camera (for screen projection)
+//   rotation        - Object's rotation matrix
+//   worldPos        - Object's actual world position (for terrain lookup)
+//   cameraWorldPos  - Camera's world position (for terrain lookup)
+//   screen          - Screen buffer to draw to
+void drawObjectShadow(
+    const ObjectBlueprint& blueprint,
+    const Vec3& cameraRelPos,
+    const Mat3x3& rotation,
+    const Vec3& worldPos,
+    const Vec3& cameraWorldPos,
+    ScreenBuffer& screen
+);
+
 #endif // LANDER_OBJECT_RENDERER_H

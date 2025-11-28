@@ -26,6 +26,7 @@
 namespace ObjectFlags {
     constexpr uint32_t ROTATES = 0x01;      // Object can rotate
     constexpr uint32_t NO_SHADOW = 0x02;    // Object casts no shadow
+    constexpr uint32_t HAS_SHADOW = 0x00;   // Object casts shadow (default, NO_SHADOW not set)
 }
 
 // A single vertex in model space

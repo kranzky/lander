@@ -361,6 +361,14 @@ void Game::drawShip() {
     // LANDSCAPE_Z_MID = LANDSCAPE_Z - CAMERA_PLAYER_Z = 20 - 5 = 15 tiles
     shipScreenPos.z = Fixed::fromInt(15);
 
+    // Draw the ship's shadow first (so it appears under the ship)
+    Vec3 cameraWorldPos;
+    cameraWorldPos.x = camera.getX();
+    cameraWorldPos.y = camera.getY();
+    cameraWorldPos.z = camera.getZ();
+    drawObjectShadow(shipBlueprint, shipScreenPos, player.getRotationMatrix(),
+                     player.getPosition(), cameraWorldPos, screen);
+
     // Draw the ship using the object renderer
     drawObject(shipBlueprint, shipScreenPos, player.getRotationMatrix(), screen);
 }
