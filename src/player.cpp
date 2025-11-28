@@ -1,4 +1,5 @@
 #include "player.h"
+#include "landscape.h"
 
 // =============================================================================
 // Player Implementation
@@ -290,16 +291,19 @@ bool Player::updatePhysics() {
     exhaustDirection.y = exhaustY;
     exhaustDirection.z = exhaustZ;
 
-    // Clamp position to sea level floor (temporary collision until terrain collision implemented)
-    bool hitFloor = false;
-    if (position.y.raw > PlayerConstants::SEA_LEVEL.raw) {
-        position.y = PlayerConstants::SEA_LEVEL;
-        // Stop downward velocity when hitting floor
+    // Check terrain collision - get altitude at player's (x, z) position
+    Fixed terrainY = getLandscapeAltitude(position.x, position.z);
+
+    // Check if player is below terrain (positive Y = down, so player.y > terrain.y means below)
+    bool hitTerrain = false;
+    if (position.y.raw > terrainY.raw) {
+        position.y = terrainY;
+        // Stop downward velocity when hitting terrain
         if (velocity.y.raw > 0) {
             velocity.y = Fixed::fromInt(0);
         }
-        hitFloor = true;
+        hitTerrain = true;
     }
 
-    return hitFloor;
+    return hitTerrain;
 }
