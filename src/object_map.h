@@ -106,4 +106,52 @@ private:
 // Global object map instance
 extern ObjectMap objectMap;
 
+// =============================================================================
+// Random Number Generator
+// =============================================================================
+//
+// Port of GetRandomNumbers from Lander.arm (lines 7797-7856).
+//
+// This is a 33-bit LFSR with taps at bits 20 and 33, as described in the
+// original ARM Assembler manual (section 11.2, page 96).
+//
+// =============================================================================
+
+class RandomNumberGenerator {
+public:
+    RandomNumberGenerator();
+
+    // Seed the generator
+    void seed(uint32_t seed1, uint32_t seed2);
+
+    // Get next random numbers (returns two values like original)
+    void getRandomNumbers(uint32_t& r0, uint32_t& r1);
+
+    // Convenience: get a single random number
+    uint32_t getNext();
+
+private:
+    uint32_t seed1;
+    uint32_t seed2;
+};
+
+// Global RNG instance
+extern RandomNumberGenerator gameRng;
+
+// =============================================================================
+// Object Placement
+// =============================================================================
+//
+// Port of PlaceObjectsOnMap from Lander.arm (lines 12263-12415).
+//
+// Places 2048 random objects on the landscape, avoiding sea and launchpad.
+// Also places 3 rockets along the right edge of the launchpad at (7,1), (7,3),
+// and (7,5).
+//
+// =============================================================================
+
+// Place objects randomly on the landscape
+// Clears the map first, then places random objects and launchpad rockets
+void placeObjectsOnMap();
+
 #endif // LANDER_OBJECT_MAP_H

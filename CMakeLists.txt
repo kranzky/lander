@@ -170,6 +170,8 @@ add_test(NAME test_particles COMMAND test_particles)
 add_executable(test_object_map
     test/test_object_map.cpp
     src/object_map.cpp
+    src/landscape.cpp
+    src/lookup_tables.cpp
 )
 target_include_directories(test_object_map PRIVATE src)
 add_test(NAME test_object_map COMMAND test_object_map)

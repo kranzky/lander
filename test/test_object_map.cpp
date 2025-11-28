@@ -268,6 +268,108 @@ void testMapSize() {
 }
 
 // =============================================================================
+// Test: Random number generator
+// =============================================================================
+void testRNG() {
+    printf("\nTesting random number generator...\n");
+
+    RandomNumberGenerator rng;
+    rng.seed(0x12345678, 0x87654321);
+
+    // Get a few random numbers
+    uint32_t r0_1, r1_1, r0_2, r1_2;
+    rng.getRandomNumbers(r0_1, r1_1);
+    rng.getRandomNumbers(r0_2, r1_2);
+
+    // Verify they're different
+    test(r0_1 != r0_2, "Consecutive random numbers are different");
+
+    // Test determinism - same seed should give same sequence
+    RandomNumberGenerator rng2;
+    rng2.seed(0x12345678, 0x87654321);
+    uint32_t r0_check, r1_check;
+    rng2.getRandomNumbers(r0_check, r1_check);
+
+    test(r0_check == r0_1, "Same seed produces same first random number");
+    test(r1_check == r1_1, "Same seed produces same second random number");
+
+    // Test that numbers cover a range (check high bits are used)
+    bool hasHighBits = false;
+    bool hasLowBits = false;
+    for (int i = 0; i < 100; i++) {
+        uint32_t r0, r1;
+        rng.getRandomNumbers(r0, r1);
+        if (r0 & 0xFF000000) hasHighBits = true;
+        if (r0 & 0x000000FF) hasLowBits = true;
+    }
+    test(hasHighBits, "RNG produces numbers with high bits set");
+    test(hasLowBits, "RNG produces numbers with low bits set");
+}
+
+// =============================================================================
+// Test: Object placement
+// =============================================================================
+void testObjectPlacement() {
+    printf("\nTesting object placement...\n");
+
+    // Seed RNG for reproducibility
+    gameRng.seed(0x12345678, 0x87654321);
+
+    // Place objects
+    placeObjectsOnMap();
+
+    // Count total objects placed
+    int objectCount = 0;
+    int typeCount[24] = {0};
+    for (int z = 0; z < 256; z++) {
+        for (int x = 0; x < 256; x++) {
+            uint8_t obj = objectMap.getObjectAt(x, z);
+            if (obj != ObjectType::NONE) {
+                objectCount++;
+                if (obj < 24) typeCount[obj]++;
+            }
+        }
+    }
+
+    // Should have placed some objects (not all 2048 due to sea/launchpad skipping)
+    test(objectCount > 0, "Some objects were placed");
+    test(objectCount < 2100, "Object count is reasonable (not duplicate counting)");
+    printf("    Total objects placed: %d\n", objectCount);
+
+    // Check launchpad rockets are placed
+    test(objectMap.getObjectAt(7, 1) == ObjectType::ROCKET, "Rocket at (7,1)");
+    test(objectMap.getObjectAt(7, 3) == ObjectType::ROCKET, "Rocket at (7,3)");
+    test(objectMap.getObjectAt(7, 5) == ObjectType::ROCKET, "Rocket at (7,5)");
+
+    // Check object type distribution (should be weighted towards trees)
+    int treeCount = typeCount[ObjectType::SMALL_LEAFY_TREE] +
+                    typeCount[ObjectType::TALL_LEAFY_TREE] +
+                    typeCount[ObjectType::SMALL_LEAFY_TREE_2] +
+                    typeCount[ObjectType::SMALL_LEAFY_TREE_3] +
+                    typeCount[ObjectType::TALL_LEAFY_TREE_2] +
+                    typeCount[ObjectType::FIR_TREE];
+    int buildingCount = typeCount[ObjectType::BUILDING];
+    int gazeboCount = typeCount[ObjectType::GAZEBO];
+
+    printf("    Trees: %d, Gazebos: %d, Buildings: %d\n", treeCount, gazeboCount, buildingCount);
+    test(treeCount > buildingCount, "More trees than buildings (weighted distribution)");
+
+    // Test that running placement again with same seed gives same result
+    gameRng.seed(0x12345678, 0x87654321);
+    placeObjectsOnMap();
+
+    int objectCount2 = 0;
+    for (int z = 0; z < 256; z++) {
+        for (int x = 0; x < 256; x++) {
+            if (objectMap.getObjectAt(x, z) != ObjectType::NONE) {
+                objectCount2++;
+            }
+        }
+    }
+    test(objectCount == objectCount2, "Placement is deterministic with same seed");
+}
+
+// =============================================================================
 // Main
 // =============================================================================
 int main() {
@@ -285,6 +387,8 @@ int main() {
     testOverwrite();
     testEdgeCases();
     testMapSize();
+    testRNG();
+    testObjectPlacement();
 
     // Summary
     printf("\n=== Summary ===\n");
