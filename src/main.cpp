@@ -200,6 +200,8 @@ void Game::handleEvents() {
             case SDL_KEYDOWN:
                 if (event.key.keysym.sym == SDLK_ESCAPE) {
                     running = false;
+                } else if (event.key.keysym.sym == SDLK_d) {
+                    debugMode = !debugMode;
                 }
                 break;
         }

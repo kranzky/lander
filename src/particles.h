@@ -30,8 +30,12 @@ namespace ParticleFlags {
     constexpr uint32_t COLOR_MASK = 0x000000FF;       // Bits 0-7: color index
     constexpr uint32_t FADING = 0x00010000;           // Bit 16: fade from white to red
     constexpr uint32_t IS_ROCK = 0x00020000;          // Bit 17: particle is a rock
+    constexpr uint32_t SPLASH = 0x00040000;           // Bit 18: splash on impact with sea
+    constexpr uint32_t BOUNCES = 0x00080000;          // Bit 19: bounce off terrain (vs delete)
     constexpr uint32_t GRAVITY = 0x00100000;          // Bit 20: apply gravity
     constexpr uint32_t DESTROYS_OBJECTS = 0x00200000; // Bit 21: can destroy objects
+    constexpr uint32_t BIG_SPLASH = 0x00800000;       // Bit 23: big splash (65 vs 4 particles)
+    constexpr uint32_t EXPLODES_ON_GROUND = 0x01000000; // Bit 24: explode on terrain (sparks)
 }
 
 namespace ParticleConstants {
@@ -68,6 +72,10 @@ struct Particle {
     bool hasFading() const { return (flags & ParticleFlags::FADING) != 0; }
     bool isRock() const { return (flags & ParticleFlags::IS_ROCK) != 0; }
     bool canDestroyObjects() const { return (flags & ParticleFlags::DESTROYS_OBJECTS) != 0; }
+    bool splashesInSea() const { return (flags & ParticleFlags::SPLASH) != 0; }
+    bool bouncesOffTerrain() const { return (flags & ParticleFlags::BOUNCES) != 0; }
+    bool hasBigSplash() const { return (flags & ParticleFlags::BIG_SPLASH) != 0; }
+    bool explodesOnGround() const { return (flags & ParticleFlags::EXPLODES_ON_GROUND) != 0; }
 };
 
 // Particle system manager
@@ -172,5 +180,32 @@ void spawnExhaustParticles(const Vec3& pos, const Vec3& vel, const Vec3& exhaust
 // vel: ship velocity
 // gunDir: gun direction vector (nose of ship, points forward)
 void spawnBulletParticle(const Vec3& pos, const Vec3& vel, const Vec3& gunDir);
+
+// =============================================================================
+// Impact Effect Spawning
+// =============================================================================
+//
+// Port of SplashParticleIntoSea and AddSmallExplosionToBuffer from Lander.arm.
+//
+// When particles hit the sea:
+// - Create blue spray particles shooting upward
+// - Number of particles: 4 for small splash, 65 for big splash
+//
+// When bullets hit terrain (not sea):
+// - Create spark particles in random directions
+// - Yellow/orange color (explosion-like)
+//
+// =============================================================================
+
+// Spawn splash spray particles when something hits the sea
+// pos: impact position (at sea level)
+// impactVel: velocity of the impacting particle (used as bias for splash)
+// bigSplash: true = 65 particles, false = 4 particles
+void spawnSplashParticles(const Vec3& pos, const Vec3& impactVel, bool bigSplash);
+
+// Spawn spark particles when a bullet hits terrain
+// pos: impact position (at terrain surface)
+// impactVel: velocity of the impacting particle (used as bias for sparks)
+void spawnSparkParticles(const Vec3& pos, const Vec3& impactVel);
 
 #endif // LANDER_PARTICLES_H

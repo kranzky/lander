@@ -88,19 +88,46 @@ void ParticleSystem::update() {
         }
 
         // Check terrain collision
-        // Get altitude at particle's (x, z) position
-        Fixed terrainY = getLandscapeAltitude(p.position.x, p.position.z);
+        // Particles have a 10-tile Z offset to match the ship's visual position.
+        // For terrain collision, subtract this offset to get the actual world Z.
+        constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10 * 0x01000000;  // 10 tiles
+        Fixed worldZ = Fixed::fromRaw(p.position.z.raw - SHIP_VISUAL_Z_OFFSET);
+        Fixed terrainY = getLandscapeAltitude(p.position.x, worldZ);
 
         // If particle is below terrain (positive Y is down)
         if (p.position.y.raw > terrainY.raw) {
-            // Bounce: reflect Y velocity and dampen
-            // Original: BounceParticle applies reflection and damping
-            p.position.y = terrainY;  // Place on surface
+            // Place particle on surface
+            p.position.y = terrainY;
 
-            // Reflect Y velocity and apply damping
+            // Check if this is a water impact (terrain at sea level)
+            bool isWater = (terrainY.raw == GameConstants::SEA_LEVEL.raw);
+
+            if (isWater && p.splashesInSea()) {
+                // Splash into sea - spawn spray particles and delete this particle
+                Vec3 splashPos = p.position;
+                // Raise splash position slightly above sea
+                constexpr int32_t SPLASH_HEIGHT = 0x01000000 / 16;  // 1/16 tile
+                splashPos.y = Fixed::fromRaw(splashPos.y.raw - SPLASH_HEIGHT);
+                spawnSplashParticles(splashPos, p.velocity, p.hasBigSplash());
+                removeParticle(i);
+                continue;
+            }
+
+            if (!isWater && p.explodesOnGround()) {
+                // Bullet hit terrain - spawn sparks and delete this particle
+                spawnSparkParticles(p.position, p.velocity);
+                removeParticle(i);
+                continue;
+            }
+
+            if (!p.bouncesOffTerrain()) {
+                // Particle doesn't bounce - just delete it
+                removeParticle(i);
+                continue;
+            }
+
+            // Bounce: reflect Y velocity and dampen all velocities
             p.velocity.y = Fixed::fromRaw(-(p.velocity.y.raw >> ParticleConstants::BOUNCE_DAMPING_SHIFT));
-
-            // Also dampen X and Z velocity on bounce
             p.velocity.x = Fixed::fromRaw(p.velocity.x.raw >> ParticleConstants::BOUNCE_DAMPING_SHIFT);
             p.velocity.z = Fixed::fromRaw(p.velocity.z.raw >> ParticleConstants::BOUNCE_DAMPING_SHIFT);
         }
@@ -319,8 +346,10 @@ void spawnExhaustParticles(const Vec3& pos, const Vec3& vel, const Vec3& exhaust
     particlePos.y = pos.y;
     particlePos.z = Fixed::fromRaw(pos.z.raw + SHIP_VISUAL_Z_OFFSET);
 
-    // Particle flags: FADING | GRAVITY (exhaust bounces off terrain)
-    uint32_t flags = ParticleFlags::FADING | ParticleFlags::GRAVITY;
+    // Particle flags: FADING | SPLASH | BOUNCES | GRAVITY
+    // Exhaust particles splash in water, bounce off terrain
+    uint32_t flags = ParticleFlags::FADING | ParticleFlags::SPLASH |
+                     ParticleFlags::BOUNCES | ParticleFlags::GRAVITY;
 
     // Base lifespan: 8 frames at 15fps = ~64 frames at 120fps
     // But we want shorter exhaust trails, so scale down
@@ -366,13 +395,108 @@ void spawnBulletParticle(const Vec3& pos, const Vec3& vel, const Vec3& gunDir) {
     bulletPos.y = pos.y;
     bulletPos.z = Fixed::fromRaw(pos.z.raw + SHIP_VISUAL_Z_OFFSET);
 
-    // Bullet flags: GRAVITY | DESTROYS_OBJECTS | white color (0xFF)
-    // Original: 0x01BC00FF = bits 18,19,20,21,23,24 + color 0xFF
-    // We use GRAVITY (20) and DESTROYS_OBJECTS (21) for now
-    uint32_t flags = ParticleFlags::GRAVITY | ParticleFlags::DESTROYS_OBJECTS | 0xFF;
+    // Bullet flags from original: 0x01BC00FF = bits 18,19,20,21,23,24 + color 0xFF
+    // Bit 18 = SPLASH, Bit 19 = BOUNCES, Bit 20 = GRAVITY, Bit 21 = DESTROYS_OBJECTS
+    // Bit 23 = BIG_SPLASH, Bit 24 = EXPLODES_ON_GROUND
+    uint32_t flags = ParticleFlags::SPLASH | ParticleFlags::BOUNCES |
+                     ParticleFlags::GRAVITY | ParticleFlags::DESTROYS_OBJECTS |
+                     ParticleFlags::BIG_SPLASH | ParticleFlags::EXPLODES_ON_GROUND | 0xFF;
 
     // Lifespan: reduced for shorter bullet range
     constexpr int32_t BULLET_LIFESPAN = 60;  // ~0.5 second at 120fps
 
     particleSystem.addParticle(bulletPos, bulletVel, BULLET_LIFESPAN, flags);
+}
+
+// =============================================================================
+// Splash Particle Spawning Implementation
+// =============================================================================
+//
+// Port of SplashParticleIntoSea and AddSprayParticleToBuffer from Lander.arm.
+//
+// When something hits water:
+// 1. Spawn 4 or 65 spray particles (depending on bigSplash flag)
+// 2. Spray particles are blue-ish, have gravity, move upward/outward
+// 3. Spray particles fade and disappear
+//
+// =============================================================================
+
+void spawnSplashParticles(const Vec3& pos, const Vec3& impactVel, bool bigSplash) {
+    int count = bigSplash ? 65 : 4;
+
+    // Use impact velocity as bias (scaled down) for splash direction
+    // X and Z inherit some of the bullet's horizontal momentum
+    // Y is always upward (negative) regardless of impact direction
+    int32_t biasX = impactVel.x.raw >> 4;  // 1/16 of impact velocity
+    int32_t biasZ = impactVel.z.raw >> 4;
+
+    for (int i = 0; i < count; i++) {
+        // Random velocity with impact bias
+        int32_t vx = biasX + (exhaustRandom() >> 13) - 0x040000;
+        int32_t vy = -(exhaustRandom() >> 12) - 0x080000; // Always upward
+        int32_t vz = biasZ + (exhaustRandom() >> 13) - 0x040000;
+
+        Vec3 vel;
+        vel.x = Fixed::fromRaw(vx);
+        vel.y = Fixed::fromRaw(vy);
+        vel.z = Fixed::fromRaw(vz);
+
+        // Light blue color (VIDC palette index for cyan/light blue)
+        uint8_t colorIndex = 0xCB;  // Light blue (R=51, G=187, B=255)
+
+        // Flags: GRAVITY only (no bounce, no splash - spray just fades)
+        uint32_t flags = ParticleFlags::GRAVITY | colorIndex;
+
+        // Longer lifespan for visible spray effect
+        int32_t lifespan = 16 + ((exhaustRandom() >> 26) & 0x1F);
+
+        particleSystem.addParticle(pos, vel, lifespan, flags);
+    }
+}
+
+// =============================================================================
+// Spark Particle Spawning Implementation
+// =============================================================================
+//
+// Port of AddSmallExplosionToBuffer from Lander.arm.
+//
+// When a bullet hits terrain (not water):
+// 1. Spawn several spark particles in random directions
+// 2. Sparks are yellow/orange, have gravity, short lifespan
+// 3. Similar to explosion particles but smaller
+//
+// =============================================================================
+
+void spawnSparkParticles(const Vec3& pos, const Vec3& impactVel) {
+    constexpr int SPARK_COUNT = 8;
+
+    // Use impact velocity as bias (scaled down) for spark direction
+    // Sparks bounce back so we negate Y and add some horizontal spread
+    int32_t biasX = impactVel.x.raw >> 4;  // 1/16 of impact velocity
+    int32_t biasZ = impactVel.z.raw >> 4;
+
+    for (int i = 0; i < SPARK_COUNT; i++) {
+        // Random velocity with impact bias
+        int32_t vx = biasX + (exhaustRandom() >> 13) - 0x040000;
+        int32_t vy = (exhaustRandom() >> 12) - 0x0C0000;  // Upward (bounce back)
+        int32_t vz = biasZ + (exhaustRandom() >> 13) - 0x040000;
+
+        Vec3 vel;
+        vel.x = Fixed::fromRaw(vx);
+        vel.y = Fixed::fromRaw(vy);
+        vel.z = Fixed::fromRaw(vz);
+
+        // Yellow/orange color - use FADING flag to get white->yellow->orange->red
+        // Color index doesn't matter much when FADING is set
+        uint8_t colorIndex = 0xFF;  // White base
+
+        // Flags: FADING | GRAVITY | BOUNCES (sparks can bounce)
+        uint32_t flags = ParticleFlags::FADING | ParticleFlags::GRAVITY |
+                         ParticleFlags::BOUNCES | colorIndex;
+
+        // Longer lifespan for visible spark effect
+        int32_t lifespan = 12 + ((exhaustRandom() >> 28) & 0x0F);
+
+        particleSystem.addParticle(pos, vel, lifespan, flags);
+    }
 }

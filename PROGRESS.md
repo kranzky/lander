@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Current Task:** 26
+**Current Task:** 28
 
 **Last Updated:** 2025-11-28
 
@@ -35,11 +35,11 @@
 | - | Altitude limit fix (engine cutout at 52 tiles, hard clamp at 120) | d8e1c4e |
 | 23 | Crash Handling | c93f6f3 |
 | 24 | Particle System Foundation | c691d3f |
-| 25 | Particle Rendering | TBD |
+| 25 | Particle Rendering | 3377d90 |
+| 26 | Exhaust Particles | 6037ec1 |
+| 27 | Bullet Particles | 4b5fa17 |
 
 ## Remaining Tasks
-- Task 26: Exhaust Particles
-- Task 27: Bullet Particles
 - Task 28: Particle Terrain Collision
 - Task 29: Explosion Particles
 - Task 30: Object Map System
@@ -62,6 +62,6 @@
 ## Summary
 
 - **Total Tasks:** 45
-- **Completed:** 24
+- **Completed:** 26
 - **In Progress:** 1
-- **Remaining:** 20
+- **Remaining:** 18
