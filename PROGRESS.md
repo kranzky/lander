@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Current Task:** 28
+**Current Task:** 29
 
 **Last Updated:** 2025-11-28
 
@@ -38,9 +38,9 @@
 | 25 | Particle Rendering | 3377d90 |
 | 26 | Exhaust Particles | 6037ec1 |
 | 27 | Bullet Particles | 4b5fa17 |
+| 28 | Particle Terrain Collision | 4d01643 |
 
 ## Remaining Tasks
-- Task 28: Particle Terrain Collision
 - Task 29: Explosion Particles
 - Task 30: Object Map System
 - Task 31: Random Object Placement
