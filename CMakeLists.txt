@@ -23,6 +23,7 @@ set(SOURCES
     src/polar_coords.cpp
     src/object3d.cpp
     src/object_renderer.cpp
+    src/particles.cpp
 )
 
 # Create executable
@@ -137,6 +138,15 @@ add_executable(test_object_renderer
 )
 target_include_directories(test_object_renderer PRIVATE src)
 
+# Test for particle system
+add_executable(test_particles
+    test/test_particles.cpp
+    src/particles.cpp
+    src/landscape.cpp
+    src/lookup_tables.cpp
+)
+target_include_directories(test_particles PRIVATE src)
+
 # Enable testing
 enable_testing()
 add_test(NAME test_fixed COMMAND test_fixed)
@@ -149,3 +159,4 @@ add_test(NAME test_landscape COMMAND test_landscape)
 add_test(NAME test_polar_coords COMMAND test_polar_coords)
 add_test(NAME test_object3d COMMAND test_object3d)
 add_test(NAME test_object_renderer COMMAND test_object_renderer)
+add_test(NAME test_particles COMMAND test_particles)

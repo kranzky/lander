@@ -1,0 +1,106 @@
+#ifndef LANDER_PARTICLES_H
+#define LANDER_PARTICLES_H
+
+#include "fixed.h"
+#include "math3d.h"
+#include "palette.h"
+#include <cstdint>
+
+// =============================================================================
+// Particle System
+// =============================================================================
+//
+// Port of the particle system from Lander.arm (MoveAndDrawParticles).
+// The original uses 8 words per particle:
+//   - (R0, R1, R2) = particle coordinate (x, y, z)
+//   - (R3, R4, R5) = particle velocity (vx, vy, vz)
+//   - R6 = particle lifespan counter
+//   - R7 = particle flags
+//
+// Particle flags (from original):
+//   - Bit 0-7:   Color index
+//   - Bit 16:    Apply color fading (white → red over time)
+//   - Bit 17:    Is a rock (special 3D object rendering)
+//   - Bit 20:    Apply gravity
+//   - Bit 21:    Can destroy objects on collision
+//
+// =============================================================================
+
+namespace ParticleFlags {
+    constexpr uint32_t COLOR_MASK = 0x000000FF;       // Bits 0-7: color index
+    constexpr uint32_t FADING = 0x00010000;           // Bit 16: fade from white to red
+    constexpr uint32_t IS_ROCK = 0x00020000;          // Bit 17: particle is a rock
+    constexpr uint32_t GRAVITY = 0x00100000;          // Bit 20: apply gravity
+    constexpr uint32_t DESTROYS_OBJECTS = 0x00200000; // Bit 21: can destroy objects
+}
+
+namespace ParticleConstants {
+    constexpr int MAX_PARTICLES = 484;  // From original Lander
+
+    // Gravity for particles (same as player gravity but scaled differently in original)
+    // Original uses the same gravity constant for particles
+    constexpr int32_t PARTICLE_GRAVITY = 0x6000;  // Same as player gravity at 120fps
+
+    // Bounce damping (velocity multiplier after bounce, approximate)
+    constexpr int BOUNCE_DAMPING_SHIFT = 1;  // Divide by 2 on bounce
+}
+
+// Single particle data structure
+struct Particle {
+    Vec3 position;      // World position (x, y, z)
+    Vec3 velocity;      // Velocity per frame
+    int32_t lifespan;   // Frames remaining (0 = expired)
+    uint32_t flags;     // ParticleFlags
+
+    // Check if particle is active
+    bool isActive() const { return lifespan > 0; }
+
+    // Get color index from flags
+    uint8_t getColorIndex() const { return flags & ParticleFlags::COLOR_MASK; }
+
+    // Set color index in flags
+    void setColorIndex(uint8_t color) {
+        flags = (flags & ~ParticleFlags::COLOR_MASK) | color;
+    }
+
+    // Check flag helpers
+    bool hasGravity() const { return (flags & ParticleFlags::GRAVITY) != 0; }
+    bool hasFading() const { return (flags & ParticleFlags::FADING) != 0; }
+    bool isRock() const { return (flags & ParticleFlags::IS_ROCK) != 0; }
+    bool canDestroyObjects() const { return (flags & ParticleFlags::DESTROYS_OBJECTS) != 0; }
+};
+
+// Particle system manager
+class ParticleSystem {
+public:
+    ParticleSystem();
+
+    // Clear all particles
+    void clear();
+
+    // Add a new particle, returns true if successful (room available)
+    bool addParticle(const Vec3& pos, const Vec3& vel, int32_t lifespan, uint32_t flags);
+
+    // Update all particles (apply velocity, gravity, lifespan countdown)
+    // Call once per frame
+    void update();
+
+    // Access particles for rendering
+    int getParticleCount() const { return particleCount; }
+    const Particle& getParticle(int index) const { return particles[index]; }
+
+    // Get modifiable particle (for terrain collision updates)
+    Particle& getParticle(int index) { return particles[index]; }
+
+private:
+    Particle particles[ParticleConstants::MAX_PARTICLES];
+    int particleCount;  // Number of active particles
+
+    // Remove particle at index by moving last particle into its place
+    void removeParticle(int index);
+};
+
+// Global particle system instance
+extern ParticleSystem particleSystem;
+
+#endif // LANDER_PARTICLES_H
