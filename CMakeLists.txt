@@ -144,6 +144,11 @@ add_executable(test_particles
     src/particles.cpp
     src/landscape.cpp
     src/lookup_tables.cpp
+    src/screen.cpp
+    src/camera.cpp
+    src/projection.cpp
+    src/palette.cpp
+    src/math3d.cpp
 )
 target_include_directories(test_particles PRIVATE src)
 

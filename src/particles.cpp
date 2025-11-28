@@ -1,5 +1,9 @@
 #include "particles.h"
 #include "landscape.h"
+#include "screen.h"
+#include "camera.h"
+#include "projection.h"
+#include "palette.h"
 
 // =============================================================================
 // Particle System Implementation
@@ -99,6 +103,118 @@ void ParticleSystem::update() {
             // Also dampen X and Z velocity on bounce
             p.velocity.x = Fixed::fromRaw(p.velocity.x.raw >> ParticleConstants::BOUNCE_DAMPING_SHIFT);
             p.velocity.z = Fixed::fromRaw(p.velocity.z.raw >> ParticleConstants::BOUNCE_DAMPING_SHIFT);
+        }
+    }
+}
+
+// =============================================================================
+// Particle Rendering Implementation
+// =============================================================================
+//
+// Port of MoveAndDrawParticles (Parts 2-4) from Lander.arm.
+// This renders all active particles as small rectangles with shadows.
+//
+// Rendering process per particle:
+// 1. Transform position to camera-relative coordinates
+// 2. Project shadow position (at terrain height)
+// 3. Draw shadow as 3x1 black rectangle
+// 4. Project particle position
+// 5. Draw particle as 3x2 colored rectangle
+//
+// =============================================================================
+
+namespace {
+    // Particle rendering constants
+    // Original: 3x2 pixels for particles, 3x1 for shadows at 320x256
+    // Scaled 4x for 1280x1024
+    constexpr int PARTICLE_WIDTH = 12;   // 3 * 4
+    constexpr int PARTICLE_HEIGHT = 8;   // 2 * 4
+    constexpr int SHADOW_WIDTH = 12;     // 3 * 4
+    constexpr int SHADOW_HEIGHT = 4;     // 1 * 4
+
+    // Draw a filled rectangle at the given screen coordinates
+    void drawRect(ScreenBuffer& screen, int x, int y, int width, int height, Color color) {
+        // Center the rectangle on the coordinate
+        int left = x - width / 2;
+        int top = y - height / 2;
+
+        // Clip to screen bounds
+        int right = left + width;
+        int bottom = top + height;
+
+        if (left < 0) left = 0;
+        if (top < 0) top = 0;
+        if (right > ScreenBuffer::PHYSICAL_WIDTH) right = ScreenBuffer::PHYSICAL_WIDTH;
+        if (bottom > ScreenBuffer::PHYSICAL_HEIGHT) bottom = ScreenBuffer::PHYSICAL_HEIGHT;
+
+        // Draw the rectangle
+        for (int py = top; py < bottom; py++) {
+            for (int px = left; px < right; px++) {
+                screen.plotPhysicalPixel(px, py, color);
+            }
+        }
+    }
+}
+
+void renderParticles(const Camera& camera, ScreenBuffer& screen) {
+    int count = particleSystem.getParticleCount();
+
+    for (int i = 0; i < count; i++) {
+        const Particle& p = particleSystem.getParticle(i);
+
+        // Skip rocks - they're rendered as 3D objects (handled elsewhere)
+        if (p.isRock()) {
+            continue;
+        }
+
+        // Transform particle position to camera-relative coordinates
+        Vec3 cameraRelPos = camera.worldToCamera(p.position);
+
+        // Skip particles behind the camera
+        if (cameraRelPos.z.raw <= 0) {
+            continue;
+        }
+
+        // Get terrain height at particle position for shadow
+        Fixed terrainY = getLandscapeAltitude(p.position.x, p.position.z);
+
+        // Shadow position: same X and Z, but at terrain height
+        Vec3 shadowWorldPos = p.position;
+        shadowWorldPos.y = terrainY;
+        Vec3 shadowRelPos = camera.worldToCamera(shadowWorldPos);
+
+        // Draw shadow first (so it appears under the particle)
+        if (shadowRelPos.z.raw > 0) {
+            ProjectedVertex shadowProj = projectVertex(shadowRelPos);
+            if (shadowProj.visible && shadowProj.onScreen) {
+                drawRect(screen, shadowProj.screenX, shadowProj.screenY,
+                         SHADOW_WIDTH, SHADOW_HEIGHT, Color::black());
+            }
+        }
+
+        // Project and draw particle
+        ProjectedVertex proj = projectVertex(cameraRelPos);
+        if (proj.visible && proj.onScreen) {
+            // Get particle color from palette (VIDC 256-color format)
+            uint8_t colorIndex = p.getColorIndex();
+            Color color = vidc256ToColor(colorIndex);
+
+            // If particle has fading flag, adjust color based on lifespan
+            // Original fades from white to red as particle ages
+            if (p.hasFading()) {
+                // Fade from white (high lifespan) toward base color (low lifespan)
+                // Assuming initial lifespan around 60-120 frames
+                int fade = p.lifespan * 4;  // Scale lifespan to 0-255 range
+                if (fade > 255) fade = 255;
+
+                // Blend toward white based on remaining life
+                color.r = static_cast<uint8_t>((color.r * (255 - fade) + 255 * fade) / 255);
+                color.g = static_cast<uint8_t>((color.g * (255 - fade) + 255 * fade) / 255);
+                color.b = static_cast<uint8_t>((color.b * (255 - fade) + 255 * fade) / 255);
+            }
+
+            drawRect(screen, proj.screenX, proj.screenY,
+                     PARTICLE_WIDTH, PARTICLE_HEIGHT, color);
         }
     }
 }

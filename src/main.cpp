@@ -5,11 +5,13 @@
 #include "screen.h"
 #include "palette.h"
 #include "landscape_renderer.h"
+#include "landscape.h"
 #include "camera.h"
 #include "player.h"
 #include "fixed.h"
 #include "object_renderer.h"
 #include "object3d.h"
+#include "particles.h"
 
 // =============================================================================
 // Lander - C++/SDL Port
@@ -76,8 +78,8 @@ private:
     int accumulatedMouseX = 0;
     int accumulatedMouseY = 0;
 
-    // Landing state
-    LandingState landingState = LandingState::FLYING;
+    // Landing state (start as LANDED on launchpad)
+    LandingState landingState = LandingState::LANDED;
     int crashRecoveryTimer = 0;  // Frames before CRASHED can reset to FLYING
 
     // Game state
@@ -164,6 +166,7 @@ bool Game::init() {
     SDL_Log("Lander initialized: %dx%d logical, %dx%d drawable @ %d FPS",
             SCREEN_WIDTH, SCREEN_HEIGHT, drawW, drawH, TARGET_FPS);
 
+
     return true;
 }
 
@@ -195,6 +198,21 @@ void Game::handleEvents() {
                 if (event.key.keysym.sym == SDLK_ESCAPE) {
                     running = false;
                 }
+                // Debug: Spawn test particles with spacebar
+                if (event.key.keysym.sym == SDLK_SPACE) {
+                    Vec3 pos = player.getPosition();
+                    // Spawn particles in a burst around the player
+                    for (int i = 0; i < 10; i++) {
+                        Vec3 vel;
+                        // Random-ish velocities using player position bits for variety
+                        int seed = (pos.x.raw >> 16) + i * 12345;
+                        vel.x = Fixed::fromRaw((seed % 0x100000) - 0x80000);  // -0.5 to 0.5 tiles/frame
+                        vel.y = Fixed::fromRaw(-0x60000 - ((seed >> 4) % 0x40000));  // Upward
+                        vel.z = Fixed::fromRaw(((seed >> 8) % 0x100000) - 0x80000);
+                        uint32_t flags = ParticleFlags::GRAVITY | (0xFF & (i * 25));  // Various colors
+                        particleSystem.addParticle(pos, vel, 90, flags);  // 0.75 sec lifespan
+                    }
+                }
                 break;
         }
     }
@@ -216,8 +234,8 @@ void Game::respawnPlayer() {
     // Reset player to launchpad
     player.reset();
 
-    // Reset landing state
-    landingState = LandingState::FLYING;
+    // Reset landing state (start as LANDED on launchpad)
+    landingState = LandingState::LANDED;
     crashRecoveryTimer = 0;
 
     // Reset mouse accumulation so ship starts level
@@ -232,7 +250,7 @@ void Game::resetGame() {
     // Full game reset
     lives = GameConfig::INITIAL_LIVES;
     player.reset();
-    landingState = LandingState::FLYING;
+    landingState = LandingState::LANDED;  // Start on launchpad
     crashRecoveryTimer = 0;
     accumulatedMouseX = 0;
     accumulatedMouseY = 0;
@@ -241,6 +259,9 @@ void Game::resetGame() {
 }
 
 void Game::update() {
+    // Update particles every frame (including during explosions)
+    particleSystem.update();
+
     // Handle game state transitions
     if (gameState == GameState::EXPLODING) {
         // During explosion, just count down timer
@@ -518,6 +539,12 @@ void Game::drawFPS() {
             break;
     }
     drawNumber(x, y, gameStateValue, gameStateColor);
+
+    // Draw particle count on sixth line
+    y += 14;
+    x = 8;
+    Color magenta = Color(255, 0, 255);
+    drawNumber(x, y, particleSystem.getParticleCount(), magenta);
 }
 
 void Game::drawShip() {
@@ -564,6 +591,9 @@ void Game::drawTestPattern() {
 
     // Render the landscape using the camera
     landscapeRenderer.render(screen, camera);
+
+    // Render particles (between landscape and ship for proper layering)
+    renderParticles(camera, screen);
 
     // Render the player's ship
     drawShip();

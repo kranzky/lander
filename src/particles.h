@@ -103,4 +103,31 @@ private:
 // Global particle system instance
 extern ParticleSystem particleSystem;
 
+// =============================================================================
+// Particle Rendering
+// =============================================================================
+//
+// Port of particle rendering from Lander.arm:
+// - DrawParticleToBuffer (lines 8435-8503): 3x2 colored particle
+// - DrawParticleShadowToBuffer (lines 8555-8620): 3x1 black shadow
+// - ProjectParticleOntoScreen: standard perspective projection
+//
+// Particle sizes in original (at 320x256):
+// - Large particles: 3x2 pixels (commands 0-8)
+// - Small particles/shadows: 3x1 pixels (commands 9-17)
+//
+// We scale to 4x for 1280x1024 resolution:
+// - Large particles: 12x8 pixels
+// - Small particles/shadows: 12x4 pixels
+//
+// =============================================================================
+
+// Forward declarations
+class ScreenBuffer;
+class Camera;
+
+// Render all particles
+// Requires camera for projection and terrain for shadow placement
+void renderParticles(const Camera& camera, ScreenBuffer& screen);
+
 #endif // LANDER_PARTICLES_H

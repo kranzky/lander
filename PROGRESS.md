@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Current Task:** 24
+**Current Task:** 26
 
 **Last Updated:** 2025-11-28
 
@@ -33,11 +33,11 @@
 | 21 | Shadow Rendering | 775ff55 |
 | 22 | Launchpad Landing | 95e4d49 |
 | - | Altitude limit fix (engine cutout at 52 tiles, hard clamp at 120) | d8e1c4e |
-| 23 | Crash Handling | 095f3b4 |
+| 23 | Crash Handling | c93f6f3 |
+| 24 | Particle System Foundation | c691d3f |
+| 25 | Particle Rendering | TBD |
 
 ## Remaining Tasks
-- Task 24: Particle System Foundation
-- Task 25: Particle Rendering
 - Task 26: Exhaust Particles
 - Task 27: Bullet Particles
 - Task 28: Particle Terrain Collision
@@ -62,6 +62,6 @@
 ## Summary
 
 - **Total Tasks:** 45
-- **Completed:** 23
+- **Completed:** 24
 - **In Progress:** 1
-- **Remaining:** 21
+- **Remaining:** 20
