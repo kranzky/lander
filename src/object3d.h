@@ -73,4 +73,54 @@ struct ObjectBlueprint {
 
 extern const ObjectBlueprint shipBlueprint;
 
+// =============================================================================
+// Landscape Object Models
+// =============================================================================
+//
+// Object blueprints for all landscape objects (trees, buildings, etc.)
+// From Lander.arm lines 12851-13279.
+//
+// Object type mapping (from objectTypes table, lines 4638-4666):
+//   0  = pyramid (unused)
+//   1  = small leafy tree
+//   2  = tall leafy tree
+//   3  = small leafy tree (same as 1)
+//   4  = small leafy tree (same as 1)
+//   5  = gazebo
+//   6  = tall leafy tree (same as 2)
+//   7  = fir tree
+//   8  = building
+//   9  = rocket
+//   10 = rocket (same as 9)
+//   11 = rocket (same as 9)
+//   12 = smoking rocket (unused, uses rocket model)
+//   13 = smoking remains (right bend)
+//   14 = smoking remains (left bend)
+//   15 = smoking remains (left bend)
+//   16 = smoking remains (left bend)
+//   17 = smoking gazebo
+//   18 = smoking remains (right bend)
+//   19 = smoking remains (right bend)
+//   20 = smoking building
+//   21 = smoking remains (right bend)
+//   22 = smoking remains (left bend)
+//   23 = smoking remains (left bend)
+//
+// =============================================================================
+
+extern const ObjectBlueprint pyramidBlueprint;
+extern const ObjectBlueprint smallLeafyTreeBlueprint;
+extern const ObjectBlueprint tallLeafyTreeBlueprint;
+extern const ObjectBlueprint firTreeBlueprint;
+extern const ObjectBlueprint gazeboBlueprint;
+extern const ObjectBlueprint buildingBlueprint;
+extern const ObjectBlueprint rocketBlueprint;
+extern const ObjectBlueprint smokingRemainsLeftBlueprint;
+extern const ObjectBlueprint smokingRemainsRightBlueprint;
+extern const ObjectBlueprint smokingGazeboBlueprint;
+extern const ObjectBlueprint smokingBuildingBlueprint;
+
+// Get the blueprint for a given object type (from ObjectType constants)
+const ObjectBlueprint* getObjectBlueprint(uint8_t objectType);
+
 #endif // LANDER_OBJECT3D_H

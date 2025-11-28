@@ -121,6 +121,9 @@ target_include_directories(test_polar_coords PRIVATE src)
 add_executable(test_object3d
     test/test_object3d.cpp
     src/object3d.cpp
+    src/object_map.cpp
+    src/landscape.cpp
+    src/lookup_tables.cpp
 )
 target_include_directories(test_object3d PRIVATE src)
 
