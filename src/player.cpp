@@ -332,13 +332,86 @@ bool Player::updatePhysics() {
     }
 
     // If any vertex hit terrain, push the ship up by the maximum penetration amount
+    // NOTE: We do NOT zero velocity here - that's handled by checkLanding() if
+    // landing is successful, or by crash handling otherwise.
+    // This allows checkLanding() to see the actual velocity before collision.
     if (hitTerrain) {
         position.y = Fixed::fromRaw(position.y.raw - maxPenetration);
-        // Stop downward velocity when hitting terrain
-        if (velocity.y.raw > 0) {
-            velocity.y = Fixed::fromInt(0);
-        }
     }
 
     return hitTerrain;
+}
+
+// =============================================================================
+// Launchpad Landing Check
+// =============================================================================
+//
+// Port of LandOnLaunchpad (Lander.arm lines 2492-2564)
+//
+// This should be called when terrain collision is detected. It checks:
+// 1. Is the ship over the launchpad? (0 <= x < LAUNCHPAD_SIZE && 0 <= z < LAUNCHPAD_SIZE)
+// 2. Is the ship moving slowly enough? (|vx| + |vy| + |vz| < LANDING_SPEED)
+//
+// If both conditions are met, the ship has landed safely:
+// - Set Y position to LAUNCHPAD_Y (sitting on the pad)
+// - Zero velocity
+// - Refuel incrementally
+//
+// If the ship is NOT over the launchpad, it's a crash.
+// If the ship is going too fast, it's still flying (will bounce/crash on next check).
+//
+// =============================================================================
+
+LandingState Player::checkLanding() {
+    // Check if ship is over the launchpad
+    // Launchpad is at (0,0) to (LAUNCHPAD_SIZE, LAUNCHPAD_SIZE)
+    if (position.x.raw < 0 ||
+        position.x.raw >= PlayerConstants::LAUNCHPAD_SIZE.raw ||
+        position.z.raw < 0 ||
+        position.z.raw >= PlayerConstants::LAUNCHPAD_SIZE.raw) {
+        // Not over launchpad - this is a crash
+        return LandingState::CRASHED;
+    }
+
+    // Check ship orientation - must be mostly upright to land safely
+    // The "roof" vector points through the ship's floor (exhaust direction)
+    // For a level ship, roof.y should be close to 1.0 (pointing down)
+    // If roof.y < 0.5 (roughly 60 degrees tilt), the ship is too tilted
+    const Vec3& roofVec = rotationMatrix.roof();
+    if (roofVec.y.raw < 0x00800000) {  // 0.5 in 8.24 format
+        // Ship is tilted too much or upside down - crash
+        return LandingState::CRASHED;
+    }
+
+    // Over the launchpad and upright - check velocity
+    // Calculate total velocity magnitude: |vx| + |vy| + |vz|
+    // Note: We subtract gravity from Y velocity because gravity was already applied
+    // this frame before collision detection. A ship hovering stationary will have
+    // vy = GRAVITY, not vy = 0, so we compensate for this.
+    int32_t absVelX = velocity.x.raw >= 0 ? velocity.x.raw : -velocity.x.raw;
+    int32_t adjustedVelY = velocity.y.raw - PlayerConstants::GRAVITY;  // Remove this frame's gravity
+    int32_t absVelY = adjustedVelY >= 0 ? adjustedVelY : -adjustedVelY;
+    int32_t absVelZ = velocity.z.raw >= 0 ? velocity.z.raw : -velocity.z.raw;
+    int32_t totalVelocity = absVelX + absVelY + absVelZ;
+
+    if (totalVelocity >= PlayerConstants::LANDING_SPEED) {
+        // Too fast to land safely - this is a crash
+        return LandingState::CRASHED;
+    }
+
+    // Safe landing! Set position to landed position
+    position.y = PlayerConstants::LAUNCHPAD_Y;
+
+    // Zero velocity
+    velocity.x = Fixed::fromInt(0);
+    velocity.y = Fixed::fromInt(0);
+    velocity.z = Fixed::fromInt(0);
+
+    // Refuel (add fuel up to maximum)
+    fuelLevel += PlayerConstants::REFUEL_RATE;
+    if (fuelLevel > PlayerConstants::MAX_FUEL) {
+        fuelLevel = PlayerConstants::MAX_FUEL;
+    }
+
+    return LandingState::LANDED;
 }

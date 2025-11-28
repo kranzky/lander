@@ -55,6 +55,13 @@ struct InputState {
     uint8_t getFuelBurnRate() const { return buttons & 0x06; }
 };
 
+// Landing state enum
+enum class LandingState {
+    FLYING,         // Normal flight
+    LANDED,         // Successfully landed on launchpad
+    CRASHED         // Hit terrain too fast or outside launchpad
+};
+
 class Player {
 public:
     Player();
@@ -78,8 +85,12 @@ public:
     void updateOrientation();
 
     // Update physics: apply gravity, thrust, friction, and update position
-    // Returns true if the ship hit the sea level floor
+    // Returns true if the ship hit terrain
     bool updatePhysics();
+
+    // Check for landing on launchpad after terrain collision detected
+    // Returns the resulting landing state
+    LandingState checkLanding();
 
     // Position accessors
     const Vec3& getPosition() const { return position; }
@@ -198,6 +209,36 @@ namespace PlayerConstants {
     // Original: SEA_LEVEL = &05500000 (5.3125 tiles)
     // In our coordinate system, positive Y is down, so this is the max Y value
     constexpr Fixed SEA_LEVEL = Fixed::fromRaw(0x05500000);
+
+    // ==========================================================================
+    // Landing Constants (from original Lander.arm)
+    // ==========================================================================
+
+    // Launchpad size: 8 tiles (tiles 0-7 in both X and Z)
+    constexpr Fixed LAUNCHPAD_SIZE = Fixed::fromRaw(0x08000000);  // 8 tiles
+
+    // Launchpad altitude (Y coordinate of the launchpad surface)
+    constexpr Fixed LAUNCHPAD_ALTITUDE = Fixed::fromRaw(0x03500000);  // 3.3125 tiles
+
+    // Undercarriage offset (how far below ship center the landing gear is)
+    constexpr Fixed UNDERCARRIAGE_Y = Fixed::fromRaw(0x00640000);  // ~0.39 tiles
+
+    // Y position of ship when landed (launchpad altitude minus undercarriage)
+    constexpr Fixed LAUNCHPAD_Y = Fixed::fromRaw(
+        LAUNCHPAD_ALTITUDE.raw - UNDERCARRIAGE_Y.raw);
+
+    // Maximum safe landing velocity (sum of |vx| + |vy| + |vz|)
+    // Tuned for gameplay feel - allows gentle landings but crashes on hard impacts
+    // 0x00100000 = ~1024 in debug display units (raw >> 10)
+    constexpr int32_t LANDING_SPEED = 0x00100000;
+
+    // Fuel refuel rate while landed (added per frame)
+    // Original: 0x20 per frame at 15fps
+    // At 120fps: same per frame gives 8x faster refueling (feels better)
+    constexpr int REFUEL_RATE = 0x20;
+
+    // Maximum fuel level
+    constexpr int MAX_FUEL = 0x1400;
 }
 
 #endif // LANDER_PLAYER_H

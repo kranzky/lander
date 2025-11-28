@@ -62,6 +62,10 @@ private:
     int accumulatedMouseX = 0;
     int accumulatedMouseY = 0;
 
+    // Landing state
+    LandingState landingState = LandingState::FLYING;
+    int crashRecoveryTimer = 0;  // Frames before CRASHED can reset to FLYING
+
     void drawFPS();
     void drawDigit(int x, int y, int digit, Color color);
     void drawMinus(int x, int y, Color color);
@@ -195,7 +199,53 @@ void Game::update() {
     player.updateOrientation();
 
     // Update ship physics (gravity, thrust, friction)
-    player.updatePhysics();
+    bool hitTerrain = player.updatePhysics();
+
+    // Check for landing when terrain collision detected OR already landed
+    if (hitTerrain || landingState == LandingState::LANDED) {
+        // If already landed and player is thrusting upward, allow takeoff
+        // Check if velocity is negative (upward) - this means thrust overcame gravity
+        Vec3 vel = player.getVelocity();
+        bool thrustingUp = vel.y.raw < 0;
+
+        if (landingState == LandingState::LANDED && thrustingUp) {
+            // Player is taking off - transition to flying
+            landingState = LandingState::FLYING;
+        } else if (landingState == LandingState::CRASHED) {
+            // Already crashed - stay crashed, just stop downward movement
+            if (vel.y.raw > 0) {
+                vel.y = Fixed::fromInt(0);
+                player.setVelocity(vel);
+            }
+        } else {
+            // Check for landing/refueling
+            LandingState newState = player.checkLanding();
+
+            // If transitioning TO crashed, start the recovery timer
+            if (newState == LandingState::CRASHED) {
+                crashRecoveryTimer = 120;  // 1 second at 120fps before can recover
+            }
+
+            landingState = newState;
+
+            // If not landed, stop downward movement to prevent bouncing through terrain
+            if (landingState != LandingState::LANDED) {
+                if (vel.y.raw > 0) {
+                    vel.y = Fixed::fromInt(0);
+                    player.setVelocity(vel);
+                }
+            }
+        }
+        // Note: Crash explosion will be implemented in Task 23
+    } else if (landingState == LandingState::CRASHED) {
+        // Decrement crash recovery timer
+        if (crashRecoveryTimer > 0) {
+            crashRecoveryTimer--;
+        } else {
+            // Timer expired and no longer touching terrain - allow recovery
+            landingState = LandingState::FLYING;
+        }
+    }
 
     // Update camera to follow player (no height clamping for debugging)
     camera.followTarget(player.getPosition(), false);
@@ -337,7 +387,27 @@ void Game::drawFPS() {
     x = drawNumber(x, y, input.mouseRelY, white);
     x += 8;
     // Show button state as number (0-7)
-    drawNumber(x, y, input.buttons, white);
+    x = drawNumber(x, y, input.buttons, white);
+
+    // Draw landing state indicator
+    x += 16;
+    Color stateColor;
+    int stateValue;
+    switch (landingState) {
+        case LandingState::FLYING:
+            stateColor = white;
+            stateValue = 0;
+            break;
+        case LandingState::LANDED:
+            stateColor = Color(0, 255, 0);  // Green
+            stateValue = 1;
+            break;
+        case LandingState::CRASHED:
+            stateColor = Color(255, 0, 0);  // Red
+            stateValue = 2;
+            break;
+    }
+    drawNumber(x, y, stateValue, stateColor);
 }
 
 void Game::drawShip() {

@@ -624,6 +624,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 - Code cleanup
 - Bug fixes found during testing
 - Performance optimization if needed
+- Sutherland-Hodgman triangle clipping for smooth screen-edge rendering (Zarch-style)
 - Final verification against original
 
 **Verification**: Game plays correctly end-to-end.
