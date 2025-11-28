@@ -130,6 +130,9 @@ public:
     // Input state
     const InputState& getInput() const { return input; }
 
+    // Check if engine is currently active (button pressed AND below altitude limit)
+    bool isEngineActive() const;
+
     // Fuel management
     int getFuelLevel() const { return fuelLevel; }
     void setFuelLevel(int level) { fuelLevel = level; }

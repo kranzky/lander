@@ -436,3 +436,29 @@ LandingState Player::checkLanding() {
 
     return LandingState::LANDED;
 }
+
+// =============================================================================
+// Engine State Check
+// =============================================================================
+//
+// Returns true if the engine is currently active (producing thrust/exhaust).
+// Engine is active when:
+// 1. A thrust button is pressed (full thrust or hover)
+// 2. The ship is below the altitude limit (52 tiles up)
+//
+// =============================================================================
+
+bool Player::isEngineActive() const {
+    // Check if any thrust button is pressed
+    bool buttonPressed = input.isThrusting() || input.isHovering();
+    if (!buttonPressed) {
+        return false;
+    }
+
+    // Check if below the altitude limit where engines work
+    // In our coordinate system, negative Y is up, so check if Y >= HIGHEST_ALTITUDE
+    // (HIGHEST_ALTITUDE is a large negative value, -52 tiles)
+    bool belowAltitudeLimit = position.y.raw >= PlayerConstants::HIGHEST_ALTITUDE.raw;
+
+    return belowAltitudeLimit;
+}

@@ -152,4 +152,25 @@ void renderParticles(const Camera& camera, ScreenBuffer& screen);
 // fullThrust: true = 8 particles (left button), false = 2 particles (middle button)
 void spawnExhaustParticles(const Vec3& pos, const Vec3& vel, const Vec3& exhaust, bool fullThrust);
 
+// =============================================================================
+// Bullet Particle Spawning
+// =============================================================================
+//
+// Port of bullet firing from MoveAndDrawPlayer Part 5 (lines 2369-2465)
+//
+// When right button pressed:
+// - Spawns 1 bullet particle per frame
+// - Velocity = playerVelocity + gunDirection/256
+// - Position = playerPos - bulletVel + gunDirection/128
+// - Flags: GRAVITY | DESTROYS_OBJECTS | white color
+// - Lifespan: 20 frames at 15fps (~160 frames at 120fps)
+//
+// =============================================================================
+
+// Spawn a bullet particle in the direction the ship is facing
+// pos: ship position
+// vel: ship velocity
+// gunDir: gun direction vector (nose of ship, points forward)
+void spawnBulletParticle(const Vec3& pos, const Vec3& vel, const Vec3& gunDir);
+
 #endif // LANDER_PARTICLES_H

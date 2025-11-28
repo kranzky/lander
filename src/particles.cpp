@@ -126,11 +126,11 @@ void ParticleSystem::update() {
 namespace {
     // Particle rendering constants
     // Original: 3x2 pixels for particles, 3x1 for shadows at 320x256
-    // Scaled 4x for 1280x1024
-    constexpr int PARTICLE_WIDTH = 12;   // 3 * 4
-    constexpr int PARTICLE_HEIGHT = 8;   // 2 * 4
-    constexpr int SHADOW_WIDTH = 12;     // 3 * 4
-    constexpr int SHADOW_HEIGHT = 4;     // 1 * 4
+    // Scaled 2x for better visual appearance at 1280x1024
+    constexpr int PARTICLE_WIDTH = 6;    // 3 * 2
+    constexpr int PARTICLE_HEIGHT = 4;   // 2 * 2
+    constexpr int SHADOW_WIDTH = 6;      // 3 * 2
+    constexpr int SHADOW_HEIGHT = 2;     // 1 * 2
 
     // Draw a filled rectangle at the given screen coordinates
     void drawRect(ScreenBuffer& screen, int x, int y, int width, int height, Color color) {
@@ -175,12 +175,26 @@ void renderParticles(const Camera& camera, ScreenBuffer& screen) {
             continue;
         }
 
-        // Get terrain height at particle position for shadow
-        Fixed terrainY = getLandscapeAltitude(p.position.x, p.position.z);
+        // Get terrain height for shadow
+        //
+        // Particles have a Z offset of 10 tiles to match the ship's visual position.
+        // For shadow rendering, we need to look up terrain at the player's actual
+        // world Z position (subtracting the offset), but project the shadow at the
+        // particle's visual Z position (with the offset) so it appears correctly.
+        //
+        // This matches how drawObjectShadow works for the ship: it uses worldPos
+        // (actual player position) for terrain lookup but cameraRelPos (visual
+        // position) for projection.
+        constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10 * 0x01000000;  // 10 tiles
+        Fixed terrainLookupZ = Fixed::fromRaw(p.position.z.raw - SHIP_VISUAL_Z_OFFSET);
+        Fixed terrainY = getLandscapeAltitude(p.position.x, terrainLookupZ);
 
-        // Shadow position: same X and Z, but at terrain height
-        Vec3 shadowWorldPos = p.position;
+        // Shadow position: at particle's visual X/Z, but at terrain height
+        // looked up from the actual world Z position
+        Vec3 shadowWorldPos;
+        shadowWorldPos.x = p.position.x;
         shadowWorldPos.y = terrainY;
+        shadowWorldPos.z = p.position.z;  // Keep the visual Z offset for projection
         Vec3 shadowRelPos = camera.worldToCamera(shadowWorldPos);
 
         // Draw shadow first (so it appears under the particle)
@@ -199,18 +213,31 @@ void renderParticles(const Camera& camera, ScreenBuffer& screen) {
             uint8_t colorIndex = p.getColorIndex();
             Color color = vidc256ToColor(colorIndex);
 
-            // If particle has fading flag, adjust color based on lifespan
-            // Original fades from white to red as particle ages
+            // If particle has fading flag, cycle through white -> yellow -> orange -> red
+            // Based on remaining lifespan (higher lifespan = newer = whiter)
             if (p.hasFading()) {
-                // Fade from white (high lifespan) toward base color (low lifespan)
-                // Assuming initial lifespan around 60-120 frames
-                int fade = p.lifespan * 4;  // Scale lifespan to 0-255 range
-                if (fade > 255) fade = 255;
+                // Scale lifespan to 0-255 range (BASE_LIFESPAN is ~16 frames)
+                int life = p.lifespan * 16;  // 16 frames * 16 = 256
+                if (life > 255) life = 255;
 
-                // Blend toward white based on remaining life
-                color.r = static_cast<uint8_t>((color.r * (255 - fade) + 255 * fade) / 255);
-                color.g = static_cast<uint8_t>((color.g * (255 - fade) + 255 * fade) / 255);
-                color.b = static_cast<uint8_t>((color.b * (255 - fade) + 255 * fade) / 255);
+                // White (255,255,255) -> Yellow (255,255,0) -> Orange (255,128,0) -> Red (255,0,0)
+                // life 255-192: white to yellow (reduce blue)
+                // life 192-64:  yellow to orange (reduce green from 255 to 128)
+                // life 64-0:    orange to red (reduce green from 128 to 0)
+                color.r = 255;
+                if (life > 192) {
+                    // White to yellow: blue fades out
+                    color.g = 255;
+                    color.b = static_cast<uint8_t>((life - 192) * 4);  // 255 -> 0
+                } else if (life > 64) {
+                    // Yellow to orange: green fades from 255 to 128
+                    color.g = static_cast<uint8_t>(128 + (life - 64));  // 255 -> 128
+                    color.b = 0;
+                } else {
+                    // Orange to red: green fades from 128 to 0
+                    color.g = static_cast<uint8_t>(life * 2);  // 128 -> 0
+                    color.b = 0;
+                }
             }
 
             drawRect(screen, proj.screenX, proj.screenY,
@@ -267,30 +294,32 @@ namespace {
 }
 
 void spawnExhaustParticles(const Vec3& pos, const Vec3& vel, const Vec3& exhaust, bool fullThrust) {
-    // Calculate particle velocity: (shipVel + exhaust/128) / 2
-    // Original: ADD R3, R0, R6, ASR #7; MOV R3, R3, ASR #1
-    // For our 8.24 format, exhaust is already normalized ~1.0, so scale appropriately
-    Vec3 particleVel;
-    particleVel.x = Fixed::fromRaw((vel.x.raw + (exhaust.x.raw >> 3)) >> 1);
-    particleVel.y = Fixed::fromRaw((vel.y.raw + (exhaust.y.raw >> 3)) >> 1);
-    particleVel.z = Fixed::fromRaw((vel.z.raw + (exhaust.z.raw >> 3)) >> 1);
+    // Calculate particle velocity: shipVel + exhaustDir * exhaustSpeed
+    // The exhaust direction is normalized (~1.0 in 8.24), scale for exhaust speed
+    // Exhaust should move in the exhaust direction relative to the ship
+    constexpr int32_t EXHAUST_SPEED_SHIFT = 3;  // >> 3 = 0.125 tiles/frame exhaust speed (halved)
 
-    // Calculate spawn position: shipPos - particleVel + exhaust/128
-    // This places particle behind ship and compensates for first velocity update
+    Vec3 particleVel;
+    particleVel.x = Fixed::fromRaw(vel.x.raw + (exhaust.x.raw >> EXHAUST_SPEED_SHIFT));
+    particleVel.y = Fixed::fromRaw(vel.y.raw + (exhaust.y.raw >> EXHAUST_SPEED_SHIFT));
+    particleVel.z = Fixed::fromRaw(vel.z.raw + (exhaust.z.raw >> EXHAUST_SPEED_SHIFT));
+
+    // Calculate spawn position: at ship's visual position
     //
-    // Note: The ship is rendered at a fixed Z distance (15 tiles from camera) for
-    // consistent visual size, but the player's actual position is only 5 tiles from
-    // camera. We offset particle Z by 10 tiles to match the ship's visual position.
-    constexpr int32_t SHIP_Z_OFFSET = 10 * 0x01000000;  // 10 tiles in 8.24 format
+    // The ship is rendered at Z=15 from camera for consistent visual size, but
+    // the player's actual position is only Z=5 from camera. We offset particle Z
+    // by 10 tiles to match the ship's visual position.
+    //
+    // For shadow rendering, we subtract this offset to look up terrain at the
+    // player's actual world Z position.
+    constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10 * 0x01000000;  // 10 tiles in 8.24 format
 
     Vec3 particlePos;
-    particlePos.x = Fixed::fromRaw(pos.x.raw - particleVel.x.raw + (exhaust.x.raw >> 3));
-    particlePos.y = Fixed::fromRaw(pos.y.raw - particleVel.y.raw + (exhaust.y.raw >> 3));
-    particlePos.z = Fixed::fromRaw(pos.z.raw - particleVel.z.raw + (exhaust.z.raw >> 3) + SHIP_Z_OFFSET);
+    particlePos.x = pos.x;
+    particlePos.y = pos.y;
+    particlePos.z = Fixed::fromRaw(pos.z.raw + SHIP_VISUAL_Z_OFFSET);
 
-    // Particle flags: FADING | GRAVITY | BOUNCE | SPLASH
-    // Original: 0x001D0000 = bits 16, 18, 19, 20
-    // We use FADING (16) and GRAVITY (20) for now
+    // Particle flags: FADING | GRAVITY (exhaust bounces off terrain)
     uint32_t flags = ParticleFlags::FADING | ParticleFlags::GRAVITY;
 
     // Base lifespan: 8 frames at 15fps = ~64 frames at 120fps
@@ -302,4 +331,48 @@ void spawnExhaustParticles(const Vec3& pos, const Vec3& vel, const Vec3& exhaust
     for (int i = 0; i < count; i++) {
         addExhaustParticle(particlePos, particleVel, BASE_LIFESPAN, flags);
     }
+}
+
+// =============================================================================
+// Bullet Particle Spawning Implementation
+// =============================================================================
+//
+// Port of MoveAndDrawPlayer Part 5 (Lander.arm lines 2369-2465).
+//
+// The original algorithm:
+// 1. Calculate bullet velocity: playerVel + gunDir/256
+//    This makes bullets move with the ship + in the gun direction
+// 2. Calculate spawn position: playerPos - bulletVel + gunDir/128
+//    This places bullet at gun muzzle, compensating for first velocity update
+// 3. Lifespan: 20 frames at 15fps
+// 4. Flags: GRAVITY | DESTROYS_OBJECTS | white color
+//
+// =============================================================================
+
+void spawnBulletParticle(const Vec3& pos, const Vec3& vel, const Vec3& gunDir) {
+    // Calculate bullet velocity: playerVel + gunDir * speed
+    // Original uses gunDir >> 8, but we need faster bullets at 120fps
+    // gunDir is normalized (~1.0 in 8.24), so >> 1 gives ~0.5 tiles/frame
+    Vec3 bulletVel;
+    bulletVel.x = Fixed::fromRaw(vel.x.raw + (gunDir.x.raw >> 1));
+    bulletVel.y = Fixed::fromRaw(vel.y.raw + (gunDir.y.raw >> 1));
+    bulletVel.z = Fixed::fromRaw(vel.z.raw + (gunDir.z.raw >> 1));
+
+    // Calculate spawn position: at ship's visual position (same offset as exhaust)
+    constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10 * 0x01000000;  // 10 tiles in 8.24 format
+
+    Vec3 bulletPos;
+    bulletPos.x = pos.x;
+    bulletPos.y = pos.y;
+    bulletPos.z = Fixed::fromRaw(pos.z.raw + SHIP_VISUAL_Z_OFFSET);
+
+    // Bullet flags: GRAVITY | DESTROYS_OBJECTS | white color (0xFF)
+    // Original: 0x01BC00FF = bits 18,19,20,21,23,24 + color 0xFF
+    // We use GRAVITY (20) and DESTROYS_OBJECTS (21) for now
+    uint32_t flags = ParticleFlags::GRAVITY | ParticleFlags::DESTROYS_OBJECTS | 0xFF;
+
+    // Lifespan: reduced for shorter bullet range
+    constexpr int32_t BULLET_LIFESPAN = 60;  // ~0.5 second at 120fps
+
+    particleSystem.addParticle(bulletPos, bulletVel, BULLET_LIFESPAN, flags);
 }

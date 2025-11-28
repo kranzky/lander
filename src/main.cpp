@@ -88,6 +88,9 @@ private:
     int stateTimer = 0;  // Timer for explosion/game over animations
     Vec3 explosionPos;   // Position where explosion occurred (for future particle effects)
 
+    // Debug mode: keyboard controls, no physics
+    bool debugMode = false;
+
     // Helper methods
     void triggerCrash();
     void respawnPlayer();
@@ -281,6 +284,25 @@ void Game::update() {
     int relX, relY;
     uint32_t mouseButtons = SDL_GetRelativeMouseState(&relX, &relY);
 
+    // Debug mode: keyboard controls for position, mouse for rotation only
+    if (debugMode) {
+        const Uint8* keys = SDL_GetKeyboardState(nullptr);
+        Vec3 pos = player.getPosition();
+        constexpr int32_t MOVE_SPEED = 0x00100000;  // ~0.0625 tiles per frame
+
+        // A/Z for height (Y axis - positive is down)
+        if (keys[SDL_SCANCODE_A]) pos.y = Fixed::fromRaw(pos.y.raw - MOVE_SPEED);
+        if (keys[SDL_SCANCODE_Z]) pos.y = Fixed::fromRaw(pos.y.raw + MOVE_SPEED);
+
+        // Arrow keys for X/Z movement
+        if (keys[SDL_SCANCODE_LEFT])  pos.x = Fixed::fromRaw(pos.x.raw - MOVE_SPEED);
+        if (keys[SDL_SCANCODE_RIGHT]) pos.x = Fixed::fromRaw(pos.x.raw + MOVE_SPEED);
+        if (keys[SDL_SCANCODE_UP])    pos.z = Fixed::fromRaw(pos.z.raw + MOVE_SPEED);
+        if (keys[SDL_SCANCODE_DOWN])  pos.z = Fixed::fromRaw(pos.z.raw - MOVE_SPEED);
+
+        player.setPosition(pos);
+    }
+
     // Accumulate mouse position with scaling for sensitivity
     // No decay - ship maintains orientation until player moves mouse (like original)
     accumulatedMouseX += relX * 2;
@@ -299,20 +321,28 @@ void Game::update() {
     // Update ship orientation based on mouse position
     player.updateOrientation();
 
-    // Update ship physics (gravity, thrust, friction)
-    bool hitTerrain = player.updatePhysics();
+    // Update ship physics (gravity, thrust, friction) - skip in debug mode
+    bool hitTerrain = debugMode ? false : player.updatePhysics();
 
-    // Spawn exhaust particles when thrusting
+    // Spawn exhaust particles when engine is active (thrust button AND below altitude limit)
     const InputState& input = player.getInput();
-    if (input.isThrusting() || input.isHovering()) {
+    if (player.isEngineActive()) {
         // fullThrust = left button (8 particles), hover = middle button (2 particles)
         bool fullThrust = input.isThrusting();
         spawnExhaustParticles(player.getPosition(), player.getVelocity(),
                               player.getExhaustDirection(), fullThrust);
     }
 
+    // Spawn bullet particle when firing (right button)
+    if (input.isFiring()) {
+        // Gun direction is the nose vector from the rotation matrix
+        Vec3 gunDir = player.getRotationMatrix().nose();
+        spawnBulletParticle(player.getPosition(), player.getVelocity(), gunDir);
+    }
+
     // Check for landing when terrain collision detected OR already landed
-    if (hitTerrain || landingState == LandingState::LANDED) {
+    // Skip in debug mode - no crashes
+    if (!debugMode && (hitTerrain || landingState == LandingState::LANDED)) {
         // If already landed and player is thrusting upward, allow takeoff
         // Check if velocity is negative (upward) - this means thrust overcame gravity
         Vec3 vel = player.getVelocity();
