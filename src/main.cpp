@@ -53,7 +53,7 @@ private:
     void update();
     void render();
     void drawTestPattern();
-    void drawShip();
+    void bufferShip();
 
     SDL_Window* window = nullptr;
     SDL_Renderer* renderer = nullptr;
@@ -583,8 +583,8 @@ void Game::drawFPS() {
     drawNumber(x, y, particleSystem.getParticleCount(), magenta);
 }
 
-void Game::drawShip() {
-    // Don't draw the ship during explosion or game over
+void Game::bufferShip() {
+    // Don't buffer the ship during explosion or game over
     if (gameState != GameState::PLAYING) {
         return;
     }
@@ -609,35 +609,45 @@ void Game::drawShip() {
     // LANDSCAPE_Z_MID = LANDSCAPE_Z - CAMERA_PLAYER_Z = 20 - 5 = 15 tiles
     shipScreenPos.z = Fixed::fromInt(15);
 
-    // Draw the ship's shadow first (so it appears under the ship)
+    // Calculate which row the ship belongs to for depth sorting
+    // The ship's world Z determines its row in the landscape grid
+    // Row mapping: row = camTileZ + TILES_Z - 1 - worldZInt
+    int camTileZ = camera.getZTile().toInt();
+    int playerTileZ = player.getZ().toInt();
+    int row = camTileZ + TILES_Z - 1 - playerTileZ;
+
+    // Clamp to valid row range
+    if (row < 0) row = 0;
+    if (row >= TILES_Z) row = TILES_Z - 1;
+
+    // Buffer the ship's shadow first (so it appears under the ship)
     Vec3 cameraWorldPos;
     cameraWorldPos.x = camera.getX();
     cameraWorldPos.y = camera.getY();
     cameraWorldPos.z = camera.getZ();
-    drawObjectShadow(shipBlueprint, shipScreenPos, player.getRotationMatrix(),
-                     player.getPosition(), cameraWorldPos, screen);
+    bufferObjectShadow(shipBlueprint, shipScreenPos, player.getRotationMatrix(),
+                       player.getPosition(), cameraWorldPos, row);
 
-    // Draw the ship using the object renderer
-    drawObject(shipBlueprint, shipScreenPos, player.getRotationMatrix(), screen);
+    // Buffer the ship using the object renderer
+    bufferObject(shipBlueprint, shipScreenPos, player.getRotationMatrix(), row);
 }
 
 void Game::drawTestPattern() {
     // Clear to black
     screen.clear(Color::black());
 
-    // Render the landscape using the camera
-    landscapeRenderer.render(screen, camera);
-
-    // Render objects on the landscape (trees, buildings, rockets, etc.)
-    // These are rendered after landscape but before particles for now
-    // Task 34-35 will add proper depth sorting with graphics buffers
+    // Buffer objects first (they get drawn during landscape rendering for proper depth sorting)
     landscapeRenderer.renderObjects(screen, camera);
 
-    // Render particles (between landscape and ship for proper layering)
-    renderParticles(camera, screen);
+    // Buffer the player's ship for depth-sorted rendering
+    bufferShip();
 
-    // Render the player's ship
-    drawShip();
+    // Buffer particles for depth-sorted rendering
+    bufferParticles(camera);
+
+    // Render the landscape, flushing object buffers after each row for correct Z-ordering
+    // This draws landscape tiles, buffered objects (including ship), and particles in depth order
+    landscapeRenderer.render(screen, camera);
 
     // Draw FPS overlay
     drawFPS();

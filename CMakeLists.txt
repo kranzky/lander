@@ -140,6 +140,7 @@ add_executable(test_object_renderer
     src/projection.cpp
     src/camera.cpp
     src/landscape.cpp
+    src/graphics_buffer.cpp
 )
 target_include_directories(test_object_renderer PRIVATE src)
 
@@ -154,6 +155,7 @@ add_executable(test_particles
     src/projection.cpp
     src/palette.cpp
     src/math3d.cpp
+    src/graphics_buffer.cpp
 )
 target_include_directories(test_particles PRIVATE src)
 

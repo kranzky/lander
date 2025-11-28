@@ -69,6 +69,17 @@ void GraphicsBufferSystem::addTriangle(int row, int x1, int y1, int x2, int y2,
     buffers[row].addTriangle(x1, y1, x2, y2, x3, y3, color);
 }
 
+void GraphicsBufferSystem::addShadowTriangle(int row, int x1, int y1, int x2, int y2,
+                                              int x3, int y3, Color color)
+{
+    // Validate row index
+    if (row < 0 || row >= TILES_Z) {
+        return;
+    }
+
+    shadowBuffers[row].addTriangle(x1, y1, x2, y2, x3, y3, color);
+}
+
 void GraphicsBufferSystem::drawAndClearRow(int row, ScreenBuffer& screen)
 {
     // Validate row index
@@ -76,6 +87,11 @@ void GraphicsBufferSystem::drawAndClearRow(int row, ScreenBuffer& screen)
         return;
     }
 
+    // Draw shadows first (they should appear under objects)
+    shadowBuffers[row].draw(screen);
+    shadowBuffers[row].clear();
+
+    // Then draw objects (on top of shadows)
     buffers[row].draw(screen);
     buffers[row].clear();
 }
@@ -84,6 +100,7 @@ void GraphicsBufferSystem::clearAll()
 {
     for (int i = 0; i < TILES_Z; i++) {
         buffers[i].clear();
+        shadowBuffers[i].clear();
     }
 }
 
@@ -92,7 +109,7 @@ size_t GraphicsBufferSystem::getTriangleCount(int row) const
     if (row < 0 || row >= TILES_Z) {
         return 0;
     }
-    return buffers[row].getTriangleCount();
+    return buffers[row].getTriangleCount() + shadowBuffers[row].getTriangleCount();
 }
 
 size_t GraphicsBufferSystem::getTotalTriangleCount() const
@@ -100,6 +117,7 @@ size_t GraphicsBufferSystem::getTotalTriangleCount() const
     size_t total = 0;
     for (int i = 0; i < TILES_Z; i++) {
         total += buffers[i].getTriangleCount();
+        total += shadowBuffers[i].getTriangleCount();
     }
     return total;
 }

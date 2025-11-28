@@ -79,7 +79,12 @@ public:
     // Row 0 = furthest (back), Row TILES_Z-1 = nearest (front)
     void addTriangle(int row, int x1, int y1, int x2, int y2, int x3, int y3, Color color);
 
+    // Add a shadow triangle to the shadow buffer for a specific tile row
+    // Shadows are drawn before objects in the same row
+    void addShadowTriangle(int row, int x1, int y1, int x2, int y2, int x3, int y3, Color color);
+
     // Draw all triangles in a specific row buffer and clear it
+    // Draws shadows first, then objects
     void drawAndClearRow(int row, ScreenBuffer& screen);
 
     // Clear all buffers (call at start of each frame)
@@ -90,8 +95,10 @@ public:
     size_t getTotalTriangleCount() const;
 
 private:
-    // One buffer per tile row
+    // One buffer per tile row for objects
     RowBuffer buffers[TILES_Z];
+    // Separate buffer per tile row for shadows (drawn before objects)
+    RowBuffer shadowBuffers[TILES_Z];
 };
 
 // Global graphics buffer system instance

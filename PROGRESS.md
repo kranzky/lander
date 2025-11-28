@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Current Task:** 35
+**Current Task:** 36
 
 **Last Updated:** 2025-11-28
 
@@ -45,9 +45,9 @@
 | 32 | Object 3D Models | 60b19ac |
 | 33 | Object Rendering | 6bcc105 |
 | 34 | Graphics Buffers for Depth Sorting | b61e752 |
+| 35 | Object-Buffer Integration | ac79746 |
 
 ## Remaining Tasks
-- Task 35: Object-Buffer Integration
 - Task 36: Bullet-Object Collision
 - Task 37: Smoke from Destroyed Objects
 - Task 38: Falling Rocks
@@ -62,6 +62,6 @@
 ## Summary
 
 - **Total Tasks:** 45
-- **Completed:** 35
+- **Completed:** 36
 - **In Progress:** 0
-- **Remaining:** 10
+- **Remaining:** 9

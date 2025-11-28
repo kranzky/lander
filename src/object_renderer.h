@@ -5,6 +5,7 @@
 #include "math3d.h"
 #include "screen.h"
 #include "projection.h"
+#include "graphics_buffer.h"
 
 // =============================================================================
 // 3D Object Renderer
@@ -70,6 +71,38 @@ void drawObjectShadow(
     const Vec3& worldPos,
     const Vec3& cameraWorldPos,
     ScreenBuffer& screen
+);
+
+// =============================================================================
+// Buffered Object Rendering (for depth-sorted drawing)
+// =============================================================================
+//
+// These versions buffer triangles to a graphics buffer instead of drawing
+// immediately. Used for proper depth sorting with the landscape.
+//
+// =============================================================================
+
+// Draw a 3D object to a graphics buffer (deferred rendering)
+// Arguments:
+//   blueprint - The object's model data
+//   position  - Object position relative to camera (in world space)
+//   rotation  - Object's rotation matrix (identity for static objects)
+//   row       - The tile row index (0 = back, TILES_Z-1 = front)
+void bufferObject(
+    const ObjectBlueprint& blueprint,
+    const Vec3& position,
+    const Mat3x3& rotation,
+    int row
+);
+
+// Draw a 3D object's shadow to a graphics buffer (deferred rendering)
+void bufferObjectShadow(
+    const ObjectBlueprint& blueprint,
+    const Vec3& cameraRelPos,
+    const Mat3x3& rotation,
+    const Vec3& worldPos,
+    const Vec3& cameraWorldPos,
+    int row
 );
 
 #endif // LANDER_OBJECT_RENDERER_H

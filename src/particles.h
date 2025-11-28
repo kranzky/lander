@@ -134,9 +134,13 @@ extern ParticleSystem particleSystem;
 class ScreenBuffer;
 class Camera;
 
-// Render all particles
+// Render all particles (immediate mode - for debugging)
 // Requires camera for projection and terrain for shadow placement
 void renderParticles(const Camera& camera, ScreenBuffer& screen);
+
+// Buffer all particles to the graphics buffer system for depth-sorted rendering
+// Call this before landscape rendering; particles are drawn when buffer rows are flushed
+void bufferParticles(const Camera& camera);
 
 // =============================================================================
 // Exhaust Particle Spawning

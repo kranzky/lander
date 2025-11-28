@@ -1,6 +1,7 @@
 #include "object_renderer.h"
 #include "palette.h"
 #include "landscape.h"
+#include "graphics_buffer.h"
 
 // =============================================================================
 // 3D Object Renderer Implementation
@@ -313,6 +314,233 @@ void drawObjectShadow(
 
         // Draw the shadow triangle in black
         screen.drawTriangle(
+            shadowVertices[v0].x, shadowVertices[v0].y,
+            shadowVertices[v1].x, shadowVertices[v1].y,
+            shadowVertices[v2].x, shadowVertices[v2].y,
+            black
+        );
+    }
+}
+
+// =============================================================================
+// Buffered Object Rendering Implementation
+// =============================================================================
+//
+// These versions buffer triangles to a graphics buffer for deferred rendering.
+// Used for proper depth sorting with the landscape.
+//
+// =============================================================================
+
+void bufferObject(
+    const ObjectBlueprint& blueprint,
+    const Vec3& position,
+    const Mat3x3& rotation,
+    int row
+) {
+    // Arrays to store projected vertices
+    ProjectedVertex2D projectedVertices[MAX_VERTICES];
+
+    bool isRotating = (blueprint.flags & ObjectFlags::ROTATES) != 0;
+
+    // ==========================================================================
+    // Part 1: Transform and project all vertices
+    // ==========================================================================
+
+    for (uint32_t i = 0; i < blueprint.vertexCount && i < MAX_VERTICES; i++) {
+        const ObjectVertex& vertex = blueprint.vertices[i];
+
+        // Get vertex coordinates as Fixed values
+        Vec3 v;
+        v.x = Fixed::fromRaw(vertex.x);
+        v.y = Fixed::fromRaw(vertex.y);
+        v.z = Fixed::fromRaw(vertex.z);
+
+        // Transform vertex by rotation matrix if object rotates
+        Vec3 rotated;
+        if (isRotating) {
+            rotated = rotation * v;
+        } else {
+            rotated = v;
+        }
+
+        // Add object position to get world coordinates
+        Vec3 worldPos;
+        worldPos.x = Fixed::fromRaw(position.x.raw + rotated.x.raw);
+        worldPos.y = Fixed::fromRaw(position.y.raw + rotated.y.raw);
+        worldPos.z = Fixed::fromRaw(position.z.raw + rotated.z.raw);
+
+        // Project to screen
+        ProjectedVertex projected = projectVertex(worldPos);
+
+        projectedVertices[i].x = projected.screenX;
+        projectedVertices[i].y = projected.screenY;
+        projectedVertices[i].visible = projected.visible;
+    }
+
+    // ==========================================================================
+    // Part 2: Process and buffer each face
+    // ==========================================================================
+
+    for (uint32_t i = 0; i < blueprint.faceCount; i++) {
+        const ObjectFace& face = blueprint.faces[i];
+
+        // Get face normal as Vec3
+        Vec3 normal;
+        normal.x = Fixed::fromRaw(face.normalX);
+        normal.y = Fixed::fromRaw(face.normalY);
+        normal.z = Fixed::fromRaw(face.normalZ);
+
+        // Transform normal by rotation matrix if object rotates
+        Vec3 rotatedNormal;
+        if (isRotating) {
+            rotatedNormal = rotation * normal;
+        } else {
+            rotatedNormal = normal;
+        }
+
+        // Backface culling
+        bool faceVisible = true;
+
+        if (isRotating) {
+            int64_t dotProduct =
+                (static_cast<int64_t>(position.x.raw) * rotatedNormal.x.raw +
+                 static_cast<int64_t>(position.y.raw) * rotatedNormal.y.raw +
+                 static_cast<int64_t>(position.z.raw) * rotatedNormal.z.raw) >> 24;
+
+            faceVisible = (dotProduct < 0);
+        }
+
+        if (!faceVisible) {
+            continue;
+        }
+
+        // Get vertex indices
+        int v0 = face.vertex0;
+        int v1 = face.vertex1;
+        int v2 = face.vertex2;
+
+        // Skip if any vertex is behind camera
+        if (!projectedVertices[v0].visible ||
+            !projectedVertices[v1].visible ||
+            !projectedVertices[v2].visible) {
+            continue;
+        }
+
+        // Calculate lit color
+        Color litColor = calculateLitColor(face.color, rotatedNormal);
+
+        // Buffer the triangle instead of drawing directly
+        graphicsBuffers.addTriangle(row,
+            projectedVertices[v0].x, projectedVertices[v0].y,
+            projectedVertices[v1].x, projectedVertices[v1].y,
+            projectedVertices[v2].x, projectedVertices[v2].y,
+            litColor
+        );
+    }
+}
+
+void bufferObjectShadow(
+    const ObjectBlueprint& blueprint,
+    const Vec3& cameraRelPos,
+    const Mat3x3& rotation,
+    const Vec3& worldPos,
+    const Vec3& cameraWorldPos,
+    int row
+) {
+    // Check if object has shadow rendering enabled
+    if ((blueprint.flags & ObjectFlags::NO_SHADOW) != 0) {
+        return;
+    }
+
+    // Arrays to store shadow projected vertices
+    ProjectedVertex2D shadowVertices[MAX_VERTICES];
+
+    bool isRotating = (blueprint.flags & ObjectFlags::ROTATES) != 0;
+
+    // ==========================================================================
+    // Part 1: Calculate shadow vertices (project each vertex onto terrain)
+    // ==========================================================================
+
+    for (uint32_t i = 0; i < blueprint.vertexCount && i < MAX_VERTICES; i++) {
+        const ObjectVertex& vertex = blueprint.vertices[i];
+
+        // Get vertex coordinates as Fixed values
+        Vec3 v;
+        v.x = Fixed::fromRaw(vertex.x);
+        v.y = Fixed::fromRaw(vertex.y);
+        v.z = Fixed::fromRaw(vertex.z);
+
+        // Transform vertex by rotation matrix if object rotates
+        Vec3 rotated;
+        if (isRotating) {
+            rotated = rotation * v;
+        } else {
+            rotated = v;
+        }
+
+        // Calculate world position of this vertex
+        Fixed worldX = Fixed::fromRaw(worldPos.x.raw + rotated.x.raw);
+        Fixed worldZ = Fixed::fromRaw(worldPos.z.raw + rotated.z.raw);
+
+        // Get terrain altitude at this world position
+        Fixed terrainY = getLandscapeAltitude(worldX, worldZ);
+
+        // Calculate camera-relative position of shadow vertex
+        Vec3 shadowPos;
+        shadowPos.x = Fixed::fromRaw(cameraRelPos.x.raw + rotated.x.raw);
+        shadowPos.y = Fixed::fromRaw(terrainY.raw - cameraWorldPos.y.raw);
+        shadowPos.z = Fixed::fromRaw(cameraRelPos.z.raw + rotated.z.raw);
+
+        // Project shadow vertex to screen
+        ProjectedVertex projected = projectVertex(shadowPos);
+
+        shadowVertices[i].x = projected.screenX;
+        shadowVertices[i].y = projected.screenY;
+        shadowVertices[i].visible = projected.visible;
+    }
+
+    // ==========================================================================
+    // Part 2: Buffer shadows for upward-facing faces
+    // ==========================================================================
+
+    Color black = Color::black();
+
+    for (uint32_t i = 0; i < blueprint.faceCount; i++) {
+        const ObjectFace& face = blueprint.faces[i];
+
+        // Get face normal as Vec3
+        Vec3 normal;
+        normal.x = Fixed::fromRaw(face.normalX);
+        normal.y = Fixed::fromRaw(face.normalY);
+        normal.z = Fixed::fromRaw(face.normalZ);
+
+        // Transform normal by rotation matrix if object rotates
+        Vec3 rotatedNormal;
+        if (isRotating) {
+            rotatedNormal = rotation * normal;
+        } else {
+            rotatedNormal = normal;
+        }
+
+        // Only draw shadow if face normal points upward (negative Y)
+        if (rotatedNormal.y.raw >= 0) {
+            continue;
+        }
+
+        // Get vertex indices
+        int v0 = face.vertex0;
+        int v1 = face.vertex1;
+        int v2 = face.vertex2;
+
+        // Skip if any shadow vertex is behind camera
+        if (!shadowVertices[v0].visible ||
+            !shadowVertices[v1].visible ||
+            !shadowVertices[v2].visible) {
+            continue;
+        }
+
+        // Buffer the shadow triangle to the shadow buffer (drawn before objects)
+        graphicsBuffers.addShadowTriangle(row,
             shadowVertices[v0].x, shadowVertices[v0].y,
             shadowVertices[v1].x, shadowVertices[v1].y,
             shadowVertices[v2].x, shadowVertices[v2].y,

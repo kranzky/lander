@@ -4,6 +4,7 @@
 #include "camera.h"
 #include "projection.h"
 #include "palette.h"
+#include "graphics_buffer.h"
 
 // =============================================================================
 // Particle System Implementation
@@ -306,6 +307,162 @@ void renderParticles(const Camera &camera, ScreenBuffer &screen)
 
             drawRect(screen, proj.screenX, proj.screenY,
                      PARTICLE_WIDTH, PARTICLE_HEIGHT, color);
+        }
+    }
+}
+
+// =============================================================================
+// Buffered Particle Rendering Implementation
+// =============================================================================
+//
+// Depth-sorted particle rendering using the graphics buffer system.
+// Particles are buffered by row so they interleave correctly with landscape.
+// Rectangles are drawn as two triangles to use the existing buffer system.
+//
+// =============================================================================
+
+namespace
+{
+    // Buffer a filled rectangle as two triangles
+    void bufferRect(int row, int x, int y, int width, int height, Color color, bool isShadow)
+    {
+        // Calculate rectangle corners centered on (x, y)
+        int left = x - width / 2;
+        int top = y - height / 2;
+        int right = left + width;
+        int bottom = top + height;
+
+        // Draw as two triangles: top-left triangle and bottom-right triangle
+        // Triangle 1: top-left, top-right, bottom-left
+        // Triangle 2: top-right, bottom-right, bottom-left
+
+        if (isShadow)
+        {
+            graphicsBuffers.addShadowTriangle(row,
+                                               left, top,
+                                               right, top,
+                                               left, bottom,
+                                               color);
+            graphicsBuffers.addShadowTriangle(row,
+                                               right, top,
+                                               right, bottom,
+                                               left, bottom,
+                                               color);
+        }
+        else
+        {
+            graphicsBuffers.addTriangle(row,
+                                        left, top,
+                                        right, top,
+                                        left, bottom,
+                                        color);
+            graphicsBuffers.addTriangle(row,
+                                        right, top,
+                                        right, bottom,
+                                        left, bottom,
+                                        color);
+        }
+    }
+}
+
+void bufferParticles(const Camera &camera)
+{
+    using namespace GameConstants;
+
+    int count = particleSystem.getParticleCount();
+
+    // Get camera tile position for row calculation
+    int camTileZ = camera.getZTile().toInt();
+
+    for (int i = 0; i < count; i++)
+    {
+        const Particle &p = particleSystem.getParticle(i);
+
+        // Skip rocks - they're rendered as 3D objects
+        if (p.isRock())
+        {
+            continue;
+        }
+
+        // Transform particle position to camera-relative coordinates
+        Vec3 cameraRelPos = camera.worldToCamera(p.position);
+
+        // Skip particles behind the camera
+        if (cameraRelPos.z.raw <= 0)
+        {
+            continue;
+        }
+
+        // Calculate which row this particle belongs to for depth sorting
+        // Particles have a Z offset of 10 tiles to match ship visual position
+        constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10; // tiles
+        int particleTileZ = p.position.z.toInt() - SHIP_VISUAL_Z_OFFSET;
+        int row = camTileZ + TILES_Z - 1 - particleTileZ;
+
+        // Clamp row to valid range
+        if (row < 0)
+            row = 0;
+        if (row >= TILES_Z)
+            row = TILES_Z - 1;
+
+        // Get terrain height for shadow (same offset logic as renderParticles)
+        constexpr int32_t SHIP_VISUAL_Z_OFFSET_RAW = 10 * 0x01000000;
+        Fixed terrainLookupZ = Fixed::fromRaw(p.position.z.raw - SHIP_VISUAL_Z_OFFSET_RAW);
+        Fixed terrainY = getLandscapeAltitude(p.position.x, terrainLookupZ);
+
+        // Shadow position: at particle's visual X/Z, but at terrain height
+        Vec3 shadowWorldPos;
+        shadowWorldPos.x = p.position.x;
+        shadowWorldPos.y = terrainY;
+        shadowWorldPos.z = p.position.z;
+        Vec3 shadowRelPos = camera.worldToCamera(shadowWorldPos);
+
+        // Buffer shadow first (so it appears under the particle)
+        if (shadowRelPos.z.raw > 0)
+        {
+            ProjectedVertex shadowProj = projectVertex(shadowRelPos);
+            if (shadowProj.visible && shadowProj.onScreen)
+            {
+                bufferRect(row, shadowProj.screenX, shadowProj.screenY,
+                           SHADOW_WIDTH, SHADOW_HEIGHT, Color::black(), true);
+            }
+        }
+
+        // Project and buffer particle
+        ProjectedVertex proj = projectVertex(cameraRelPos);
+        if (proj.visible && proj.onScreen)
+        {
+            // Get particle color from palette (VIDC 256-color format)
+            uint8_t colorIndex = p.getColorIndex();
+            Color color = vidc256ToColor(colorIndex);
+
+            // If particle has fading flag, cycle through white -> yellow -> orange -> red
+            if (p.hasFading())
+            {
+                int life = p.lifespan * 16;
+                if (life > 255)
+                    life = 255;
+
+                color.r = 255;
+                if (life > 192)
+                {
+                    color.g = 255;
+                    color.b = static_cast<uint8_t>((life - 192) * 4);
+                }
+                else if (life > 64)
+                {
+                    color.g = static_cast<uint8_t>(128 + (life - 64));
+                    color.b = 0;
+                }
+                else
+                {
+                    color.g = static_cast<uint8_t>(life * 2);
+                    color.b = 0;
+                }
+            }
+
+            bufferRect(row, proj.screenX, proj.screenY,
+                       PARTICLE_WIDTH, PARTICLE_HEIGHT, color, false);
         }
     }
 }

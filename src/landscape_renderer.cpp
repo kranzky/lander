@@ -2,6 +2,7 @@
 // Renders the 3D landscape terrain
 
 #include "landscape_renderer.h"
+#include "graphics_buffer.h"
 
 using namespace GameConstants;
 
@@ -229,6 +230,10 @@ void LandscapeRenderer::render(ScreenBuffer& screen, const Camera& camera)
                          currentRow[col], currentRow[col + 1],
                          row, tileX, tileZ);
             }
+
+            // Draw objects for this row (buffered by renderObjects())
+            // Row mapping: render row R draws tiles for object buffer row R-1
+            graphicsBuffers.drawAndClearRow(row - 1, screen);
         }
 
         // Swap rows: current becomes previous for next iteration
@@ -236,6 +241,9 @@ void LandscapeRenderer::render(ScreenBuffer& screen, const Camera& camera)
             previousRow[col] = currentRow[col];
         }
     }
+
+    // Flush the final row buffer (nearest objects, in front of all landscape)
+    graphicsBuffers.drawAndClearRow(TILES_Z - 1, screen);
 }
 
 // =============================================================================
@@ -255,6 +263,9 @@ void LandscapeRenderer::render(ScreenBuffer& screen, const Camera& camera)
 
 void LandscapeRenderer::renderObjects(ScreenBuffer& screen, const Camera& camera)
 {
+    // Clear object buffers at start - they will be flushed during landscape rendering
+    graphicsBuffers.clearAll();
+
     // Get camera position for relative coordinate calculation
     Fixed camX = camera.getX();
     Fixed camY = camera.getY();
@@ -335,12 +346,12 @@ void LandscapeRenderer::renderObjects(ScreenBuffer& screen, const Camera& camera
             cameraWorldPos.y = camY;
             cameraWorldPos.z = camZ;
 
-            // Draw shadow first (so it appears under the object)
-            drawObjectShadow(*blueprint, cameraRelPos, identityMatrix,
-                           worldPos, cameraWorldPos, screen);
+            // Buffer shadow first (so it appears under the object)
+            bufferObjectShadow(*blueprint, cameraRelPos, identityMatrix,
+                           worldPos, cameraWorldPos, row);
 
-            // Draw the object
-            drawObject(*blueprint, cameraRelPos, identityMatrix, screen);
+            // Buffer the object (will be drawn after landscape row)
+            bufferObject(*blueprint, cameraRelPos, identityMatrix, row);
         }
     }
 }
