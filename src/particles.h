@@ -130,4 +130,26 @@ class Camera;
 // Requires camera for projection and terrain for shadow placement
 void renderParticles(const Camera& camera, ScreenBuffer& screen);
 
+// =============================================================================
+// Exhaust Particle Spawning
+// =============================================================================
+//
+// Port of exhaust plume spawning from MoveAndDrawPlayer Part 4 (lines 2224-2365)
+//
+// When thrusting:
+// - Spawns 8 particles for full thrust, 2 for hover
+// - Particles spawn behind ship in direction of exhaust vector
+// - Velocity combines ship velocity + exhaust direction
+// - Random variation added to velocity and lifespan
+// - Flags: FADING | GRAVITY (white fading to red, affected by gravity)
+//
+// =============================================================================
+
+// Spawn exhaust particles behind the ship
+// pos: ship position
+// vel: ship velocity
+// exhaust: exhaust direction vector (points away from ship bottom)
+// fullThrust: true = 8 particles (left button), false = 2 particles (middle button)
+void spawnExhaustParticles(const Vec3& pos, const Vec3& vel, const Vec3& exhaust, bool fullThrust);
+
 #endif // LANDER_PARTICLES_H

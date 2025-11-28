@@ -218,3 +218,88 @@ void renderParticles(const Camera& camera, ScreenBuffer& screen) {
         }
     }
 }
+
+// =============================================================================
+// Exhaust Particle Spawning Implementation
+// =============================================================================
+//
+// Port of MoveAndDrawPlayer Part 4 (Lander.arm lines 2224-2365).
+//
+// The original algorithm:
+// 1. Calculate particle velocity: (shipVel + exhaust/128) / 2
+//    This makes particles move with ship but slow down relative to it
+// 2. Calculate spawn position: shipPos - particleVel + exhaust/128
+//    This offsets particles in exhaust direction, accounting for first update
+// 3. Add random variation to velocity and lifespan
+// 4. Spawn 8 particles for full thrust, 2 for hover
+//
+// =============================================================================
+
+namespace {
+    // Simple pseudo-random number generator for particle variation
+    // Uses a static seed that advances each call
+    uint32_t exhaustRandomSeed = 0x12345678;
+
+    int32_t exhaustRandom() {
+        // Linear congruential generator
+        exhaustRandomSeed = exhaustRandomSeed * 1103515245 + 12345;
+        return static_cast<int32_t>(exhaustRandomSeed);
+    }
+
+    // Add a single exhaust particle with randomization
+    void addExhaustParticle(const Vec3& basePos, const Vec3& baseVel,
+                            int32_t baseLifespan, uint32_t flags) {
+        // Add random variation to velocity
+        // Original uses +/- 2^(32 - 10) = +/- 0x400000
+        // Scaled for our 8.24 format: >> 7 gives similar range
+        constexpr int32_t VEL_RANDOM_RANGE = 0x80000;  // ~0.5 tiles/frame variation
+
+        Vec3 particleVel = baseVel;
+        particleVel.x = Fixed::fromRaw(particleVel.x.raw + ((exhaustRandom() >> 8) % VEL_RANDOM_RANGE) - VEL_RANDOM_RANGE/2);
+        particleVel.y = Fixed::fromRaw(particleVel.y.raw + ((exhaustRandom() >> 8) % VEL_RANDOM_RANGE) - VEL_RANDOM_RANGE/2);
+        particleVel.z = Fixed::fromRaw(particleVel.z.raw + ((exhaustRandom() >> 8) % VEL_RANDOM_RANGE) - VEL_RANDOM_RANGE/2);
+
+        // Add random variation to lifespan (0 to 8 extra frames)
+        int32_t lifespan = baseLifespan + ((exhaustRandom() >> 24) & 0x07);
+
+        particleSystem.addParticle(basePos, particleVel, lifespan, flags);
+    }
+}
+
+void spawnExhaustParticles(const Vec3& pos, const Vec3& vel, const Vec3& exhaust, bool fullThrust) {
+    // Calculate particle velocity: (shipVel + exhaust/128) / 2
+    // Original: ADD R3, R0, R6, ASR #7; MOV R3, R3, ASR #1
+    // For our 8.24 format, exhaust is already normalized ~1.0, so scale appropriately
+    Vec3 particleVel;
+    particleVel.x = Fixed::fromRaw((vel.x.raw + (exhaust.x.raw >> 3)) >> 1);
+    particleVel.y = Fixed::fromRaw((vel.y.raw + (exhaust.y.raw >> 3)) >> 1);
+    particleVel.z = Fixed::fromRaw((vel.z.raw + (exhaust.z.raw >> 3)) >> 1);
+
+    // Calculate spawn position: shipPos - particleVel + exhaust/128
+    // This places particle behind ship and compensates for first velocity update
+    //
+    // Note: The ship is rendered at a fixed Z distance (15 tiles from camera) for
+    // consistent visual size, but the player's actual position is only 5 tiles from
+    // camera. We offset particle Z by 10 tiles to match the ship's visual position.
+    constexpr int32_t SHIP_Z_OFFSET = 10 * 0x01000000;  // 10 tiles in 8.24 format
+
+    Vec3 particlePos;
+    particlePos.x = Fixed::fromRaw(pos.x.raw - particleVel.x.raw + (exhaust.x.raw >> 3));
+    particlePos.y = Fixed::fromRaw(pos.y.raw - particleVel.y.raw + (exhaust.y.raw >> 3));
+    particlePos.z = Fixed::fromRaw(pos.z.raw - particleVel.z.raw + (exhaust.z.raw >> 3) + SHIP_Z_OFFSET);
+
+    // Particle flags: FADING | GRAVITY | BOUNCE | SPLASH
+    // Original: 0x001D0000 = bits 16, 18, 19, 20
+    // We use FADING (16) and GRAVITY (20) for now
+    uint32_t flags = ParticleFlags::FADING | ParticleFlags::GRAVITY;
+
+    // Base lifespan: 8 frames at 15fps = ~64 frames at 120fps
+    // But we want shorter exhaust trails, so scale down
+    constexpr int32_t BASE_LIFESPAN = 16;  // Tuned for visual appeal
+
+    // Spawn particles
+    int count = fullThrust ? 8 : 2;
+    for (int i = 0; i < count; i++) {
+        addExhaustParticle(particlePos, particleVel, BASE_LIFESPAN, flags);
+    }
+}

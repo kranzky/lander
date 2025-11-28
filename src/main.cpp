@@ -198,21 +198,6 @@ void Game::handleEvents() {
                 if (event.key.keysym.sym == SDLK_ESCAPE) {
                     running = false;
                 }
-                // Debug: Spawn test particles with spacebar
-                if (event.key.keysym.sym == SDLK_SPACE) {
-                    Vec3 pos = player.getPosition();
-                    // Spawn particles in a burst around the player
-                    for (int i = 0; i < 10; i++) {
-                        Vec3 vel;
-                        // Random-ish velocities using player position bits for variety
-                        int seed = (pos.x.raw >> 16) + i * 12345;
-                        vel.x = Fixed::fromRaw((seed % 0x100000) - 0x80000);  // -0.5 to 0.5 tiles/frame
-                        vel.y = Fixed::fromRaw(-0x60000 - ((seed >> 4) % 0x40000));  // Upward
-                        vel.z = Fixed::fromRaw(((seed >> 8) % 0x100000) - 0x80000);
-                        uint32_t flags = ParticleFlags::GRAVITY | (0xFF & (i * 25));  // Various colors
-                        particleSystem.addParticle(pos, vel, 90, flags);  // 0.75 sec lifespan
-                    }
-                }
                 break;
         }
     }
@@ -316,6 +301,15 @@ void Game::update() {
 
     // Update ship physics (gravity, thrust, friction)
     bool hitTerrain = player.updatePhysics();
+
+    // Spawn exhaust particles when thrusting
+    const InputState& input = player.getInput();
+    if (input.isThrusting() || input.isHovering()) {
+        // fullThrust = left button (8 particles), hover = middle button (2 particles)
+        bool fullThrust = input.isThrusting();
+        spawnExhaustParticles(player.getPosition(), player.getVelocity(),
+                              player.getExhaustDirection(), fullThrust);
+    }
 
     // Check for landing when terrain collision detected OR already landed
     if (hitTerrain || landingState == LandingState::LANDED) {
