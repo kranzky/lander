@@ -25,6 +25,7 @@ set(SOURCES
     src/object_renderer.cpp
     src/particles.cpp
     src/object_map.cpp
+    src/graphics_buffer.cpp
 )
 
 # Create executable
@@ -179,3 +180,12 @@ add_executable(test_object_map
 )
 target_include_directories(test_object_map PRIVATE src)
 add_test(NAME test_object_map COMMAND test_object_map)
+
+# Test for graphics buffer
+add_executable(test_graphics_buffer
+    test/test_graphics_buffer.cpp
+    src/graphics_buffer.cpp
+    src/screen.cpp
+)
+target_include_directories(test_graphics_buffer PRIVATE src)
+add_test(NAME test_graphics_buffer COMMAND test_graphics_buffer)
