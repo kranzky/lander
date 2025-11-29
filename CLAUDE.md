@@ -33,4 +33,5 @@ ctest          # Run all tests
 
 ## Current Progress
 
-See PROGRESS.md for task status. Each completed task has a commit hash.
+See PROGRESS.md for task status. Each completed task has a commit hash. See
+TASKS.md for task details. Make sure to keep these two files in sync.

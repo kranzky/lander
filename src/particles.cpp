@@ -5,6 +5,7 @@
 #include "projection.h"
 #include "palette.h"
 #include "graphics_buffer.h"
+#include "object_map.h"
 
 // =============================================================================
 // Particle System Implementation
@@ -105,6 +106,72 @@ void ParticleSystem::update()
         constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10 * 0x01000000; // 10 tiles
         Fixed worldZ = Fixed::fromRaw(p.position.z.raw - SHIP_VISUAL_Z_OFFSET);
         Fixed terrainY = getLandscapeAltitude(p.position.x, worldZ);
+
+        // =================================================================
+        // Object Collision Detection
+        // =================================================================
+        // Port of ProcessObjectDestruction from Lander.arm (lines 3290-3364).
+        //
+        // If particle has DESTROYS_OBJECTS flag and is within SAFE_HEIGHT of
+        // terrain, check if there's an object at the particle's tile position.
+        // If so, mark the object as destroyed and spawn an explosion.
+        //
+        if (p.canDestroyObjects())
+        {
+            // Calculate height above ground: terrain altitude - particle Y
+            // (positive Y is down, so terrainY - particleY gives height above)
+            int32_t heightAboveGround = terrainY.raw - p.position.y.raw;
+
+            // Only check for objects if particle is close to ground
+            if (heightAboveGround < GameConstants::SAFE_HEIGHT.raw)
+            {
+                // Get tile coordinates from world position (8.24 >> 24 = integer tile)
+                uint8_t tileX = static_cast<uint8_t>(p.position.x.raw >> 24);
+                uint8_t tileZ = static_cast<uint8_t>(worldZ.raw >> 24);
+
+                // Look up object at this tile
+                uint8_t objectType = objectMap.getObjectAt(tileX, tileZ);
+
+                // Check if there's an object (0xFF = no object)
+                if (objectType != ObjectType::NONE)
+                {
+                    // Calculate object's world position (tile center)
+                    // Objects are rendered at tile centers, so add 0.5 tiles to X and Z
+                    // Y is half a tile above ground (positive Y is down, so subtract)
+                    // NOTE: Do NOT add SHIP_VISUAL_Z_OFFSET here - spawnExplosionParticles
+                    // adds it internally when converting to visual coordinates
+                    Vec3 objectPos;
+                    objectPos.x = Fixed::fromRaw(tileX << 24); // + (GameConstants::TILE_SIZE.raw >> 1));
+                    objectPos.z = Fixed::fromRaw(tileZ << 24); // + (GameConstants::TILE_SIZE.raw >> 1));
+                    Fixed groundY = getLandscapeAltitude(objectPos.x, Fixed::fromRaw(tileZ << 24));
+                    objectPos.y = Fixed::fromRaw(groundY.raw - (GameConstants::TILE_SIZE.raw >> 1));
+
+                    // Check if object is already destroyed (type >= 12)
+                    if (ObjectMap::isDestroyedType(objectType))
+                    {
+                        // Already destroyed - spawn small explosion (3 clusters)
+                        spawnExplosionParticles(objectPos, 3);
+                    }
+                    else
+                    {
+                        // Mark object as destroyed (add 12 to type)
+                        uint8_t destroyedType = ObjectMap::getDestroyedType(objectType);
+                        objectMap.setObjectAt(tileX, tileZ, destroyedType);
+
+                        // Spawn medium explosion (20 clusters = 80 particles)
+                        spawnExplosionParticles(objectPos, 20);
+
+                        // TODO: Add score (Task 40)
+                        // If not a rock (bit 17 clear), add 20 to score
+                        // if (!p.isRock()) { score += 20; }
+                    }
+
+                    // Remove the bullet particle
+                    removeParticle(i);
+                    continue;
+                }
+            }
+        }
 
         // If particle is below terrain (positive Y is down)
         if (p.position.y.raw > terrainY.raw)
@@ -339,15 +406,15 @@ namespace
         if (isShadow)
         {
             graphicsBuffers.addShadowTriangle(row,
-                                               left, top,
-                                               right, top,
-                                               left, bottom,
-                                               color);
+                                              left, top,
+                                              right, top,
+                                              left, bottom,
+                                              color);
             graphicsBuffers.addShadowTriangle(row,
-                                               right, top,
-                                               right, bottom,
-                                               left, bottom,
-                                               color);
+                                              right, top,
+                                              right, bottom,
+                                              left, bottom,
+                                              color);
         }
         else
         {

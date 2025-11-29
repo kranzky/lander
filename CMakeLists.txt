@@ -162,6 +162,7 @@ add_executable(test_particles
     src/palette.cpp
     src/math3d.cpp
     src/graphics_buffer.cpp
+    src/object_map.cpp
     src/scale.cpp
 )
 target_include_directories(test_particles PRIVATE src)
