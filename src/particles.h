@@ -235,4 +235,23 @@ void spawnSparkParticles(const Vec3& pos, const Vec3& impactVel);
 // clusterCount: number of 4-particle clusters (3=small, 20=medium, 50=large)
 void spawnExplosionParticles(const Vec3& pos, int clusterCount);
 
+// =============================================================================
+// Smoke Particle Spawning (for destroyed objects)
+// =============================================================================
+//
+// Port of AddSmokeParticleToBuffer from Lander.arm (lines 3885-3977).
+//
+// Smoke particles are spawned from destroyed objects every few frames:
+// - Grey color (random intensity 3-10)
+// - Rises slowly upward (SMOKE_RISING_SPEED)
+// - Random velocity variation
+// - Bounces off terrain
+// - Short lifespan with random variation
+//
+// =============================================================================
+
+// Spawn a single smoke particle rising from a destroyed object
+// pos: position to spawn smoke (should be SMOKE_HEIGHT above object base)
+void spawnSmokeParticle(const Vec3& pos);
+
 #endif // LANDER_PARTICLES_H

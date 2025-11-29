@@ -30,6 +30,7 @@ ctest          # Run all tests
 - `test/` - Test files (test_*.cpp)
 - `build/` - Build output (created by cmake)
 - `PROGRESS.md` - Task tracking with commit hashes
+- `Lander.arm` - Commented disassembly of the original Lander demo
 
 ## Current Progress
 

@@ -927,3 +927,56 @@ void spawnExplosionParticles(const Vec3 &pos, int clusterCount)
         }
     }
 }
+
+// =============================================================================
+// Smoke Particle Spawning (for destroyed objects)
+// =============================================================================
+//
+// Port of AddSmokeParticleToBuffer from Lander.arm (lines 3885-3977).
+//
+// Smoke particles rise slowly from destroyed objects:
+// - Grey color (random intensity 3-10)
+// - Rising velocity (negative Y = upward)
+// - Random velocity spread in all directions
+// - Bounces off terrain
+// - Short lifespan with random variation
+//
+// =============================================================================
+
+void spawnSmokeParticle(const Vec3 &pos)
+{
+    // Offset position with visual Z offset (particles use visual coordinates)
+    constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10 * 0x01000000; // 10 tiles in 8.24 format
+    Vec3 smokePos = pos;
+    smokePos.z = Fixed::fromRaw(pos.z.raw + SHIP_VISUAL_Z_OFFSET);
+
+    // Frame rate scaling: original was 15fps, we run at 120fps (8x faster)
+    constexpr int FPS_SHIFT = 3;
+
+    // Smoke rises slowly - base upward velocity with random spread
+    // Original: MVN R4, #SMOKE_RISING_SPEED where SMOKE_RISING_SPEED = 0x00080000
+    // At 15fps this is -0x80000. At 120fps we scale by 1/8: -0x10000
+    constexpr int32_t SMOKE_RISING_SPEED = -0x10000;
+
+    // Random velocity variation (original uses shift 13, we add 3 for fps)
+    int32_t vx = (static_cast<int32_t>(exhaustRandom()) >> (13 + FPS_SHIFT));
+    int32_t vy = SMOKE_RISING_SPEED + (static_cast<int32_t>(exhaustRandom()) >> (13 + FPS_SHIFT));
+    int32_t vz = (static_cast<int32_t>(exhaustRandom()) >> (13 + FPS_SHIFT));
+
+    Vec3 vel;
+    vel.x = Fixed::fromRaw(vx);
+    vel.y = Fixed::fromRaw(vy);
+    vel.z = Fixed::fromRaw(vz);
+
+    // Smoke color (grey, random intensity 3-10)
+    uint8_t color = generateSmokeColor();
+
+    // Smoke: BOUNCES only (no gravity - it rises!)
+    uint32_t flags = ParticleFlags::BOUNCES | color;
+
+    // Lifespan: short-lived for subtle effect
+    // ~120 frames base + small random variation
+    int32_t lifespan = 120 + ((exhaustRandom() >> 22) & 0xFF);
+
+    particleSystem.addParticle(smokePos, vel, lifespan, flags);
+}

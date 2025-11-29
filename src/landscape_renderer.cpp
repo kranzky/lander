@@ -3,8 +3,12 @@
 
 #include "landscape_renderer.h"
 #include "graphics_buffer.h"
+#include "particles.h"
 
 using namespace GameConstants;
+
+// Frame counter for smoke spawning (static to persist across calls)
+static uint32_t smokeFrameCounter = 0;
 
 // =============================================================================
 // Constructor
@@ -266,6 +270,12 @@ void LandscapeRenderer::renderObjects(ScreenBuffer& screen, const Camera& camera
     // Clear object buffers at start - they will be flushed during landscape rendering
     graphicsBuffers.clearAll();
 
+    // Increment frame counter for smoke spawning
+    // Original spawns smoke every 4 frames at 15fps = 3.75 smoke/sec per object
+    // At 120fps, every 32 frames gives the same rate
+    // We use every 96 frames (~1.25 smoke/sec) for a more subtle effect
+    smokeFrameCounter++;
+
     // Get camera position for relative coordinate calculation
     Fixed camX = camera.getX();
     Fixed camY = camera.getY();
@@ -308,6 +318,31 @@ void LandscapeRenderer::renderObjects(ScreenBuffer& screen, const Camera& camera
             // Skip if no object at this tile
             if (objectType == ObjectType::NONE) {
                 continue;
+            }
+
+            // =================================================================
+            // Smoke from Destroyed Objects
+            // =================================================================
+            // Port of DrawObjects Part 3 from Lander.arm (lines 4910-4947).
+            //
+            // Destroyed objects (type >= 12) emit smoke particles every ~32
+            // frames at 120fps (equivalent to every 4 frames at 15fps).
+            // Smoke spawns at SMOKE_HEIGHT (3/4 tile) above the object base.
+            //
+            if (ObjectMap::isDestroyedType(objectType) && (smokeFrameCounter & 0x5F) == 0)
+            {
+                // Calculate object's world position for smoke spawning
+                Fixed smokeWorldX = Fixed::fromInt(worldXInt);
+                Fixed smokeWorldZ = Fixed::fromInt(worldZInt);
+                Fixed groundY = getLandscapeAltitude(smokeWorldX, smokeWorldZ);
+
+                // Smoke spawns at SMOKE_HEIGHT above ground (negative Y = upward)
+                Vec3 smokePos;
+                smokePos.x = smokeWorldX;
+                smokePos.y = Fixed::fromRaw(groundY.raw - SMOKE_HEIGHT.raw);
+                smokePos.z = smokeWorldZ;
+
+                spawnSmokeParticle(smokePos);
             }
 
             // Get the blueprint for this object type

@@ -599,6 +599,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 - State transition logic
 - Reset functionality for new game
 - Clean initialization
+- Title screen with smoothly rotating ship
 
 **Verification**: All state transitions work correctly.
 
@@ -625,11 +626,12 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 - Code cleanup
 - Bug fixes found during testing
 - Performance optimization if needed
+- Star particles appear above a certain height to give player a sense of
+  direction and speed when the ground is no longer visible
 - Sutherland-Hodgman triangle clipping for smooth screen-edge rendering (Zarch-style)
 - Allow the player to change the size of the region of landscape that is visible
 - Integrate sound effects from the Amiga version of Virus
 - Minimap like Zarch
-- Title screen with rotating ship
 - Final verification against original
 - Release build deployed to itch.io for Mac and Windows
 

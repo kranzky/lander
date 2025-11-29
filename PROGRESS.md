@@ -2,9 +2,9 @@
 
 ## Current Status
 
-**Current Task:** 36
+**Current Task:** 38
 
-**Last Updated:** 2025-11-28
+**Last Updated:** 2025-11-29
 
 ## Completed Tasks
 
@@ -46,10 +46,10 @@
 | 33 | Object Rendering | 6bcc105 |
 | 34 | Graphics Buffers for Depth Sorting | b61e752 |
 | 35 | Object-Buffer Integration | ac79746 |
+| 36 | Bullet-Object Collision | 72cfdf2 |
+| 37 | Smoke from Destroyed Objects | a03ef24 |
 
 ## Remaining Tasks
-- Task 36: Bullet-Object Collision
-- Task 37: Smoke from Destroyed Objects
 - Task 38: Falling Rocks
 - Task 39: Rock-Ship Collision
 - Task 40: Score Display
@@ -62,6 +62,6 @@
 ## Summary
 
 - **Total Tasks:** 45
-- **Completed:** 36
+- **Completed:** 38
 - **In Progress:** 0
-- **Remaining:** 9
+- **Remaining:** 7
