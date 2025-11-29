@@ -1,2 +1,6 @@
 build
+build-release
+dist
 Lander.arm
+.claude
+.DS_Store
