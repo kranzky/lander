@@ -26,6 +26,7 @@ set(SOURCES
     src/particles.cpp
     src/object_map.cpp
     src/graphics_buffer.cpp
+    src/scale.cpp
 )
 
 # Create executable
@@ -60,7 +61,7 @@ endif()
 # =============================================================================
 
 # Test for fixed-point math
-add_executable(test_fixed test/test_fixed.cpp)
+add_executable(test_fixed test/test_fixed.cpp src/scale.cpp)
 target_include_directories(test_fixed PRIVATE src)
 
 # Test for lookup tables
@@ -89,6 +90,7 @@ target_include_directories(test_screen PRIVATE src)
 add_executable(test_palette
     test/test_palette.cpp
     src/palette.cpp
+    src/scale.cpp
 )
 target_include_directories(test_palette PRIVATE src)
 
@@ -100,6 +102,7 @@ add_executable(test_projection
     src/lookup_tables.cpp
     src/screen.cpp
     src/camera.cpp
+    src/scale.cpp
 )
 target_include_directories(test_projection PRIVATE src)
 
@@ -108,6 +111,7 @@ add_executable(test_landscape
     test/test_landscape.cpp
     src/landscape.cpp
     src/lookup_tables.cpp
+    src/scale.cpp
 )
 target_include_directories(test_landscape PRIVATE src)
 
@@ -126,6 +130,7 @@ add_executable(test_object3d
     src/object_map.cpp
     src/landscape.cpp
     src/lookup_tables.cpp
+    src/scale.cpp
 )
 target_include_directories(test_object3d PRIVATE src)
 
@@ -141,6 +146,7 @@ add_executable(test_object_renderer
     src/camera.cpp
     src/landscape.cpp
     src/graphics_buffer.cpp
+    src/scale.cpp
 )
 target_include_directories(test_object_renderer PRIVATE src)
 
@@ -156,6 +162,7 @@ add_executable(test_particles
     src/palette.cpp
     src/math3d.cpp
     src/graphics_buffer.cpp
+    src/scale.cpp
 )
 target_include_directories(test_particles PRIVATE src)
 
@@ -179,6 +186,7 @@ add_executable(test_object_map
     src/object_map.cpp
     src/landscape.cpp
     src/lookup_tables.cpp
+    src/scale.cpp
 )
 target_include_directories(test_object_map PRIVATE src)
 add_test(NAME test_object_map COMMAND test_object_map)
@@ -188,6 +196,7 @@ add_executable(test_graphics_buffer
     test/test_graphics_buffer.cpp
     src/graphics_buffer.cpp
     src/screen.cpp
+    src/scale.cpp
 )
 target_include_directories(test_graphics_buffer PRIVATE src)
 add_test(NAME test_graphics_buffer COMMAND test_graphics_buffer)

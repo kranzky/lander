@@ -1,5 +1,8 @@
 #include "palette.h"
+#include "fixed.h"
 #include <algorithm>
+
+using namespace GameConstants;
 
 // =============================================================================
 // VIDC Color Conversion
@@ -110,9 +113,11 @@ Color getLandscapeTileColor(int32_t altitude, int tileRow, int32_t slope, TileTy
     }
 
     // Calculate brightness from row and slope
-    // tileRow: 1 (far) to 10 (near)
+    // tileRow: 1 (far) to TILES_Z-1 (near)
+    // Scale to 1-10 range regardless of TILES_Z for consistent depth shading
     // slope: altitude difference >> 22 (adds to brightness for left-facing tiles)
-    int brightness = tileRow + (slope >> 22);
+    int scaledRow = tileRow * 10 / (TILES_Z - 1);
+    int brightness = scaledRow + (slope >> 22);
 
     // Add brightness to all channels
     red += brightness;

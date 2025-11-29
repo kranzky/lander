@@ -163,10 +163,10 @@ void LandscapeRenderer::render(ScreenBuffer& screen, const Camera& camera)
     Fixed camZFrac = camera.getZFraction();
 
     // Landscape offset for screen positioning (matches original Lander.arm)
-    // X: -5.5 tiles (centers the grid on screen)
-    // Z: 20 tiles (pushes landscape forward from camera)
-    constexpr int32_t LANDSCAPE_X_RAW = (TILES_X - 2) * TILE_SIZE.raw / 2;  // 5.5 tiles
-    constexpr int32_t LANDSCAPE_Z_RAW = ((TILES_Z - 1) + 10) * TILE_SIZE.raw;  // 20 tiles
+    // X: centers the grid on screen (half the width)
+    // Z: pushes landscape forward from camera (depth + offset)
+    int32_t LANDSCAPE_X_RAW = (TILES_X - 2) * TILE_SIZE.raw / 2;
+    int32_t LANDSCAPE_Z_RAW = ((TILES_Z - 1) + 10) * TILE_SIZE.raw;
 
     // Screen-relative starting position = landscapeOffset - camera_fraction
     // This creates smooth scrolling as camera moves within a tile

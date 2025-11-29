@@ -95,10 +95,10 @@ public:
     size_t getTotalTriangleCount() const;
 
 private:
-    // One buffer per tile row for objects
-    RowBuffer buffers[TILES_Z];
+    // One buffer per tile row for objects (sized for max scale)
+    RowBuffer buffers[MAX_TILES_Z];
     // Separate buffer per tile row for shadows (drawn before objects)
-    RowBuffer shadowBuffers[TILES_Z];
+    RowBuffer shadowBuffers[MAX_TILES_Z];
 };
 
 // Global graphics buffer system instance

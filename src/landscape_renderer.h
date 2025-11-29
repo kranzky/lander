@@ -55,7 +55,7 @@ private:
         bool valid;
     };
 
-    static constexpr int MAX_CORNERS = GameConstants::TILES_X;
+    static constexpr int MAX_CORNERS = GameConstants::MAX_TILES_X;
     CornerData currentRow[MAX_CORNERS];
     CornerData previousRow[MAX_CORNERS];
 

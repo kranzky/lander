@@ -297,9 +297,9 @@ TEST(game_constants) {
     ASSERT_EQ(LAUNCHPAD_SIZE.raw, TILE_SIZE.raw * 8);
     ASSERT_EQ(HIGHEST_ALTITUDE.raw, 0x34000000);  // 52 * TILE_SIZE
 
-    // Verify tile counts
-    ASSERT_EQ(TILES_X, 13);
-    ASSERT_EQ(TILES_Z, 11);
+    // Verify tile counts (configurable, check they're at least original size)
+    ASSERT_EQ(TILES_X >= 13, true);  // At least original size
+    ASSERT_EQ(TILES_Z >= 11, true);
     ASSERT_EQ(MAX_PARTICLES, 484);
 }
 

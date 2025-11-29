@@ -206,6 +206,14 @@ void Game::handleEvents() {
                     running = false;
                 } else if (event.key.keysym.sym == SDLK_d) {
                     debugMode = !debugMode;
+                } else if (event.key.keysym.sym == SDLK_1) {
+                    GameConstants::landscapeScale = 1;
+                } else if (event.key.keysym.sym == SDLK_2) {
+                    GameConstants::landscapeScale = 2;
+                } else if (event.key.keysym.sym == SDLK_3) {
+                    GameConstants::landscapeScale = 4;
+                } else if (event.key.keysym.sym == SDLK_4) {
+                    GameConstants::landscapeScale = 8;
                 }
                 break;
         }
