@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Current Task:** 43
+**Current Task:** 45
 
 **Last Updated:** 2025-11-30
 
@@ -53,10 +53,10 @@
 | 40 | Bullet Reimplementation | 20ba6e4 |
 | 41 | Particle-Ship Depth Sorting | aef9a48 |
 | 42 | Particle Visibility Clipping | 149b7e9 |
+| 44 | Smooth Ship Controls | 2b1f3f0 |
 
 ## Remaining Tasks
 - Task 43: Star Particles
-- Task 44: Smooth Ship Controls
 - Task 45: Sound Effects
 - Task 46: Falling Rocks
 - Task 47: Rock-Ship Collision
@@ -70,6 +70,6 @@
 ## Summary
 
 - **Total Tasks:** 53
-- **Completed:** 42
+- **Completed:** 43
 - **In Progress:** 0
-- **Remaining:** 11
+- **Remaining:** 10
