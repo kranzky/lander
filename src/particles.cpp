@@ -445,8 +445,16 @@ static void bufferParticlesFiltered(const Camera &camera, Fixed shipDepthZ, Dept
 
     int count = particleSystem.getParticleCount();
 
-    // Get camera tile position for row calculation
+    // Get camera tile position for visibility calculation
+    int camTileX = camera.getXTile().toInt();
     int camTileZ = camera.getZTile().toInt();
+
+    // Calculate visible tile bounds
+    int halfTilesX = TILES_X / 2;
+    int minVisibleX = camTileX - halfTilesX;
+    int maxVisibleX = camTileX + halfTilesX;
+    int minVisibleZ = camTileZ;
+    int maxVisibleZ = camTileZ + TILES_Z - 1;
 
     for (int i = 0; i < count; i++)
     {
@@ -478,17 +486,21 @@ static void bufferParticlesFiltered(const Camera &camera, Fixed shipDepthZ, Dept
             continue;  // Skip particles behind when filtering for in front
         }
 
-        // Calculate which row this particle belongs to for depth sorting
+        // Calculate particle's tile position (accounting for visual Z offset)
         // Particles have a Z offset of 10 tiles to match ship visual position
         constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10; // tiles
+        int particleTileX = p.position.x.toInt();
         int particleTileZ = p.position.z.toInt() - SHIP_VISUAL_Z_OFFSET;
-        int row = camTileZ + TILES_Z - 1 - particleTileZ;
 
-        // Clamp row to valid range
-        if (row < 0)
-            row = 0;
-        if (row >= TILES_Z)
-            row = TILES_Z - 1;
+        // Skip particles outside visible tile bounds
+        if (particleTileX < minVisibleX || particleTileX > maxVisibleX ||
+            particleTileZ < minVisibleZ || particleTileZ > maxVisibleZ)
+        {
+            continue;
+        }
+
+        // Calculate row for depth sorting
+        int row = camTileZ + TILES_Z - 1 - particleTileZ;
 
         // Get terrain height for shadow (same offset logic as renderParticles)
         constexpr int32_t SHIP_VISUAL_Z_OFFSET_RAW = 10 * 0x01000000;
@@ -687,12 +699,12 @@ void spawnExhaustParticles(const Vec3 &pos, const Vec3 &vel, const Vec3 &exhaust
 
 void spawnBulletParticle(const Vec3 &pos, const Vec3 &vel, const Vec3 &gunDir)
 {
-    // Calculate bullet velocity: playerVel + gunDir >> 3
-    // Tuned for gameplay feel (2x original speed)
+    // Calculate bullet velocity: playerVel + gunDir >> 4
+    // Tuned for gameplay feel (original speed)
     Vec3 bulletVel;
-    bulletVel.x = Fixed::fromRaw(vel.x.raw + (gunDir.x.raw >> 3));
-    bulletVel.y = Fixed::fromRaw(vel.y.raw + (gunDir.y.raw >> 3));
-    bulletVel.z = Fixed::fromRaw(vel.z.raw + (gunDir.z.raw >> 3));
+    bulletVel.x = Fixed::fromRaw(vel.x.raw + (gunDir.x.raw >> 4));
+    bulletVel.y = Fixed::fromRaw(vel.y.raw + (gunDir.y.raw >> 4));
+    bulletVel.z = Fixed::fromRaw(vel.z.raw + (gunDir.z.raw >> 4));
 
     // Spawn position: just use the provided spawn point with Z offset for visual display
     constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10 * 0x01000000; // 10 tiles in 8.24 format
