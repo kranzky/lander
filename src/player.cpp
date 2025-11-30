@@ -1,6 +1,7 @@
 #include "player.h"
 #include "landscape.h"
 #include "object3d.h"
+#include <cstdlib>
 
 // =============================================================================
 // Player Implementation
@@ -39,9 +40,10 @@ void Player::reset() {
     // Reset fuel
     fuelLevel = PlayerConstants::INITIAL_FUEL;
 
-    // Reset orientation (matching original: direction=0, pitch=1 for slight upward tilt)
+    // Reset orientation: flat (pitch=0), direction matches centered mouse (0,0)
+    // When mouse is centered, polar conversion gives angle=0, so ship should start there
+    shipPitch = 0;
     shipDirection = 0;
-    shipPitch = 1;
     rotationMatrix = calculateRotationMatrix(shipPitch, shipDirection);
 
     // Clear input

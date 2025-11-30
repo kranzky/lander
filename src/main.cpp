@@ -341,6 +341,36 @@ void Game::update() {
     // Update ship physics (gravity, thrust, friction) - skip in debug mode
     bool hitTerrain = debugMode ? false : player.updatePhysics();
 
+    // Check ship-object collision (from original Lander.arm lines 2095-2150)
+    // Original logic:
+    //   lowestSafeAlt = terrainAltitude - UNDERCARRIAGE_Y
+    //   heightAboveLowest = lowestSafeAlt - playerY
+    //   if heightAboveLowest >= SAFE_HEIGHT, skip collision (safe)
+    // So collision happens when: (terrainY - UNDERCARRIAGE_Y) - playerY < SAFE_HEIGHT
+    bool hitObject = false;
+    if (!debugMode && !hitTerrain) {
+        Vec3 pos = player.getPosition();
+        Fixed terrainY = getLandscapeAltitude(pos.x, pos.z);
+        // Calculate height above the lowest safe point (terrain minus undercarriage offset)
+        Fixed lowestSafeAlt = Fixed::fromRaw(terrainY.raw - GameConstants::UNDERCARRIAGE_Y.raw);
+        Fixed heightAboveLowest = Fixed::fromRaw(lowestSafeAlt.raw - pos.y.raw);
+
+        if (heightAboveLowest.raw < GameConstants::SAFE_HEIGHT.raw) {
+            // Player is low enough to potentially hit objects
+            int tileX = pos.x.toInt() & 0xFF;
+            int tileZ = pos.z.toInt() & 0xFF;
+            uint8_t objectType = objectMap.getObjectAt(tileX, tileZ);
+
+            // Collide with non-destroyed objects (types 0-11)
+            if (objectType != ObjectType::NONE && objectType < 12) {
+                hitObject = true;
+                // Destroy the object
+                uint8_t destroyedType = ObjectMap::getDestroyedType(objectType);
+                objectMap.setObjectAt(tileX, tileZ, destroyedType);
+            }
+        }
+    }
+
     // Spawn exhaust particles when engine is active (thrust button AND below altitude limit)
     const InputState& input = player.getInput();
     if (player.isEngineActive()) {
@@ -362,9 +392,15 @@ void Game::update() {
         spawnBulletParticle(player.getBulletSpawnPoint(), player.getVelocity(), gunDir);
     }
 
+    // Check for object collision - immediate crash, no landing possible
+    if (hitObject) {
+        landingState = LandingState::CRASHED;
+        triggerCrash();
+    }
+
     // Check for landing when terrain collision detected OR already landed
     // Skip in debug mode - no crashes
-    if (!debugMode && (hitTerrain || landingState == LandingState::LANDED)) {
+    if (!debugMode && !hitObject && (hitTerrain || landingState == LandingState::LANDED)) {
         // If already landed and player is thrusting upward, allow takeoff
         // Check if velocity is negative (upward) - this means thrust overcame gravity
         Vec3 vel = player.getVelocity();

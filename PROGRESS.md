@@ -54,6 +54,7 @@
 | 41 | Particle-Ship Depth Sorting | aef9a48 |
 | 42 | Particle Visibility Clipping | 149b7e9 |
 | 44 | Smooth Ship Controls | 2b1f3f0 |
+| - | Ship-Object Collision (fly low over objects = crash) | 8719c39 |
 
 ## Remaining Tasks
 - Task 43: Star Particles
@@ -70,6 +71,6 @@
 ## Summary
 
 - **Total Tasks:** 53
-- **Completed:** 43
+- **Completed:** 43 (+1 extra)
 - **In Progress:** 0
 - **Remaining:** 10
