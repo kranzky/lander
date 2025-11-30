@@ -49,9 +49,9 @@
 | 36 | Bullet-Object Collision | 72cfdf2 |
 | 37 | Smoke from Destroyed Objects | a03ef24 |
 | 38 | Particle Spawn Locations | fd2d90d |
+| 39 | Exhaust Particle Tuning | 99d2e4b |
 
 ## Remaining Tasks
-- Task 39: Exhaust Particle Tuning
 - Task 40: Bullet Reimplementation
 - Task 41: Particle-Ship Depth Sorting
 - Task 42: Particle Visibility Clipping
@@ -70,6 +70,6 @@
 ## Summary
 
 - **Total Tasks:** 53
-- **Completed:** 38
+- **Completed:** 39
 - **In Progress:** 0
-- **Remaining:** 15
+- **Remaining:** 14
