@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Current Task:** 41
+**Current Task:** 42
 
 **Last Updated:** 2025-11-30
 
@@ -51,9 +51,9 @@
 | 38 | Particle Spawn Locations | fd2d90d |
 | 39 | Exhaust Particle Tuning | 99d2e4b |
 | 40 | Bullet Reimplementation | 20ba6e4 |
+| 41 | Particle-Ship Depth Sorting | aef9a48 |
 
 ## Remaining Tasks
-- Task 41: Particle-Ship Depth Sorting
 - Task 42: Particle Visibility Clipping
 - Task 43: Star Particles
 - Task 44: Smooth Ship Controls
@@ -70,6 +70,6 @@
 ## Summary
 
 - **Total Tasks:** 53
-- **Completed:** 40
+- **Completed:** 41
 - **In Progress:** 0
-- **Remaining:** 13
+- **Remaining:** 12
