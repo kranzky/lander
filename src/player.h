@@ -196,22 +196,24 @@ namespace PlayerConstants {
     // ==========================================================================
 
     // Gravity: Original 0x30000 per frame at 15fps
-    // At 120fps: 0x30000 >> 3 = 0x6000
-    constexpr int32_t GRAVITY = 0x6000;
+    // At 120fps with discrete physics, cumulative fall is 68x more (120*119/2 vs 15*14/2)
+    // To match original fall distance: 0x30000 / 68 ≈ 0xC00
+    constexpr int32_t GRAVITY = 0xC00;
 
     // Friction: Original velocity *= 63/64 per frame (subtract velocity >> 6)
-    // At 8x frame rate, we need much less friction per frame
-    // Use >> 9 (subtract 1/512 per frame) for similar decay over time
-    constexpr int FRICTION_SHIFT = 9;  // Divide by 512
+    // At 120fps, cumulative effects are 8x stronger, so add 3 bits: 6 + 3 + 3 = 12
+    constexpr int FRICTION_SHIFT = 12;  // Divide by 4096
 
-    // Thrust: Original exhaust >> 11 on 31-bit values at 15fps
-    // We use 24-bit Fixed (+7 shift) and 8x frame rate (+3 shift)
-    // Net: 11 - 7 + 3 = 7
-    constexpr int FULL_THRUST_SHIFT = 7;  // Divide by 128
+    // Thrust: Original exhaust >> 11 at 15fps
+    // Format adjustment (31-bit to 8.24): -7 bits
+    // Frame rate (8x): +3 bits
+    // Cumulative effect (8x): +3 bits
+    // Net: 11 - 7 + 3 + 3 = 10
+    constexpr int FULL_THRUST_SHIFT = 10;  // Divide by 1024
 
-    // Hover: Original exhaust >> 13 on 31-bit values at 15fps
-    // Net: 13 - 7 + 3 = 9
-    constexpr int HOVER_THRUST_SHIFT = 9;  // Divide by 512
+    // Hover: Original exhaust >> 13 at 15fps
+    // Net: 13 - 7 + 3 + 3 = 12
+    constexpr int HOVER_THRUST_SHIFT = 12;  // Divide by 4096
 
     // Sea level: Y position floor (landscape water level)
     // Original: SEA_LEVEL = &05500000 (5.3125 tiles)
@@ -245,9 +247,10 @@ namespace PlayerConstants {
     constexpr Fixed START_Y = LAUNCHPAD_Y;
 
     // Maximum safe landing velocity (sum of |vx| + |vy| + |vz|)
-    // Tuned for gameplay feel - allows gentle landings but crashes on hard impacts
-    // 0x00100000 = ~1024 in debug display units (raw >> 10)
-    constexpr int32_t LANDING_SPEED = 0x00100000;
+    // Original: 0x00200000 at 15fps
+    // At 120fps: velocities are 1/8 magnitude, so threshold is also 1/8
+    // 0x00200000 / 8 = 0x00040000
+    constexpr int32_t LANDING_SPEED = 0x00040000;
 
     // Fuel refuel rate while landed (added per frame)
     // Original: 0x20 per frame at 15fps

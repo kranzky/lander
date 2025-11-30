@@ -634,27 +634,32 @@ void spawnExhaustParticles(const Vec3 &pos, const Vec3 &vel, const Vec3 &exhaust
 //
 // Port of MoveAndDrawPlayer Part 5 (Lander.arm lines 2369-2465).
 //
-// The original algorithm:
-// 1. Calculate bullet velocity: playerVel + gunDir/256
-//    This makes bullets move with the ship + in the gun direction
-// 2. Calculate spawn position: playerPos - bulletVel + gunDir/128
-//    This places bullet at gun muzzle, compensating for first velocity update
-// 3. Lifespan: 20 frames at 15fps
-// 4. Flags: GRAVITY | DESTROYS_OBJECTS | white color
+// The original algorithm at 15fps:
+// 1. Velocity = playerVel + gunDir >> 8
+// 2. Position = playerPos - velocity + gunDir >> 7
+//    (compensates for first velocity update + offsets to gun muzzle)
+// 3. Lifespan = 20 frames
+// 4. Flags = 0x01BC00FF
+//
+// At 120fps (8x), we scale accounting for format difference:
+// - Original uses 31-bit values (1.0 ≈ 0x7FFFFFFF)
+// - We use 8.24 format (1.0 = 0x01000000), ~128x smaller (2^7)
+// - Velocity shift: 8 - 7 + 3 = 4 (format diff + frame rate scaling)
+// - Position offset shift: 7 - 7 + 3 = 3
+// - Lifespan: 20 * 8 = 160 frames
 //
 // =============================================================================
 
 void spawnBulletParticle(const Vec3 &pos, const Vec3 &vel, const Vec3 &gunDir)
 {
-    // Calculate bullet velocity: playerVel + gunDir * speed
-    // Original uses gunDir >> 8, but we need faster bullets at 120fps
-    // gunDir is normalized (~1.0 in 8.24), so >> 2 gives ~0.25 tiles/frame
+    // Calculate bullet velocity: playerVel + gunDir >> 3
+    // Tuned for gameplay feel (2x original speed)
     Vec3 bulletVel;
-    bulletVel.x = Fixed::fromRaw(vel.x.raw + (gunDir.x.raw >> 2));
-    bulletVel.y = Fixed::fromRaw(vel.y.raw + (gunDir.y.raw >> 2));
-    bulletVel.z = Fixed::fromRaw(vel.z.raw + (gunDir.z.raw >> 2));
+    bulletVel.x = Fixed::fromRaw(vel.x.raw + (gunDir.x.raw >> 3));
+    bulletVel.y = Fixed::fromRaw(vel.y.raw + (gunDir.y.raw >> 3));
+    bulletVel.z = Fixed::fromRaw(vel.z.raw + (gunDir.z.raw >> 3));
 
-    // Calculate spawn position: at ship's visual position (same offset as exhaust)
+    // Spawn position: just use the provided spawn point with Z offset for visual display
     constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10 * 0x01000000; // 10 tiles in 8.24 format
 
     Vec3 bulletPos;
@@ -662,15 +667,13 @@ void spawnBulletParticle(const Vec3 &pos, const Vec3 &vel, const Vec3 &gunDir)
     bulletPos.y = pos.y;
     bulletPos.z = Fixed::fromRaw(pos.z.raw + SHIP_VISUAL_Z_OFFSET);
 
-    // Bullet flags from original: 0x01BC00FF = bits 18,19,20,21,23,24 + color 0xFF
-    // Bit 18 = SPLASH, Bit 19 = BOUNCES, Bit 20 = GRAVITY, Bit 21 = DESTROYS_OBJECTS
-    // Bit 23 = BIG_SPLASH, Bit 24 = EXPLODES_ON_GROUND
+    // Bullet flags: splash, bounce, gravity, destroy objects, big splash, explode on ground
     uint32_t flags = ParticleFlags::SPLASH | ParticleFlags::BOUNCES |
                      ParticleFlags::GRAVITY | ParticleFlags::DESTROYS_OBJECTS |
                      ParticleFlags::BIG_SPLASH | ParticleFlags::EXPLODES_ON_GROUND | 0xFF;
 
-    // Lifespan: reduced for shorter bullet range
-    constexpr int32_t BULLET_LIFESPAN = 60; // ~0.5 second at 120fps
+    // Lifespan: 20 frames at 15fps = 160 frames at 120fps
+    constexpr int32_t BULLET_LIFESPAN = 160;
 
     particleSystem.addParticle(bulletPos, bulletVel, BULLET_LIFESPAN, flags);
 }

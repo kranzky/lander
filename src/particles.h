@@ -41,9 +41,8 @@ namespace ParticleFlags {
 namespace ParticleConstants {
     constexpr int MAX_PARTICLES = 484;  // From original Lander
 
-    // Gravity for particles (same as player gravity but scaled differently in original)
-    // Original uses the same gravity constant for particles
-    constexpr int32_t PARTICLE_GRAVITY = 0x6000;  // Same as player gravity at 120fps
+    // Gravity for particles - same as player gravity so they fall together
+    constexpr int32_t PARTICLE_GRAVITY = 0xC00;
 
     // Bounce damping (velocity multiplier after bounce, approximate)
     constexpr int BOUNCE_DAMPING_SHIFT = 1;  // Divide by 2 on bounce

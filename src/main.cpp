@@ -352,10 +352,10 @@ void Game::update() {
     }
 
     // Spawn bullet particle when firing (right button)
-    // Only fire every 4th frame (quarter rate)
+    // Fire every 8th frame to match original 15fps rate (120/8 = 15 bullets/sec)
     static int bulletFrameCounter = 0;
     bulletFrameCounter++;
-    if (input.isFiring() && (bulletFrameCounter & 3) == 0) {
+    if (input.isFiring() && (bulletFrameCounter & 7) == 0) {
         // Gun direction is the nose vector from the rotation matrix
         Vec3 gunDir = player.getRotationMatrix().nose();
         // Spawn from nose (midpoint of vertices 0 and 1)
