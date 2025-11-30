@@ -217,11 +217,11 @@ void Player::updateOrientation() {
         }
     }
 
-    // Update angles by halving the delta (smooth interpolation) (lines 1855-1865)
-    // newPitch = pitch - deltaPitch/2
-    // newDirection = direction - deltaDirection/2
-    shipPitch = shipPitch - (deltaPitch >> 1);
-    shipDirection = shipDirection - (deltaDirection >> 1);
+    // Update angles by dividing delta (smooth interpolation) (lines 1855-1865)
+    // Original used >> 1 at 15fps. At 120fps (8x faster), use >> 4 for similar feel.
+    // This makes the ship take more frames to reach target orientation.
+    shipPitch = shipPitch - (deltaPitch >> 4);
+    shipDirection = shipDirection - (deltaDirection >> 4);
 
     // Calculate the rotation matrix from the updated angles (line 1867)
     // Note: CalculateRotationMatrix takes (angleA=pitch, angleB=direction)
