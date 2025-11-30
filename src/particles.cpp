@@ -432,7 +432,14 @@ namespace
     }
 }
 
-void bufferParticles(const Camera &camera)
+// Depth filter mode for particle buffering
+enum class DepthFilter {
+    BEHIND,     // Only particles with cameraRelPos.z > shipDepthZ
+    IN_FRONT    // Only particles with cameraRelPos.z <= shipDepthZ
+};
+
+// Internal helper: buffer particles with depth filtering
+static void bufferParticlesFiltered(const Camera &camera, Fixed shipDepthZ, DepthFilter filter)
 {
     using namespace GameConstants;
 
@@ -458,6 +465,17 @@ void bufferParticles(const Camera &camera)
         if (cameraRelPos.z.raw <= 0)
         {
             continue;
+        }
+
+        // Apply depth filter relative to ship
+        bool isBehindShip = cameraRelPos.z.raw > shipDepthZ.raw;
+        if (filter == DepthFilter::BEHIND && !isBehindShip)
+        {
+            continue;  // Skip particles in front when filtering for behind
+        }
+        if (filter == DepthFilter::IN_FRONT && isBehindShip)
+        {
+            continue;  // Skip particles behind when filtering for in front
         }
 
         // Calculate which row this particle belongs to for depth sorting
@@ -534,6 +552,16 @@ void bufferParticles(const Camera &camera)
     }
 }
 
+void bufferParticlesBehind(const Camera &camera, Fixed shipDepthZ)
+{
+    bufferParticlesFiltered(camera, shipDepthZ, DepthFilter::BEHIND);
+}
+
+void bufferParticlesInFront(const Camera &camera, Fixed shipDepthZ)
+{
+    bufferParticlesFiltered(camera, shipDepthZ, DepthFilter::IN_FRONT);
+}
+
 // =============================================================================
 // Exhaust Particle Spawning Implementation
 // =============================================================================
@@ -596,20 +624,27 @@ void spawnExhaustParticles(const Vec3 &pos, const Vec3 &vel, const Vec3 &exhaust
     particleVel.y = Fixed::fromRaw(vel.y.raw + (exhaust.y.raw >> EXHAUST_SPEED_SHIFT));
     particleVel.z = Fixed::fromRaw(vel.z.raw + (exhaust.z.raw >> EXHAUST_SPEED_SHIFT));
 
-    // Calculate spawn position: at ship's visual position
+    // Calculate spawn position: at exhaust port, offset along exhaust direction
     //
+    // Original uses exhaust >> 7 (divide by 128) as offset from ship center.
+    // We add a similar offset along the exhaust direction to push particles
+    // away from the ship, preventing them from appearing inside the ship.
+    //
+    // The offset varies based on ship orientation relative to camera:
+    // - Default: smaller offset (>> 3) works most of the time
+    // - When top clearly faces camera (exhaust.z > 0.5): larger offset (>> 1) needed
+    constexpr int32_t EXHAUST_Z_THRESHOLD = 0x00400000; // 0.25 in 8.24 format
+    int32_t offsetShift = (exhaust.z.raw > EXHAUST_Z_THRESHOLD) ? 1 : 3;
+
     // The ship is rendered at Z=15 from camera for consistent visual size, but
     // the player's actual position is only Z=5 from camera. We offset particle Z
     // by 10 tiles to match the ship's visual position.
-    //
-    // For shadow rendering, we subtract this offset to look up terrain at the
-    // player's actual world Z position.
     constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10 * 0x01000000; // 10 tiles in 8.24 format
 
     Vec3 particlePos;
-    particlePos.x = pos.x;
-    particlePos.y = pos.y;
-    particlePos.z = Fixed::fromRaw(pos.z.raw + SHIP_VISUAL_Z_OFFSET);
+    particlePos.x = Fixed::fromRaw(pos.x.raw + (exhaust.x.raw >> offsetShift));
+    particlePos.y = Fixed::fromRaw(pos.y.raw + (exhaust.y.raw >> offsetShift));
+    particlePos.z = Fixed::fromRaw(pos.z.raw + (exhaust.z.raw >> offsetShift) + SHIP_VISUAL_Z_OFFSET);
 
     // Particle flags: FADING | SPLASH | BOUNCES | GRAVITY
     // Exhaust particles splash in water, bounce off terrain

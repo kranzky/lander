@@ -649,11 +649,17 @@ void Game::drawTestPattern() {
     // Buffer objects first (they get drawn during landscape rendering for proper depth sorting)
     landscapeRenderer.renderObjects(screen, camera);
 
+    // Ship's visual depth (15 tiles from camera, matching bufferShip)
+    Fixed shipDepthZ = Fixed::fromInt(15);
+
+    // Buffer particles behind ship first (so they're drawn before ship)
+    bufferParticlesBehind(camera, shipDepthZ);
+
     // Buffer the player's ship for depth-sorted rendering
     bufferShip();
 
-    // Buffer particles for depth-sorted rendering
-    bufferParticles(camera);
+    // Buffer particles in front of ship (so they're drawn after ship)
+    bufferParticlesInFront(camera, shipDepthZ);
 
     // Render the landscape, flushing object buffers after each row for correct Z-ordering
     // This draws landscape tiles, buffered objects (including ship), and particles in depth order

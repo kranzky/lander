@@ -137,9 +137,13 @@ class Camera;
 // Requires camera for projection and terrain for shadow placement
 void renderParticles(const Camera& camera, ScreenBuffer& screen);
 
-// Buffer all particles to the graphics buffer system for depth-sorted rendering
-// Call this before landscape rendering; particles are drawn when buffer rows are flushed
-void bufferParticles(const Camera& camera);
+// Buffer particles to the graphics buffer system for depth-sorted rendering
+// Particles are split into two passes for correct depth sorting with the ship:
+// - bufferParticlesBehind: particles further from camera than shipDepthZ (drawn before ship)
+// - bufferParticlesInFront: particles closer to camera than shipDepthZ (drawn after ship)
+// shipDepthZ is the ship's camera-relative Z (typically 15 tiles)
+void bufferParticlesBehind(const Camera& camera, Fixed shipDepthZ);
+void bufferParticlesInFront(const Camera& camera, Fixed shipDepthZ);
 
 // =============================================================================
 // Exhaust Particle Spawning
