@@ -2,9 +2,9 @@
 
 ## Current Status
 
-**Current Task:** 38
+**Current Task:** 41
 
-**Last Updated:** 2025-11-29
+**Last Updated:** 2025-11-30
 
 ## Completed Tasks
 
@@ -50,9 +50,9 @@
 | 37 | Smoke from Destroyed Objects | a03ef24 |
 | 38 | Particle Spawn Locations | fd2d90d |
 | 39 | Exhaust Particle Tuning | 99d2e4b |
+| 40 | Bullet Reimplementation | 20ba6e4 |
 
 ## Remaining Tasks
-- Task 40: Bullet Reimplementation
 - Task 41: Particle-Ship Depth Sorting
 - Task 42: Particle Visibility Clipping
 - Task 43: Star Particles
@@ -70,6 +70,6 @@
 ## Summary
 
 - **Total Tasks:** 53
-- **Completed:** 39
+- **Completed:** 40
 - **In Progress:** 0
-- **Remaining:** 14
+- **Remaining:** 13
