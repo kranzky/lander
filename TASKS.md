@@ -526,7 +526,125 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 38: Falling Rocks
+### Task 38: Particle Spawn Locations
+**Goal**: Fix bullet and exhaust particle spawn positions to match ship geometry.
+
+**Research**: Examine ship model vertex data in `object3d.cpp` to identify nose vertices and exhaust port triangle.
+
+**Deliverables**:
+- Bullets spawn from midpoint of the two nose vertices (not ship center)
+- Exhaust spawns from center of yellow triangular exhaust port on ship underside
+- Transform local model coordinates through ship rotation matrix to get world positions
+- Helper function to get transformed spawn points from ship state
+
+**Verification**: Visual inspection - bullets emerge from ship nose, exhaust emerges from underside exhaust port.
+
+---
+
+### Task 39: Exhaust Particle Tuning
+**Goal**: Reduce exhaust particle spawn rate to be consistent with other particle effects.
+
+**Research**: None required.
+
+**Deliverables**:
+- Reduce number of exhaust particles spawned per frame
+- Maintain visual quality while using fewer particles
+- Iterative tuning based on user feedback
+
+**Verification**: Visual comparison with other particle effects; user approval of aesthetic result.
+
+---
+
+### Task 40: Bullet Reimplementation
+**Goal**: Reimplement bullet behavior to exactly match the original game.
+
+**Research**: Study `Lander.arm` disassembly to understand original bullet mechanics - velocity, trajectory, lifespan, spawn rate, and any other relevant parameters.
+
+**Deliverables**:
+- Complete rewrite of bullet spawning and behavior
+- Match original velocity and trajectory calculations
+- Match original lifespan and spawn timing
+- Match original collision behavior
+
+**Verification**: Side-by-side comparison with original game behavior.
+
+---
+
+### Task 41: Particle-Ship Depth Sorting
+**Goal**: Correct draw order so particles render in front of or behind ship based on depth.
+
+**Research**: Study `Lander.arm` to understand how original game handled particle/ship depth sorting.
+
+**Deliverables**:
+- Particles compare depth with ship relative to camera
+- Particles behind ship (from camera perspective) draw before ship
+- Particles in front of ship draw after ship
+- May require integrating particles into graphics buffer system
+
+**Verification**: Rotate ship in various directions; particles correctly appear in front/behind based on orientation.
+
+---
+
+### Task 42: Particle Visibility Clipping
+**Goal**: Only render particles within the visible landscape region.
+
+**Research**: None required - use existing landscape visibility bounds.
+
+**Deliverables**:
+- Check particle world position against visible tile bounds before rendering
+- Particles outside visible region are skipped (not removed, just not drawn)
+- Smoke from distant destroyed objects no longer renders when out of view
+
+**Verification**: Destroy object, fly away - smoke stops rendering when tile leaves visible area.
+
+---
+
+### Task 43: Star Particles
+**Goal**: Implement star particles that appear at high altitude for orientation feedback.
+
+**Research**: Study `Lander.arm` to find star particle implementation - altitude threshold, spawn behavior, movement pattern.
+
+**Deliverables**:
+- Star particles appear when ship exceeds altitude threshold
+- Provide visual feedback for direction and speed when ground not visible
+- Match original behavior from disassembly
+
+**Verification**: Fly to high altitude; stars appear and provide sense of motion/direction.
+
+---
+
+### Task 44: Smooth Ship Controls
+**Goal**: Eliminate discrete stepping in ship rotation and tilt for precise aiming.
+
+**Research**: None required - this is interpolation/smoothing of existing control system.
+
+**Deliverables**:
+- Ship orientation changes smoothly rather than in discrete chunks
+- Interpolation or higher-resolution angle calculations
+- Possibly adjust control sensitivity
+- Iterative tuning based on playtesting
+
+**Verification**: Mouse movement produces smooth ship rotation; precise aiming at ground targets is achievable.
+
+---
+
+### Task 45: Sound Effects
+**Goal**: Integrate sound effects from Amiga Virus with spatial audio.
+
+**Research**: None required - user will provide WAV files.
+
+**Deliverables**:
+- SDL audio initialization and management
+- Load WAV files from `sounds/` directory
+- Play appropriate sounds for game events (thrust, bullets, explosions, etc.)
+- Spatial audio: volume scales with distance from player
+- Sound effect triggers integrated into game systems
+
+**Verification**: All game events produce appropriate sounds; distant sounds are quieter than nearby sounds.
+
+---
+
+### Task 46: Falling Rocks
 **Goal**: Implement the falling rock hazard system.
 
 **Deliverables**:
@@ -541,7 +659,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 39: Rock-Ship Collision
+### Task 47: Rock-Ship Collision
 **Goal**: Rocks kill the player on contact.
 
 **Deliverables**:
@@ -553,7 +671,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 40: Score Display
+### Task 48: Score Display
 **Goal**: Render the current score on screen.
 
 **Deliverables**:
@@ -566,7 +684,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 41: Fuel Gauge
+### Task 49: Fuel Gauge
 **Goal**: Render the fuel level indicator.
 
 **Deliverables**:
@@ -579,7 +697,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 42: Lives Display
+### Task 50: Lives Display
 **Goal**: Show remaining lives on screen.
 
 **Deliverables**:
@@ -591,7 +709,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 43: Game State Machine
+### Task 51: Game State Machine
 **Goal**: Implement clean game state transitions.
 
 **Deliverables**:
@@ -605,7 +723,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 44: Frame Timing and Physics Scaling
+### Task 52: Frame Timing and Physics Scaling
 **Goal**: Implement user-selectable frame rates with appropriate physics scaling.
 
 **Deliverables**:
@@ -619,18 +737,17 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 45: Polish and Bug Fixes
+### Task 53: Polish and Bug Fixes
 **Goal**: Final cleanup and bug fixing.
 
 **Deliverables**:
 - Code cleanup
 - Bug fixes found during testing
 - Performance optimization if needed
-- Star particles appear above a certain height to give player a sense of
-  direction and speed when the ground is no longer visible
+- Helper mode that creates a force field when moving towards the ground too
+  quickly (basically change the strenght of a force that opposes downwards
+  velocity and with a strength inversely proportional to distance from ground)
 - Sutherland-Hodgman triangle clipping for smooth screen-edge rendering (Zarch-style)
-- Allow the player to change the size of the region of landscape that is visible
-- Integrate sound effects from the Amiga version of Virus
 - Minimap like Zarch
 - Final verification against original
 - Release build deployed to itch.io for Mac and Windows
@@ -651,11 +768,14 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 | 6 | 24-29 | Particles (system, rendering, types) |
 | 7 | 30-37 | Objects (map, models, rendering, destruction) |
 | 8 | 34-35 | Graphics buffers (depth sorting) |
-| 9 | 38-39 | Rocks (spawning, collision) |
-| 10 | 40-44 | UI and game state |
-| 11 | 45 | Polish |
+| 9 | 38-43 | Particle refinements (spawn locations, depth sorting, clipping, stars) |
+| 10 | 44 | Smooth ship controls |
+| 11 | 45 | Sound effects |
+| 12 | 46-47 | Rocks (spawning, collision) |
+| 13 | 48-52 | UI and game state |
+| 14 | 53 | Polish |
 
-**Total: 45 tasks**
+**Total: 53 tasks**
 
 Each task is designed to be:
 - Completable in a focused session

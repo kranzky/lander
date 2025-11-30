@@ -50,18 +50,26 @@
 | 37 | Smoke from Destroyed Objects | a03ef24 |
 
 ## Remaining Tasks
-- Task 38: Falling Rocks
-- Task 39: Rock-Ship Collision
-- Task 40: Score Display
-- Task 41: Fuel Gauge
-- Task 42: Lives Display
-- Task 43: Game State Machine
-- Task 44: Frame Timing and Physics Scaling (limit to 120/60/30/15fps with lookup table for physics values, user-selectable)
-- Task 45: Polish and Bug Fixes
+- Task 38: Particle Spawn Locations
+- Task 39: Exhaust Particle Tuning
+- Task 40: Bullet Reimplementation
+- Task 41: Particle-Ship Depth Sorting
+- Task 42: Particle Visibility Clipping
+- Task 43: Star Particles
+- Task 44: Smooth Ship Controls
+- Task 45: Sound Effects
+- Task 46: Falling Rocks
+- Task 47: Rock-Ship Collision
+- Task 48: Score Display
+- Task 49: Fuel Gauge
+- Task 50: Lives Display
+- Task 51: Game State Machine
+- Task 52: Frame Timing and Physics Scaling (limit to 120/60/30/15fps with lookup table for physics values, user-selectable)
+- Task 53: Polish and Bug Fixes
 
 ## Summary
 
-- **Total Tasks:** 45
-- **Completed:** 38
+- **Total Tasks:** 53
+- **Completed:** 37
 - **In Progress:** 0
-- **Remaining:** 7
+- **Remaining:** 16
