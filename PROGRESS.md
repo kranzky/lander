@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Current Task:** 42
+**Current Task:** 43
 
 **Last Updated:** 2025-11-30
 
@@ -52,9 +52,9 @@
 | 39 | Exhaust Particle Tuning | 99d2e4b |
 | 40 | Bullet Reimplementation | 20ba6e4 |
 | 41 | Particle-Ship Depth Sorting | aef9a48 |
+| 42 | Particle Visibility Clipping | 149b7e9 |
 
 ## Remaining Tasks
-- Task 42: Particle Visibility Clipping
 - Task 43: Star Particles
 - Task 44: Smooth Ship Controls
 - Task 45: Sound Effects
@@ -70,6 +70,6 @@
 ## Summary
 
 - **Total Tasks:** 53
-- **Completed:** 41
+- **Completed:** 42
 - **In Progress:** 0
-- **Remaining:** 12
+- **Remaining:** 11
