@@ -462,3 +462,82 @@ bool Player::isEngineActive() const {
 
     return belowAltitudeLimit;
 }
+
+// =============================================================================
+// Particle Spawn Point Calculations
+// =============================================================================
+//
+// These functions calculate world-space spawn points for particles by
+// transforming ship model vertices through the rotation matrix.
+//
+// Ship model vertex coordinates (from object3d.cpp):
+//   Vertex 0 (nose edge): (0x01000000, 0x00500000, 0x00800000)
+//   Vertex 1 (nose edge): (0x01000000, 0x00500000, 0xFF800000)
+//   Vertex 6 (exhaust port): (0x00555555, 0x00500000, 0x00400000)
+//   Vertex 7 (exhaust port): (0x00555555, 0x00500000, 0xFFC00000)
+//   Vertex 8 (exhaust port): (0xFFCCCCCD, 0x00500000, 0x00000000)
+//
+// =============================================================================
+
+Vec3 Player::getBulletSpawnPoint() const {
+    // The nose of the ship is formed by the two vertices at the front of the
+    // light green "window" triangle (Face 0: vertices 0, 1, 5 with color 0x080).
+    // Vertex 5 is the roof/top point, while vertices 0 and 1 form the nose edge.
+    //
+    // Vertex 0: (0x01000000, 0x00500000, 0x00800000)  - right wing front
+    // Vertex 1: (0x01000000, 0x00500000, 0xFF800000)  - right wing back
+    //
+    // Midpoint = ((v0 + v1) / 2):
+    //   X: (0x01000000 + 0x01000000) / 2 = 0x01000000
+    //   Y: (0x00500000 + 0x00500000) / 2 = 0x00500000
+    //   Z: (0x00800000 + 0xFF800000) / 2 = 0x00000000
+
+    Vec3 noseLocal;
+    noseLocal.x = Fixed::fromRaw(0x01000000);  // 1.0 (front of ship)
+    noseLocal.y = Fixed::fromRaw(0x00500000);  // 0.31 (slightly below center)
+    noseLocal.z = Fixed::fromRaw(0x00000000);  // 0 (centered)
+
+    // Transform by rotation matrix to get world-relative offset
+    Vec3 noseRotated = rotationMatrix * noseLocal;
+
+    // Add to ship position to get world spawn point
+    Vec3 spawnPoint;
+    spawnPoint.x = Fixed::fromRaw(position.x.raw + noseRotated.x.raw);
+    spawnPoint.y = Fixed::fromRaw(position.y.raw + noseRotated.y.raw);
+    spawnPoint.z = Fixed::fromRaw(position.z.raw + noseRotated.z.raw);
+
+    return spawnPoint;
+}
+
+Vec3 Player::getExhaustSpawnPoint() const {
+    // Exhaust port is the yellow triangle formed by vertices 6, 7, 8
+    // Calculate centroid (average of all three vertices)
+    //
+    // Vertex 6: (0x00555555, 0x00500000, 0x00400000)
+    // Vertex 7: (0x00555555, 0x00500000, 0xFFC00000)
+    // Vertex 8: (0xFFCCCCCD, 0x00500000, 0x00000000)
+    //
+    // Sum: X = 0x00555555 + 0x00555555 + 0xFFCCCCCD = 0x00777777
+    //      Y = 0x00500000 + 0x00500000 + 0x00500000 = 0x00F00000
+    //      Z = 0x00400000 + 0xFFC00000 + 0x00000000 = 0x00000000
+    // Divide by 3 for centroid
+
+    Vec3 exhaustLocal;
+    // Centroid X: 0x00777777 / 3 = 0x00277D27 (approximately)
+    exhaustLocal.x = Fixed::fromRaw(0x00277D27);
+    // Centroid Y: 0x00F00000 / 3 = 0x00500000 (exactly)
+    exhaustLocal.y = Fixed::fromRaw(0x00500000);
+    // Centroid Z: 0 / 3 = 0
+    exhaustLocal.z = Fixed::fromRaw(0x00000000);
+
+    // Transform by rotation matrix to get world-relative offset
+    Vec3 exhaustRotated = rotationMatrix * exhaustLocal;
+
+    // Add to ship position to get world spawn point
+    Vec3 spawnPoint;
+    spawnPoint.x = Fixed::fromRaw(position.x.raw + exhaustRotated.x.raw);
+    spawnPoint.y = Fixed::fromRaw(position.y.raw + exhaustRotated.y.raw);
+    spawnPoint.z = Fixed::fromRaw(position.z.raw + exhaustRotated.z.raw);
+
+    return spawnPoint;
+}

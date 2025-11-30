@@ -133,6 +133,11 @@ public:
     // Check if engine is currently active (button pressed AND below altitude limit)
     bool isEngineActive() const;
 
+    // Get spawn points for particles (transformed from model space to world space)
+    // These account for ship rotation so particles spawn from correct locations
+    Vec3 getBulletSpawnPoint() const;   // Spawns from nose (midpoint of vertices 0,1)
+    Vec3 getExhaustSpawnPoint() const;  // Spawns from exhaust port center (vertices 6,7,8)
+
     // Fuel management
     int getFuelLevel() const { return fuelLevel; }
     void setFuelLevel(int level) { fuelLevel = level; }

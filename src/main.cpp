@@ -346,7 +346,8 @@ void Game::update() {
     if (player.isEngineActive()) {
         // fullThrust = left button (8 particles), hover = middle button (2 particles)
         bool fullThrust = input.isThrusting();
-        spawnExhaustParticles(player.getPosition(), player.getVelocity(),
+        // Spawn from exhaust port (center of yellow triangle on ship underside)
+        spawnExhaustParticles(player.getExhaustSpawnPoint(), player.getVelocity(),
                               player.getExhaustDirection(), fullThrust);
     }
 
@@ -357,7 +358,8 @@ void Game::update() {
     if (input.isFiring() && (bulletFrameCounter & 3) == 0) {
         // Gun direction is the nose vector from the rotation matrix
         Vec3 gunDir = player.getRotationMatrix().nose();
-        spawnBulletParticle(player.getPosition(), player.getVelocity(), gunDir);
+        // Spawn from nose (midpoint of vertices 0 and 1)
+        spawnBulletParticle(player.getBulletSpawnPoint(), player.getVelocity(), gunDir);
     }
 
     // Check for landing when terrain collision detected OR already landed
