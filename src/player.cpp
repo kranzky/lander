@@ -509,26 +509,58 @@ Vec3 Player::getBulletSpawnPoint() const {
     return spawnPoint;
 }
 
+// Simple random number generator for exhaust spawn point variation
+static uint32_t exhaustSpawnSeed = 0x87654321;
+
+static uint32_t exhaustSpawnRandom() {
+    exhaustSpawnSeed = exhaustSpawnSeed * 1103515245 + 12345;
+    return exhaustSpawnSeed;
+}
+
 Vec3 Player::getExhaustSpawnPoint() const {
     // Exhaust port is the yellow triangle formed by vertices 6, 7, 8
-    // Calculate centroid (average of all three vertices)
+    // Spawn from a random point on this triangle using barycentric coordinates
     //
     // Vertex 6: (0x00555555, 0x00500000, 0x00400000)
     // Vertex 7: (0x00555555, 0x00500000, 0xFFC00000)
     // Vertex 8: (0xFFCCCCCD, 0x00500000, 0x00000000)
-    //
-    // Sum: X = 0x00555555 + 0x00555555 + 0xFFCCCCCD = 0x00777777
-    //      Y = 0x00500000 + 0x00500000 + 0x00500000 = 0x00F00000
-    //      Z = 0x00400000 + 0xFFC00000 + 0x00000000 = 0x00000000
-    // Divide by 3 for centroid
 
+    // Triangle vertices in local model space
+    constexpr int32_t v6x = 0x00555555, v6y = 0x00500000, v6z = 0x00400000;
+    constexpr int32_t v7x = 0x00555555, v7y = 0x00500000, v7z = static_cast<int32_t>(0xFFC00000);
+    constexpr int32_t v8x = static_cast<int32_t>(0xFFCCCCCD), v8y = 0x00500000, v8z = 0x00000000;
+
+    // Generate random barycentric coordinates (u, v) where u + v <= 1
+    // Using the method: if u + v > 1, reflect to (1-u, 1-v)
+    uint32_t randU = exhaustSpawnRandom() & 0xFFFF;  // 0 to 65535
+    uint32_t randV = exhaustSpawnRandom() & 0xFFFF;
+
+    // Normalize to 0.0-1.0 range (as 16.16 fixed point for interpolation)
+    int32_t u = randU;      // 0 to 65535 represents 0.0 to ~1.0
+    int32_t v = randV;
+
+    // If u + v > 1 (65536), reflect
+    if (u + v > 65536) {
+        u = 65536 - u;
+        v = 65536 - v;
+    }
+
+    int32_t w = 65536 - u - v;  // Third barycentric coordinate
+
+    // Bias towards center by shrinking the triangle to half size
+    // Blend each coordinate towards 1/3 (the centroid)
+    // new_coord = 1/3 + 0.5 * (coord - 1/3) = 0.5 * coord + 1/6
+    // In 16.16 fixed: 1/3 = 21845, 1/6 = 10923
+    constexpr int32_t ONE_SIXTH = 10923;
+    u = (u >> 1) + ONE_SIXTH;
+    v = (v >> 1) + ONE_SIXTH;
+    w = (w >> 1) + ONE_SIXTH;
+
+    // Interpolate: P = w*v6 + u*v7 + v*v8 (all coords divided by 65536)
     Vec3 exhaustLocal;
-    // Centroid X: 0x00777777 / 3 = 0x00277D27 (approximately)
-    exhaustLocal.x = Fixed::fromRaw(0x00277D27);
-    // Centroid Y: 0x00F00000 / 3 = 0x00500000 (exactly)
-    exhaustLocal.y = Fixed::fromRaw(0x00500000);
-    // Centroid Z: 0 / 3 = 0
-    exhaustLocal.z = Fixed::fromRaw(0x00000000);
+    exhaustLocal.x = Fixed::fromRaw((int32_t)(((int64_t)w * v6x + (int64_t)u * v7x + (int64_t)v * v8x) >> 16));
+    exhaustLocal.y = Fixed::fromRaw((int32_t)(((int64_t)w * v6y + (int64_t)u * v7y + (int64_t)v * v8y) >> 16));
+    exhaustLocal.z = Fixed::fromRaw((int32_t)(((int64_t)w * v6z + (int64_t)u * v7z + (int64_t)v * v8z) >> 16));
 
     // Transform by rotation matrix to get world-relative offset
     Vec3 exhaustRotated = rotationMatrix * exhaustLocal;

@@ -620,8 +620,8 @@ void spawnExhaustParticles(const Vec3 &pos, const Vec3 &vel, const Vec3 &exhaust
     // But we want shorter exhaust trails, so scale down
     constexpr int32_t BASE_LIFESPAN = 16; // Tuned for visual appeal
 
-    // Spawn particles
-    int count = fullThrust ? 8 : 2;
+    // Spawn particles (reduced to 1/4 rate for Task 39 tuning)
+    int count = fullThrust ? 2 : 1;
     for (int i = 0; i < count; i++)
     {
         addExhaustParticle(particlePos, particleVel, BASE_LIFESPAN, flags);
