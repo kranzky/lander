@@ -48,9 +48,9 @@
 | 35 | Object-Buffer Integration | ac79746 |
 | 36 | Bullet-Object Collision | 72cfdf2 |
 | 37 | Smoke from Destroyed Objects | a03ef24 |
+| 38 | Particle Spawn Locations | fd2d90d |
 
 ## Remaining Tasks
-- Task 38: Particle Spawn Locations
 - Task 39: Exhaust Particle Tuning
 - Task 40: Bullet Reimplementation
 - Task 41: Particle-Ship Depth Sorting
@@ -70,6 +70,6 @@
 ## Summary
 
 - **Total Tasks:** 53
-- **Completed:** 37
+- **Completed:** 38
 - **In Progress:** 0
-- **Remaining:** 16
+- **Remaining:** 15
