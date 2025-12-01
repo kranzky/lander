@@ -744,11 +744,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 - Code cleanup
 - Bug fixes found during testing
 - Performance optimization if needed
-- Helper mode that creates a force field when moving towards the ground too
-  quickly (basically change the strenght of a force that opposes downwards
-  velocity and with a strength inversely proportional to distance from ground)
 - Sutherland-Hodgman triangle clipping for smooth screen-edge rendering (Zarch-style)
-- Minimap like Zarch
 - Final verification against original
 - Release build deployed to itch.io for Mac and Windows
 

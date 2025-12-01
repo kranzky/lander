@@ -2,9 +2,9 @@
 
 ## Current Status
 
-**Current Task:** 45
+**Current Task:** 46
 
-**Last Updated:** 2025-11-30
+**Last Updated:** 2025-12-01
 
 ## Completed Tasks
 
@@ -54,11 +54,13 @@
 | 41 | Particle-Ship Depth Sorting | aef9a48 |
 | 42 | Particle Visibility Clipping | 149b7e9 |
 | 44 | Smooth Ship Controls | 2b1f3f0 |
-| - | Ship-Object Collision (fly low over objects = crash) | 8719c39 |
+| - | Ship-Object Collision (fly low over objects = crash) | 1de7719 |
+| 45 | Sound Effects | 360b5e9 |
+| - | v0.6.0 release build with sounds | 34f6902 |
+| - | Fix ship disappearing (increase buffer size) | 19debab |
 
 ## Remaining Tasks
 - Task 43: Star Particles
-- Task 45: Sound Effects
 - Task 46: Falling Rocks
 - Task 47: Rock-Ship Collision
 - Task 48: Score Display
@@ -71,6 +73,6 @@
 ## Summary
 
 - **Total Tasks:** 53
-- **Completed:** 43 (+1 extra)
+- **Completed:** 44 (+3 extras)
 - **In Progress:** 0
-- **Remaining:** 10
+- **Remaining:** 9
