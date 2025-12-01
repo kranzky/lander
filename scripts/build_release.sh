@@ -77,6 +77,9 @@ cp "$PROJECT_DIR/macos/Info.plist" "$APP_BUNDLE/Contents/"
 # Copy icon
 cp "$DIST_DIR/lander.icns" "$APP_BUNDLE/Contents/Resources/"
 
+# Copy sounds directory
+cp -r "$PROJECT_DIR/sounds" "$APP_BUNDLE/Contents/Resources/"
+
 # Create PkgInfo
 echo -n "APPL????" > "$APP_BUNDLE/Contents/PkgInfo"
 

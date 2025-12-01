@@ -3,6 +3,12 @@
 #include <cmath>
 #include <algorithm>
 
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#include <libgen.h>
+#include <unistd.h>
+#endif
+
 // =============================================================================
 // SoundSystem Implementation
 // =============================================================================
@@ -41,14 +47,32 @@ bool SoundSystem::init() {
         return false;
     }
 
+    // Determine base path for resources
+    // On macOS app bundle: executable is in .app/Contents/MacOS/, resources in .app/Contents/Resources/
+    // In development: sounds are in ./sounds/ relative to working directory
+    std::string basePath = "";
+#ifdef __APPLE__
+    char exePath[1024];
+    uint32_t size = sizeof(exePath);
+    if (_NSGetExecutablePath(exePath, &size) == 0) {
+        char* dir = dirname(exePath);  // .app/Contents/MacOS
+        std::string resourcePath = std::string(dir) + "/../Resources/sounds/boom.wav";
+        // Check if we're in an app bundle by testing if Resources/sounds exists
+        if (SDL_LoadWAV(resourcePath.c_str(), nullptr, nullptr, nullptr) != nullptr ||
+            access((std::string(dir) + "/../Resources/sounds").c_str(), F_OK) == 0) {
+            basePath = std::string(dir) + "/../Resources/";
+        }
+    }
+#endif
+
     // Load all sound effects
     bool allLoaded = true;
-    allLoaded &= loadWav("sounds/boom.wav", sounds[static_cast<int>(SoundId::BOOM)]);
-    allLoaded &= loadWav("sounds/dead.wav", sounds[static_cast<int>(SoundId::DEAD)]);
-    allLoaded &= loadWav("sounds/shoot.wav", sounds[static_cast<int>(SoundId::SHOOT)]);
-    allLoaded &= loadWav("sounds/splash.wav", sounds[static_cast<int>(SoundId::SPLASH)]);
-    allLoaded &= loadWav("sounds/thrust.wav", sounds[static_cast<int>(SoundId::THRUST)]);
-    allLoaded &= loadWav("sounds/water.wav", sounds[static_cast<int>(SoundId::WATER)]);
+    allLoaded &= loadWav(basePath + "sounds/boom.wav", sounds[static_cast<int>(SoundId::BOOM)]);
+    allLoaded &= loadWav(basePath + "sounds/dead.wav", sounds[static_cast<int>(SoundId::DEAD)]);
+    allLoaded &= loadWav(basePath + "sounds/shoot.wav", sounds[static_cast<int>(SoundId::SHOOT)]);
+    allLoaded &= loadWav(basePath + "sounds/splash.wav", sounds[static_cast<int>(SoundId::SPLASH)]);
+    allLoaded &= loadWav(basePath + "sounds/thrust.wav", sounds[static_cast<int>(SoundId::THRUST)]);
+    allLoaded &= loadWav(basePath + "sounds/water.wav", sounds[static_cast<int>(SoundId::WATER)]);
 
     // Create pitched variants
     if (sounds[static_cast<int>(SoundId::SHOOT)].loaded) {
