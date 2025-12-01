@@ -98,7 +98,11 @@ private:
     SoundSystem sound;
     int thrustHeldFrames = 0;  // How long thrust has been held (for filter effect)
 
+    // Score (used for rock spawning threshold)
+    int score = 0;
+
     // Helper methods
+    void maybeSpawnRock();  // Check if we should spawn a falling rock
     void triggerCrash();
     void respawnPlayer();
     void resetGame();
@@ -282,9 +286,73 @@ void Game::resetGame() {
     stateTimer = 0;
 }
 
+// =============================================================================
+// Rock Spawning
+// =============================================================================
+//
+// Port of DropRocksFromTheSky from Lander.arm (lines 4578-4625).
+//
+// When score >= 800:
+// - Generate random number 0-16383
+// - If random < (score - 800), spawn a rock
+// - Higher scores = more frequent rocks
+//
+// Rocks spawn 32 tiles above and 6 tiles in front of camera position.
+//
+// =============================================================================
+
+void Game::maybeSpawnRock() {
+    // Only spawn rocks when score >= 800
+    if (score < 800) return;
+
+    // Only spawn during normal gameplay
+    if (gameState != GameState::PLAYING) return;
+
+    // Frame rate scaling: original ran at 15fps, we run at 120fps
+    // Only check every 8th frame to match original spawn rate
+    static int frameCounter = 0;
+    frameCounter++;
+    if ((frameCounter & 7) != 0) return;
+
+    // Random chance based on score
+    // Original: random 0-16383, spawn if random < (score - 800)
+    // This makes rocks more frequent at higher scores
+    uint32_t rand = static_cast<uint32_t>(std::rand()) & 0x3FFF;  // 0 to 16383
+    int threshold = score - 800;
+
+    if (static_cast<int>(rand) >= threshold) {
+        return;  // Don't spawn this frame
+    }
+
+    // Spawn rock in a circle of radius 30 tiles around the player
+    // Generate random angle and distance within circle
+    constexpr int32_t SPAWN_RADIUS = 30;
+    int angle = std::rand() % 360;
+    int distance = std::rand() % (SPAWN_RADIUS + 1);
+
+    // Convert polar to cartesian (approximate using lookup or simple math)
+    // Use simple approximation: sin/cos from angle
+    float radians = angle * 3.14159f / 180.0f;
+    int32_t offsetX = static_cast<int32_t>(distance * cosf(radians));
+    int32_t offsetZ = static_cast<int32_t>(distance * sinf(radians));
+
+    Vec3 playerPos = player.getPosition();
+    constexpr int32_t ROCK_HEIGHT_ABOVE_PLAYER = 32 * 0x01000000;  // 32 tiles above player
+
+    Vec3 rockPos;
+    rockPos.x = Fixed::fromRaw(playerPos.x.raw + offsetX * GameConstants::TILE_SIZE.raw);
+    rockPos.y = Fixed::fromRaw(playerPos.y.raw - ROCK_HEIGHT_ABOVE_PLAYER);  // Above player (negative Y = up)
+    rockPos.z = Fixed::fromRaw(playerPos.z.raw + offsetZ * GameConstants::TILE_SIZE.raw);
+
+    spawnRock(rockPos);
+}
+
 void Game::update() {
     // Update particles every frame (including during explosions)
     particleSystem.update();
+
+    // Try to spawn falling rocks (score >= 800)
+    maybeSpawnRock();
 
     // Process particle events for sounds with spatial audio
     // Volume is based on distance from player (full volume within 2 tiles, fades to 0 at 10 tiles)
@@ -324,6 +392,19 @@ void Game::update() {
         if (!sound.isPlaying(SoundId::WATER)) {
             float vol = calcSpatialVolume(events.exhaustHitWaterPos);
             if (vol > 0.0f) sound.play(SoundId::WATER, vol);
+        }
+    }
+    if (events.rockExploded > 0) {
+        float vol = calcSpatialVolume(events.rockExplodedPos);
+        if (vol > 0.0f) sound.play(SoundId::BOOM, vol);
+    }
+
+    // Check rock-player collision (before game state changes)
+    if (gameState == GameState::PLAYING && !debugMode) {
+        if (checkRockPlayerCollision(player.getPosition(), camera.getPosition())) {
+            // Rock hit player - trigger crash
+            triggerCrash();
+            return;  // Skip rest of update
         }
     }
 
@@ -787,6 +868,9 @@ void Game::drawTestPattern() {
 
     // Buffer particles behind ship first (so they're drawn before ship)
     bufferParticlesBehind(camera, shipDepthZ);
+
+    // Buffer falling rocks (they're rendered as 3D objects, not sprites)
+    bufferRocks(camera);
 
     // Buffer the player's ship for depth-sorted rendering
     bufferShip();

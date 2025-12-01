@@ -6,6 +6,9 @@
 #include "palette.h"
 #include "graphics_buffer.h"
 #include "object_map.h"
+#include "object3d.h"
+#include "object_renderer.h"
+#include <cstdio>
 
 // =============================================================================
 // Particle System Implementation
@@ -111,10 +114,13 @@ void ParticleSystem::update()
         }
 
         // Check terrain collision
-        // Particles have a 10-tile Z offset to match the ship's visual position.
+        // Most particles have a 10-tile Z offset to match the ship's visual position.
         // For terrain collision, subtract this offset to get the actual world Z.
+        // Rocks are stored in actual world coordinates (no offset).
         constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10 * 0x01000000; // 10 tiles
-        Fixed worldZ = Fixed::fromRaw(p.position.z.raw - SHIP_VISUAL_Z_OFFSET);
+        Fixed worldZ = p.isRock()
+            ? p.position.z  // Rocks: already in world coordinates
+            : Fixed::fromRaw(p.position.z.raw - SHIP_VISUAL_Z_OFFSET);  // Others: subtract offset
         Fixed terrainY = getLandscapeAltitude(p.position.x, worldZ);
 
         // =================================================================
@@ -184,6 +190,25 @@ void ParticleSystem::update()
                         continue;
                     }
                 }
+            }
+        }
+
+        // Special handling for rocks: explode 1 tile above ground/water
+        if (p.isRock())
+        {
+            constexpr int32_t ROCK_EXPLODE_HEIGHT = 1 * 0x01000000;  // 1 tile above ground
+            int32_t heightAboveTerrain = terrainY.raw - p.position.y.raw;
+
+            if (heightAboveTerrain <= ROCK_EXPLODE_HEIGHT)
+            {
+                // Rock is within 1 tile of ground/water - explode at current position
+                // Rocks are in world coords, and spawnExplosionParticles adds +10 Z offset
+                // which matches the visual offset we use when rendering rocks
+                spawnExplosionParticles(p.position, 20);
+                particleEvents.rockExploded++;
+                particleEvents.rockExplodedPos = p.position;
+                removeParticle(i);
+                continue;
             }
         }
 
@@ -1055,4 +1080,261 @@ void spawnSmokeParticle(const Vec3 &pos)
     int32_t lifespan = 120 + ((exhaustRandom() >> 22) & 0xFF);
 
     particleSystem.addParticle(smokePos, vel, lifespan, flags);
+}
+
+// =============================================================================
+// Rock Spawning Implementation
+// =============================================================================
+//
+// Port of DropARockFromTheSky from Lander.arm (lines 4120-4224).
+//
+// Rocks are special particles rendered as 3D objects:
+// - Have IS_ROCK flag set
+// - Fall under gravity
+// - Bounce off terrain, splash into sea
+// - Can destroy objects on collision
+// - Kill the player on collision
+//
+// =============================================================================
+
+// Global rotation angle for all rocks (they spin together)
+// This matches original behavior where rocks share a rotation matrix
+static int32_t rockRotationAngle = 0;
+
+void spawnRock(const Vec3& pos)
+{
+    // Generate random rock color (purple-brown-green)
+    // From original: red 4-11, green 2-9, blue 4-7
+    uint32_t rand1 = exhaustRandom();
+    uint32_t rand2 = exhaustRandom();
+
+    int r = 4 + (rand1 & 7);           // 4-11
+    int g = 2 + ((rand1 >> 29) & 7);   // 2-9
+    int b = 4 + ((rand2 >> 30) & 3);   // 4-7
+
+    // Build VIDC 256-color index from RGB components
+    // Bits: 7=b3, 6=g3, 5=g2, 4=r3, 3=b2, 2=r2, 1=(r1|g1|b1), 0=(r0|g0|b0)
+    uint8_t colorIndex = 0;
+    colorIndex |= (r & 3) | ((g & 3) | (b & 3));           // bits 0-1
+    colorIndex |= ((r >> 2) & 1) << 2;                      // bit 2
+    colorIndex |= ((b >> 2) & 1) << 3;                      // bit 3
+    colorIndex |= ((r >> 3) & 1) << 4;                      // bit 4
+    colorIndex |= ((g >> 2) & 3) << 5;                      // bits 5-6
+    colorIndex |= ((b >> 3) & 1) << 7;                      // bit 7
+
+    // Rock flags: IS_ROCK | SPLASH | BOUNCES | GRAVITY | DESTROYS_OBJECTS | BIG_SPLASH | EXPLODES_ON_GROUND
+    // Original: bits 17-24 = 0xFE (all rock behaviors)
+    uint32_t flags = ParticleFlags::IS_ROCK |
+                     ParticleFlags::SPLASH |
+                     ParticleFlags::BOUNCES |
+                     ParticleFlags::GRAVITY |
+                     ParticleFlags::DESTROYS_OBJECTS |
+                     ParticleFlags::BIG_SPLASH |
+                     ParticleFlags::EXPLODES_ON_GROUND |
+                     colorIndex;
+
+    // Rock starts with zero velocity (just falls)
+    // Original adds small random velocity variation
+    // Shift by 16 gives tiny drift (~0.004 tiles/frame max)
+    Vec3 vel;
+    vel.x = Fixed::fromRaw((static_cast<int32_t>(exhaustRandom()) >> 16));
+    vel.y = Fixed::fromRaw(0);  // Starts stationary, gravity will accelerate it
+    vel.z = Fixed::fromRaw((static_cast<int32_t>(exhaustRandom()) >> 16));
+
+    // Lifespan: 170 iterations at 15fps = 1360 iterations at 120fps
+    // Long enough to fall from 32 tiles
+    int32_t lifespan = 1360 + ((exhaustRandom() >> 27) & 0x1F);
+
+    // Rocks are stored in actual world coordinates (no visual offset)
+    // This is different from exhaust/bullets which need the +10 tile offset
+    // to appear at the visual ship position (15 tiles from camera vs 5 actual)
+    particleSystem.addParticle(pos, vel, lifespan, flags);
+}
+
+int getRockCount()
+{
+    int count = 0;
+    int total = particleSystem.getParticleCount();
+    for (int i = 0; i < total; i++) {
+        if (particleSystem.getParticle(i).isRock()) {
+            count++;
+        }
+    }
+    return count;
+}
+
+// Update the global rock rotation angle (call once per frame)
+void updateRockRotation()
+{
+    // Rocks rotate at a fixed speed
+    // Original used main loop counter; we increment each frame
+    rockRotationAngle += 0x02000000;  // ~45 degrees per second at 120fps
+}
+
+void bufferRocks(const Camera& camera)
+{
+    // Update rock rotation
+    updateRockRotation();
+
+    // Calculate rotation matrix for all rocks
+    Mat3x3 rockRotation = calculateRotationMatrix(rockRotationAngle, rockRotationAngle >> 1);
+
+    int count = particleSystem.getParticleCount();
+    int camTileX = camera.getXTile().toInt();
+    int camTileZ = camera.getZTile().toInt();
+
+    // Calculate visible tile bounds (same as regular particles)
+    int halfTilesX = TILES_X / 2;
+    int minVisibleX = camTileX - halfTilesX;
+    int maxVisibleX = camTileX + halfTilesX;
+    int minVisibleZ = camTileZ;
+    int maxVisibleZ = camTileZ + TILES_Z - 1;
+
+    for (int i = 0; i < count; i++)
+    {
+        const Particle& p = particleSystem.getParticle(i);
+
+        if (!p.isRock()) {
+            continue;
+        }
+
+        // Rocks are in world coordinates (no visual offset)
+        int rockTileX = p.position.x.toInt();
+        int rockTileZ = p.position.z.toInt();
+
+        // Skip rocks outside visible tile bounds
+        if (rockTileX < minVisibleX || rockTileX > maxVisibleX ||
+            rockTileZ < minVisibleZ || rockTileZ > maxVisibleZ)
+        {
+            continue;
+        }
+
+        // Transform rock position to camera-relative coordinates
+        // Add 10-tile visual offset to Z so rocks render at the visual ship position
+        // (Ship renders at 15 tiles from camera, but actual player is at 5 tiles)
+        Vec3 cameraRelPos = camera.worldToCamera(p.position);
+        constexpr int32_t VISUAL_Z_OFFSET = 10 * 0x01000000;  // 10 tiles
+        cameraRelPos.z = Fixed::fromRaw(cameraRelPos.z.raw + VISUAL_Z_OFFSET);
+
+        // Skip rocks behind the camera or too close (would cause projection overflow)
+        // Minimum distance of 1 tile prevents division-by-small-number issues
+        constexpr int32_t MIN_RENDER_Z = 0x01000000;  // 1 tile in 8.24 format
+        if (cameraRelPos.z.raw <= MIN_RENDER_Z) {
+            continue;
+        }
+
+        // Calculate row for depth sorting
+        // Use the actual world Z (not visual) to match ship's row calculation
+        int row = camTileZ + TILES_Z - 1 - rockTileZ;
+
+        // Clamp to valid row range
+        if (row < 0) row = 0;
+        if (row >= TILES_Z) row = TILES_Z - 1;
+
+        // Buffer rock shadow first (so it appears under the rock)
+        Vec3 cameraWorldPos;
+        cameraWorldPos.x = camera.getX();
+        cameraWorldPos.y = camera.getY();
+        cameraWorldPos.z = camera.getZ();
+        bufferObjectShadow(rockBlueprint, cameraRelPos, rockRotation,
+                           p.position, cameraWorldPos, row);
+
+        // Buffer rock as 3D object
+        bufferObject(rockBlueprint, cameraRelPos, rockRotation, row);
+    }
+}
+
+void renderRocks(const Camera& camera, ScreenBuffer& screen)
+{
+    // Rocks are buffered via bufferRocks() and rendered during landscape rendering
+    // This function is for immediate-mode rendering (debugging)
+
+    Mat3x3 rockRotation = calculateRotationMatrix(rockRotationAngle, rockRotationAngle >> 1);
+
+    int count = particleSystem.getParticleCount();
+
+    for (int i = 0; i < count; i++)
+    {
+        const Particle& p = particleSystem.getParticle(i);
+
+        if (!p.isRock()) {
+            continue;
+        }
+
+        Vec3 cameraRelPos = camera.worldToCamera(p.position);
+
+        // Skip rocks behind or too close to camera
+        constexpr int32_t MIN_RENDER_Z = 0x01000000;  // 1 tile
+        if (cameraRelPos.z.raw <= MIN_RENDER_Z) {
+            continue;
+        }
+
+        // Draw rock object directly
+        drawObject(rockBlueprint, cameraRelPos, rockRotation, screen);
+    }
+}
+
+// =============================================================================
+// Rock-Player Collision Detection
+// =============================================================================
+//
+// Port of rock collision from MoveAndDrawParticles Part 3 (Lander.arm lines 2955-3014).
+//
+// Original logic:
+// - Rock is at world coordinates (R0, R1, R2)
+// - Player is at (0, yPlayer, 15 tiles from camera in Z)
+// - Check if |rock.x| < TILE_SIZE and |rock.z - 15 tiles| < TILE_SIZE
+// - If so, check if |rock.y - yPlayer| < TILE_SIZE
+// - Rock is 1 tile in size on each axis
+//
+// =============================================================================
+
+bool checkRockPlayerCollision(const Vec3& playerPos, const Vec3& cameraPos)
+{
+    // Rocks and player are both in world coordinates
+    // Check if any rock is within collision radius of player position
+    (void)cameraPos;  // Not needed - both rock and player are in world coords
+
+    // Collision radius: 1 tile for X/Z, 1 tile for Y
+    constexpr int32_t COLLISION_RADIUS_XZ = 1 * 0x01000000;  // 1 tile
+    constexpr int32_t COLLISION_RADIUS_Y = 1 * 0x01000000;   // 1 tile
+
+    int count = particleSystem.getParticleCount();
+
+    for (int i = 0; i < count; i++)
+    {
+        const Particle& p = particleSystem.getParticle(i);
+
+        if (!p.isRock()) {
+            continue;
+        }
+
+        // Check X distance
+        int32_t xDiff = p.position.x.raw - playerPos.x.raw;
+        int32_t absX = (xDiff < 0) ? -xDiff : xDiff;
+        if (absX >= COLLISION_RADIUS_XZ) {
+            continue;
+        }
+
+        // Check Z distance
+        int32_t zDiff = p.position.z.raw - playerPos.z.raw;
+        int32_t absZ = (zDiff < 0) ? -zDiff : zDiff;
+        if (absZ >= COLLISION_RADIUS_XZ) {
+            continue;
+        }
+
+        // Check Y distance (altitude)
+        int32_t yDiff = p.position.y.raw - playerPos.y.raw;
+        int32_t absY = (yDiff < 0) ? -yDiff : yDiff;
+        if (absY >= COLLISION_RADIUS_Y) {
+            continue;
+        }
+
+        // Collision detected!
+        particleEvents.rockHitPlayer++;
+        particleEvents.rockHitPlayerPos = p.position;
+        return true;
+    }
+
+    return false;
 }

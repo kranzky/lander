@@ -644,30 +644,22 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 46: Falling Rocks
-**Goal**: Implement the falling rock hazard system.
+### Task 46: Falling Rocks (includes Task 47: Rock-Ship Collision)
+**Goal**: Implement the falling rock hazard system with player collision.
 
 **Deliverables**:
-- `src/rocks.cpp/h`
-- Rock spawning when score ≥ 800
-- Random spawn timing
-- Rock 3D model (cube)
-- Rock physics (gravity, rotation)
-- Rock rendering as particle type
+- Rock spawning when score ≥ 800 (probability increases with score)
+- Rocks spawn in 30-tile radius circle around player, 32 tiles above
+- Rock 3D model (rotating cube) rendered as particle with IS_ROCK flag
+- Rock physics (gravity, bounces off terrain)
+- Rock shadows rendered on terrain
+- Rocks explode 1 tile above ground/water with medium explosion
+- Rock explosion plays boom sound
+- Rocks clip to visible landscape area
+- Rock-player collision triggers crash (1-tile collision radius)
+- Frame rate scaling for spawn checks (every 8th frame at 120fps)
 
-**Verification**: Rocks spawn and fall when score is high enough.
-
----
-
-### Task 47: Rock-Ship Collision
-**Goal**: Rocks kill the player on contact.
-
-**Deliverables**:
-- Distance check between rock and ship
-- Trigger crash on collision
-- Rock removed on collision
-
-**Verification**: Rock hitting ship causes crash.
+**Verification**: Rocks spawn when score is high, fall and explode on impact, kill player on collision.
 
 ---
 
@@ -717,7 +709,6 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 - State transition logic
 - Reset functionality for new game
 - Clean initialization
-- Title screen with smoothly rotating ship
 
 **Verification**: All state transitions work correctly.
 
@@ -767,7 +758,7 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 | 9 | 38-43 | Particle refinements (spawn locations, depth sorting, clipping, stars) |
 | 10 | 44 | Smooth ship controls |
 | 11 | 45 | Sound effects |
-| 12 | 46-47 | Rocks (spawning, collision) |
+| 12 | 46 | Falling Rocks (merged with Task 47) |
 | 13 | 48-52 | UI and game state |
 | 14 | 53 | Polish |
 

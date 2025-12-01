@@ -449,6 +449,42 @@ const ObjectBlueprint smokingBuildingBlueprint = {
 };
 
 // =============================================================================
+// Rock Model Data (for falling rocks)
+// =============================================================================
+// From Lander.arm lines 12720-12751
+// A simple octahedron-like shape with 6 vertices and 8 faces.
+// Rocks are spawned as particles with IS_ROCK flag and rendered as 3D objects.
+
+static const ObjectVertex rockVertices[] = {
+    { 0x00000000, 0x00000000, 0x00A00000 },                       // Vertex 0: Front
+    { 0x00A00000, 0x00A00000, 0x00000000 },                       // Vertex 1: Top right
+    { static_cast<int32_t>(0xFF600000), 0x00A00000, 0x00000000 }, // Vertex 2: Top left
+    { 0x00A00000, static_cast<int32_t>(0xFF600000), 0x00000000 }, // Vertex 3: Bottom right
+    { static_cast<int32_t>(0xFF600000), static_cast<int32_t>(0xFF600000), 0x00000000 }, // Vertex 4: Bottom left
+    { 0x00000000, 0x00000000, static_cast<int32_t>(0xFF600000) }, // Vertex 5: Back
+};
+
+static const ObjectFace rockFaces[] = {
+    // Front faces (normal Z positive)
+    { 0x00000000, 0x54DA5200, 0x54DA5200, 0, 1, 2, 0x444 },  // Face 0: Front top
+    { 0x54DA5200, 0x00000000, 0x54DA5200, 0, 3, 1, 0x444 },  // Face 1: Front right
+    { 0x00000000, static_cast<int32_t>(0xAB25AE00), 0x54DA5200, 0, 4, 3, 0x444 },  // Face 2: Front bottom
+    { static_cast<int32_t>(0xAB25AE00), 0x00000000, 0x54DA5200, 0, 2, 4, 0x444 },  // Face 3: Front left
+    // Back faces (normal Z negative)
+    { 0x00000000, 0x54DA5200, static_cast<int32_t>(0xAB25AE00), 5, 1, 2, 0x444 },  // Face 4: Back top
+    { 0x54DA5200, 0x00000000, static_cast<int32_t>(0xAB25AE00), 5, 3, 1, 0x444 },  // Face 5: Back right
+    { 0x00000000, static_cast<int32_t>(0xAB25AE00), static_cast<int32_t>(0xAB25AE00), 5, 4, 3, 0x444 },  // Face 6: Back bottom
+    { static_cast<int32_t>(0xAB25AE00), 0x00000000, static_cast<int32_t>(0xAB25AE00), 5, 2, 4, 0x444 },  // Face 7: Back left
+};
+
+const ObjectBlueprint rockBlueprint = {
+    6, 8,
+    ObjectFlags::ROTATES,  // Rocks rotate
+    rockVertices,
+    rockFaces,
+};
+
+// =============================================================================
 // Object Type to Blueprint Mapping
 // =============================================================================
 

@@ -172,6 +172,8 @@ add_executable(test_particles
     src/graphics_buffer.cpp
     src/object_map.cpp
     src/scale.cpp
+    src/object3d.cpp
+    src/object_renderer.cpp
 )
 target_include_directories(test_particles PRIVATE src)
 

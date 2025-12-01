@@ -124,18 +124,24 @@ struct ParticleEvents {
     int bulletHitGround;      // Bullet hit terrain (shoot_impact sound)
     int bulletHitWater;       // Bullet hit water (splash sound)
     int exhaustHitWater;      // Exhaust particle hit water (water sound)
+    int rockHitPlayer;        // Rock hit player (triggers crash)
+    int rockExploded;         // Rock hit ground/water (boom sound)
 
     // Positions of most recent events (for spatial audio)
     Vec3 objectDestroyedPos;
     Vec3 bulletHitGroundPos;
     Vec3 bulletHitWaterPos;
     Vec3 exhaustHitWaterPos;
+    Vec3 rockHitPlayerPos;
+    Vec3 rockExplodedPos;
 
     void reset() {
         objectDestroyed = 0;
         bulletHitGround = 0;
         bulletHitWater = 0;
         exhaustHitWater = 0;
+        rockHitPlayer = 0;
+        rockExploded = 0;
     }
 };
 
@@ -288,5 +294,42 @@ void spawnExplosionParticles(const Vec3& pos, int clusterCount);
 // Spawn a single smoke particle rising from a destroyed object
 // pos: position to spawn smoke (should be SMOKE_HEIGHT above object base)
 void spawnSmokeParticle(const Vec3& pos);
+
+// =============================================================================
+// Falling Rock Spawning
+// =============================================================================
+//
+// Port of DropARockFromTheSky from Lander.arm (lines 4120-4224).
+//
+// Rocks are spawned as particles with IS_ROCK flag:
+// - Rendered as 3D rotating objects (not as sprites)
+// - Fall from 32 tiles above the camera
+// - Spawn 6 tiles in front of camera (where ship is visually)
+// - Have gravity, bounce, splash, and can destroy objects
+// - Kill the player on collision
+//
+// =============================================================================
+
+// Spawn a falling rock at the given position
+// pos: world position to spawn rock (typically high above camera)
+void spawnRock(const Vec3& pos);
+
+// Check if any rocks are currently active
+int getRockCount();
+
+// Render all rock particles as 3D objects
+// Called during the rendering phase to draw rocks with proper depth sorting
+class Camera;
+class ScreenBuffer;
+void renderRocks(const Camera& camera, ScreenBuffer& screen);
+
+// Buffer rocks into graphics buffer system for depth-sorted rendering
+void bufferRocks(const Camera& camera);
+
+// Check for rock-player collision
+// playerPos: player's world position
+// cameraPos: camera's world position (rocks are relative to camera)
+// Returns true if a rock hit the player (and sets rockHitPlayer event)
+bool checkRockPlayerCollision(const Vec3& playerPos, const Vec3& cameraPos);
 
 #endif // LANDER_PARTICLES_H

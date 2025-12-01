@@ -119,6 +119,7 @@ extern const ObjectBlueprint smokingRemainsLeftBlueprint;
 extern const ObjectBlueprint smokingRemainsRightBlueprint;
 extern const ObjectBlueprint smokingGazeboBlueprint;
 extern const ObjectBlueprint smokingBuildingBlueprint;
+extern const ObjectBlueprint rockBlueprint;
 
 // Get the blueprint for a given object type (from ObjectType constants)
 const ObjectBlueprint* getObjectBlueprint(uint8_t objectType);
