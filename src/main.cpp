@@ -239,8 +239,8 @@ void Game::triggerCrash() {
     // Spawn explosion particles (50 clusters = 200 particles for ship crash)
     spawnExplosionParticles(explosionPos, 50);
 
-    // Play death sound
-    sound.play(SoundId::DEAD);
+    // Play death sound (reduced volume to match spatial sounds)
+    sound.play(SoundId::DEAD, 0.5f);
 
     // Stop any engine sounds
     sound.stopSound(SoundId::THRUST);
@@ -451,12 +451,12 @@ void Game::update() {
         float filterCutoff = 1.0f - (0.7f * t);  // 1.0 -> 0.3
         float pitch = 1.0f - (0.15f * t);         // 1.0 -> 0.85 (slight pitch drop)
 
-        // Handle thrust sounds (looped)
+        // Handle thrust sounds (looped, reduced volume to match spatial sounds)
         if (fullThrust) {
             // Full thrust - play thrust sound, stop hover
             sound.stopSound(SoundId::HOVER);
             if (!sound.isPlaying(SoundId::THRUST)) {
-                sound.playLoop(SoundId::THRUST);
+                sound.playLoop(SoundId::THRUST, 0.5f);
             }
             sound.setLoopFilter(SoundId::THRUST, filterCutoff);
             sound.setLoopPitch(SoundId::THRUST, pitch);
@@ -464,7 +464,7 @@ void Game::update() {
             // Hover - play hover sound (pitched down thrust), stop thrust
             sound.stopSound(SoundId::THRUST);
             if (!sound.isPlaying(SoundId::HOVER)) {
-                sound.playLoop(SoundId::HOVER);
+                sound.playLoop(SoundId::HOVER, 0.5f);
             }
             sound.setLoopFilter(SoundId::HOVER, filterCutoff);
             sound.setLoopPitch(SoundId::HOVER, pitch);
@@ -485,8 +485,8 @@ void Game::update() {
         Vec3 gunDir = player.getRotationMatrix().nose();
         // Spawn from nose (midpoint of vertices 0 and 1)
         spawnBulletParticle(player.getBulletSpawnPoint(), player.getVelocity(), gunDir);
-        // Play shoot sound
-        sound.play(SoundId::SHOOT);
+        // Play shoot sound (reduced volume to match spatial sounds)
+        sound.play(SoundId::SHOOT, 0.5f);
     }
 
     // Check for object collision - immediate crash, no landing possible

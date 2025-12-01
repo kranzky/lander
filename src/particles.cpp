@@ -672,7 +672,7 @@ void spawnExhaustParticles(const Vec3 &pos, const Vec3 &vel, const Vec3 &exhaust
     // - Default: smaller offset (>> 3) works most of the time
     // - When top clearly faces camera (exhaust.z > 0.5): larger offset (>> 1) needed
     constexpr int32_t EXHAUST_Z_THRESHOLD = 0x00400000; // 0.25 in 8.24 format
-    int32_t offsetShift = (exhaust.z.raw > EXHAUST_Z_THRESHOLD) ? 1 : 3;
+    int32_t offsetShift = (exhaust.z.raw > EXHAUST_Z_THRESHOLD) ? 1 : 2;
 
     // The ship is rendered at Z=15 from camera for consistent visual size, but
     // the player's actual position is only Z=5 from camera. We offset particle Z
