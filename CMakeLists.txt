@@ -27,6 +27,7 @@ set(SOURCES
     src/object_map.cpp
     src/graphics_buffer.cpp
     src/scale.cpp
+    src/sound.cpp
 )
 
 # Create executable
@@ -55,6 +56,13 @@ if(MSVC)
         $<TARGET_FILE_DIR:lander>
     )
 endif()
+
+# Copy sounds directory to build output
+add_custom_command(TARGET lander POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/sounds
+    $<TARGET_FILE_DIR:lander>/sounds
+)
 
 # =============================================================================
 # Tests

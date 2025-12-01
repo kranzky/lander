@@ -28,6 +28,13 @@
 // Global instance
 ParticleSystem particleSystem;
 
+// Global particle events for sound triggers
+static ParticleEvents particleEvents;
+
+ParticleEvents& getParticleEvents() {
+    return particleEvents;
+}
+
 ParticleSystem::ParticleSystem() : particleCount(0)
 {
     clear();
@@ -75,6 +82,9 @@ void ParticleSystem::removeParticle(int index)
 
 void ParticleSystem::update()
 {
+    // Reset event counters for this frame
+    particleEvents.reset();
+
     // Process all particles (iterate backwards so removal doesn't skip)
     for (int i = particleCount - 1; i >= 0; i--)
     {
@@ -149,8 +159,8 @@ void ParticleSystem::update()
                     // Check if object is already destroyed (type >= 12)
                     if (ObjectMap::isDestroyedType(objectType))
                     {
-                        // Already destroyed - spawn small explosion (3 clusters)
-                        spawnExplosionParticles(objectPos, 3);
+                        // Already destroyed - bullet passes through, no effect
+                        // (don't remove bullet, let it continue)
                     }
                     else
                     {
@@ -161,14 +171,18 @@ void ParticleSystem::update()
                         // Spawn medium explosion (20 clusters = 80 particles)
                         spawnExplosionParticles(objectPos, 20);
 
+                        // Track event for sound (with position for spatial audio)
+                        particleEvents.objectDestroyed++;
+                        particleEvents.objectDestroyedPos = objectPos;
+
                         // TODO: Add score (Task 40)
                         // If not a rock (bit 17 clear), add 20 to score
                         // if (!p.isRock()) { score += 20; }
-                    }
 
-                    // Remove the bullet particle
-                    removeParticle(i);
-                    continue;
+                        // Remove the bullet particle
+                        removeParticle(i);
+                        continue;
+                    }
                 }
             }
         }
@@ -190,6 +204,16 @@ void ParticleSystem::update()
                 constexpr int32_t SPLASH_HEIGHT = 0x01000000 / 16; // 1/16 tile
                 splashPos.y = Fixed::fromRaw(splashPos.y.raw - SPLASH_HEIGHT);
                 spawnSplashParticles(splashPos, p.velocity, p.hasBigSplash());
+
+                // Track what hit water (bullets have BIG_SPLASH, exhaust doesn't)
+                if (p.hasBigSplash()) {
+                    particleEvents.bulletHitWater++;
+                    particleEvents.bulletHitWaterPos = p.position;
+                } else {
+                    particleEvents.exhaustHitWater++;
+                    particleEvents.exhaustHitWaterPos = p.position;
+                }
+
                 removeParticle(i);
                 continue;
             }
@@ -198,6 +222,8 @@ void ParticleSystem::update()
             {
                 // Bullet hit terrain - spawn sparks and delete this particle
                 spawnSparkParticles(p.position, p.velocity);
+                particleEvents.bulletHitGround++;
+                particleEvents.bulletHitGroundPos = p.position;
                 removeParticle(i);
                 continue;
             }

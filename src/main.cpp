@@ -1,6 +1,7 @@
 #include <SDL.h>
 #include <cstdlib>
 #include <cstring>
+#include <algorithm>
 #include "constants.h"
 #include "screen.h"
 #include "palette.h"
@@ -13,6 +14,7 @@
 #include "object3d.h"
 #include "particles.h"
 #include "object_map.h"
+#include "sound.h"
 
 // =============================================================================
 // Lander - C++/SDL Port
@@ -92,6 +94,10 @@ private:
     // Debug mode: keyboard controls, no physics
     bool debugMode = false;
 
+    // Sound system
+    SoundSystem sound;
+    int thrustHeldFrames = 0;  // How long thrust has been held (for filter effect)
+
     // Helper methods
     void triggerCrash();
     void respawnPlayer();
@@ -167,6 +173,11 @@ bool Game::init() {
     // Initialize the object map with random objects
     placeObjectsOnMap();
 
+    // Initialize sound system
+    if (!sound.init()) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_AUDIO, "Sound system failed to initialize - continuing without audio");
+    }
+
     // Report status
     int drawW, drawH;
     SDL_GL_GetDrawableSize(window, &drawW, &drawH);
@@ -178,6 +189,7 @@ bool Game::init() {
 }
 
 void Game::shutdown() {
+    sound.shutdown();
     if (texture) {
         SDL_DestroyTexture(texture);
         texture = nullptr;
@@ -227,6 +239,13 @@ void Game::triggerCrash() {
     // Spawn explosion particles (50 clusters = 200 particles for ship crash)
     spawnExplosionParticles(explosionPos, 50);
 
+    // Play death sound
+    sound.play(SoundId::DEAD);
+
+    // Stop any engine sounds
+    sound.stopSound(SoundId::THRUST);
+    sound.stopSound(SoundId::HOVER);
+
     // Transition to exploding state
     gameState = GameState::EXPLODING;
     stateTimer = GameConfig::EXPLOSION_DURATION;
@@ -266,6 +285,47 @@ void Game::resetGame() {
 void Game::update() {
     // Update particles every frame (including during explosions)
     particleSystem.update();
+
+    // Process particle events for sounds with spatial audio
+    // Volume is based on distance from player (full volume within 2 tiles, fades to 0 at 10 tiles)
+    ParticleEvents& events = getParticleEvents();
+    Vec3 playerPos = player.getPosition();
+
+    auto calcSpatialVolume = [&playerPos](const Vec3& eventPos) -> float {
+        // Calculate squared distance in tiles (using X and Z, ignore Y)
+        float dx = Fixed::fromRaw(eventPos.x.raw - playerPos.x.raw).toFloat();
+        float dz = Fixed::fromRaw(eventPos.z.raw - playerPos.z.raw).toFloat();
+        float distSq = dx * dx + dz * dz;
+
+        // Full volume within 1 tile, then inverse square falloff
+        // At distance 10, we want 30% volume: 0.3 = 1 / (1 + (100-1)/k) => k ≈ 42.4
+        if (distSq <= 1.0f) return 1.0f;
+        float vol = 1.0f / (1.0f + (distSq - 1.0f) / 42.4f);
+        return (vol < 0.05f) ? 0.0f : vol;
+    };
+
+    if (events.objectDestroyed > 0) {
+        float vol = calcSpatialVolume(events.objectDestroyedPos);
+        if (vol > 0.0f) sound.play(SoundId::BOOM, vol);
+    }
+    if (events.bulletHitGround > 0) {
+        float vol = calcSpatialVolume(events.bulletHitGroundPos);
+        if (vol > 0.0f) sound.play(SoundId::SHOOT_IMPACT, vol);
+    }
+    if (events.bulletHitWater > 0) {
+        // Only play if previous splash finished
+        if (!sound.isPlaying(SoundId::SPLASH)) {
+            float vol = calcSpatialVolume(events.bulletHitWaterPos);
+            if (vol > 0.0f) sound.play(SoundId::SPLASH, vol);
+        }
+    }
+    if (events.exhaustHitWater > 0) {
+        // Play water sound once (not looped) when exhaust creates water splash
+        if (!sound.isPlaying(SoundId::WATER)) {
+            float vol = calcSpatialVolume(events.exhaustHitWaterPos);
+            if (vol > 0.0f) sound.play(SoundId::WATER, vol);
+        }
+    }
 
     // Handle game state transitions
     if (gameState == GameState::EXPLODING) {
@@ -373,12 +433,47 @@ void Game::update() {
 
     // Spawn exhaust particles when engine is active (thrust button AND below altitude limit)
     const InputState& input = player.getInput();
-    if (player.isEngineActive()) {
-        // fullThrust = left button (8 particles), hover = middle button (2 particles)
-        bool fullThrust = input.isThrusting();
+    bool engineActive = player.isEngineActive();
+    bool fullThrust = input.isThrusting();
+    bool hoverThrust = input.isHovering() && !fullThrust;
+
+    if (engineActive) {
         // Spawn from exhaust port (center of yellow triangle on ship underside)
         spawnExhaustParticles(player.getExhaustSpawnPoint(), player.getVelocity(),
                               player.getExhaustDirection(), fullThrust);
+
+        // Track how long thrust has been held
+        thrustHeldFrames++;
+
+        // Calculate filter cutoff and pitch shift over ~5 seconds
+        // At 120fps, 600 frames = 5 seconds
+        float t = std::min(thrustHeldFrames, 600) / 600.0f;
+        float filterCutoff = 1.0f - (0.7f * t);  // 1.0 -> 0.3
+        float pitch = 1.0f - (0.15f * t);         // 1.0 -> 0.85 (slight pitch drop)
+
+        // Handle thrust sounds (looped)
+        if (fullThrust) {
+            // Full thrust - play thrust sound, stop hover
+            sound.stopSound(SoundId::HOVER);
+            if (!sound.isPlaying(SoundId::THRUST)) {
+                sound.playLoop(SoundId::THRUST);
+            }
+            sound.setLoopFilter(SoundId::THRUST, filterCutoff);
+            sound.setLoopPitch(SoundId::THRUST, pitch);
+        } else if (hoverThrust) {
+            // Hover - play hover sound (pitched down thrust), stop thrust
+            sound.stopSound(SoundId::THRUST);
+            if (!sound.isPlaying(SoundId::HOVER)) {
+                sound.playLoop(SoundId::HOVER);
+            }
+            sound.setLoopFilter(SoundId::HOVER, filterCutoff);
+            sound.setLoopPitch(SoundId::HOVER, pitch);
+        }
+    } else {
+        // Engine not active - stop all engine sounds and reset filter timer
+        sound.stopSound(SoundId::THRUST);
+        sound.stopSound(SoundId::HOVER);
+        thrustHeldFrames = 0;
     }
 
     // Spawn bullet particle when firing (right button)
@@ -390,6 +485,8 @@ void Game::update() {
         Vec3 gunDir = player.getRotationMatrix().nose();
         // Spawn from nose (midpoint of vertices 0 and 1)
         spawnBulletParticle(player.getBulletSpawnPoint(), player.getVelocity(), gunDir);
+        // Play shoot sound
+        sound.play(SoundId::SHOOT);
     }
 
     // Check for object collision - immediate crash, no landing possible

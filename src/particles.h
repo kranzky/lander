@@ -111,6 +111,38 @@ private:
 extern ParticleSystem particleSystem;
 
 // =============================================================================
+// Particle Events (for sound triggers)
+// =============================================================================
+//
+// Events are accumulated during update() and should be polled each frame
+// after calling update(). Counts reset on read.
+//
+// =============================================================================
+
+struct ParticleEvents {
+    int objectDestroyed;      // Object destroyed by bullet (boom sound)
+    int bulletHitGround;      // Bullet hit terrain (shoot_impact sound)
+    int bulletHitWater;       // Bullet hit water (splash sound)
+    int exhaustHitWater;      // Exhaust particle hit water (water sound)
+
+    // Positions of most recent events (for spatial audio)
+    Vec3 objectDestroyedPos;
+    Vec3 bulletHitGroundPos;
+    Vec3 bulletHitWaterPos;
+    Vec3 exhaustHitWaterPos;
+
+    void reset() {
+        objectDestroyed = 0;
+        bulletHitGround = 0;
+        bulletHitWater = 0;
+        exhaustHitWater = 0;
+    }
+};
+
+// Get events from last update() call
+ParticleEvents& getParticleEvents();
+
+// =============================================================================
 // Particle Rendering
 // =============================================================================
 //
