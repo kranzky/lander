@@ -5,6 +5,11 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
+// Define the runtime scale variable
+namespace DisplayConfig {
+    int scale = 1;  // Initialize to 1x (320x256, matching original Lander)
+}
+
 ScreenBuffer::ScreenBuffer() {
     buffer = new uint8_t[getBufferSize()];
     clear();
@@ -197,8 +202,11 @@ void ScreenBuffer::drawTriangle(int x0, int y0, int x1, int y1, int x2, int y2, 
 }
 
 void ScreenBuffer::drawHorizontalLine(int x1, int x2, int y, Color color) {
+    int physWidth = PHYSICAL_WIDTH();
+    int physHeight = PHYSICAL_HEIGHT();
+
     // Early reject if y is off-screen
-    if (y < 0 || y >= PHYSICAL_HEIGHT) {
+    if (y < 0 || y >= physHeight) {
         return;
     }
 
@@ -210,14 +218,14 @@ void ScreenBuffer::drawHorizontalLine(int x1, int x2, int y, Color color) {
     }
 
     // Clip to screen bounds
-    if (x2 < 0 || x1 >= PHYSICAL_WIDTH) {
+    if (x2 < 0 || x1 >= physWidth) {
         return;  // Entirely off-screen
     }
     if (x1 < 0) {
         x1 = 0;
     }
-    if (x2 >= PHYSICAL_WIDTH) {
-        x2 = PHYSICAL_WIDTH - 1;
+    if (x2 >= physWidth) {
+        x2 = physWidth - 1;
     }
 
     // Calculate start position in buffer
@@ -254,13 +262,14 @@ Color ScreenBuffer::getPhysicalPixel(int px, int py) const {
 bool ScreenBuffer::savePNG(const char* filename) const {
     // stbi_write_png expects: filename, width, height, components, data, stride
     // Components = 4 for RGBA
+    // Use current resolution, not max
     int result = stbi_write_png(
         filename,
-        PHYSICAL_WIDTH,
-        PHYSICAL_HEIGHT,
+        PHYSICAL_WIDTH(),
+        PHYSICAL_HEIGHT(),
         4,
         buffer,
-        getPitch()
+        getPitch()  // Use max pitch since buffer stride is always max width
     );
     return result != 0;
 }
@@ -272,7 +281,7 @@ int ScreenBuffer::drawChar(int x, int y, char c, Color color, int scale) {
     }
 
     // Each character is 8x8 pixels, scaled by both font scale and pixel scale
-    int pixelSize = scale * PIXEL_SCALE;
+    int pixelSize = scale * PIXEL_SCALE();
 
     for (int row = 0; row < Font::CHAR_HEIGHT; row++) {
         uint8_t rowBits = charData[row];

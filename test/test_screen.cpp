@@ -96,9 +96,10 @@ TEST(color_predefined) {
 TEST(screen_constants) {
     ASSERT_EQ(ScreenBuffer::LOGICAL_WIDTH, 320);
     ASSERT_EQ(ScreenBuffer::LOGICAL_HEIGHT, 256);
-    ASSERT_EQ(ScreenBuffer::PHYSICAL_WIDTH, 1280);
-    ASSERT_EQ(ScreenBuffer::PHYSICAL_HEIGHT, 1024);
-    ASSERT_EQ(ScreenBuffer::PIXEL_SCALE, 4);
+    // These are now functions that return current scale, default is 4x
+    ASSERT_EQ(ScreenBuffer::PHYSICAL_WIDTH(), 1280);
+    ASSERT_EQ(ScreenBuffer::PHYSICAL_HEIGHT(), 1024);
+    ASSERT_EQ(ScreenBuffer::PIXEL_SCALE(), 4);
 }
 
 TEST(screen_buffer_size) {

@@ -59,9 +59,9 @@ void test_center_projection() {
     ProjectedVertex result = projectVertex(x, y, z);
 
     ASSERT(result.visible, "Should be visible");
-    ASSERT(result.screenX == ProjectionConstants::CENTER_X,
+    ASSERT(result.screenX == ProjectionConstants::CENTER_X(),
            "X should be at center");
-    ASSERT(result.screenY == ProjectionConstants::CENTER_Y,
+    ASSERT(result.screenY == ProjectionConstants::CENTER_Y(),
            "Y should be at center");
 
     PASS();
@@ -79,7 +79,7 @@ void test_right_offset() {
 
     ASSERT(result.visible, "Should be visible");
     // x/z = 1/1 = 1, so offset is 1 * 4 = 4 physical pixels
-    int expectedX = ProjectionConstants::CENTER_X + 4;
+    int expectedX = ProjectionConstants::CENTER_X() + 4;
     ASSERT(result.screenX == expectedX,
            "X should be center + 4 physical pixels");
 
@@ -97,7 +97,7 @@ void test_left_offset() {
     ProjectedVertex result = projectVertex(x, y, z);
 
     ASSERT(result.visible, "Should be visible");
-    int expectedX = ProjectionConstants::CENTER_X - 4;
+    int expectedX = ProjectionConstants::CENTER_X() - 4;
     ASSERT(result.screenX == expectedX,
            "X should be center - 4 physical pixels");
 
@@ -115,7 +115,7 @@ void test_down_offset() {
     ProjectedVertex result = projectVertex(x, y, z);
 
     ASSERT(result.visible, "Should be visible");
-    int expectedY = ProjectionConstants::CENTER_Y + 4;
+    int expectedY = ProjectionConstants::CENTER_Y() + 4;
     ASSERT(result.screenY == expectedY,
            "Y should be center + 4 physical pixels");
 
@@ -136,8 +136,8 @@ void test_perspective_scaling() {
 
     ASSERT(near.visible && far.visible, "Both should be visible");
 
-    int nearOffset = near.screenX - ProjectionConstants::CENTER_X;
-    int farOffset = far.screenX - ProjectionConstants::CENTER_X;
+    int nearOffset = near.screenX - ProjectionConstants::CENTER_X();
+    int farOffset = far.screenX - ProjectionConstants::CENTER_X();
 
     ASSERT(nearOffset == 8, "Near point should have offset 8");
     ASSERT(farOffset == 4, "Far point should have offset 4");
@@ -293,7 +293,7 @@ void test_fractional_coordinates() {
     // 0.5 / 1.0 = 0.5 -> toInt() = 0, so offset is 0
     // But we want sub-pixel accuracy... let me reconsider
     // Actually, the integer part of 0.5 is 0, so offset = 0 * 4 = 0
-    ASSERT(result.screenX == ProjectionConstants::CENTER_X,
+    ASSERT(result.screenX == ProjectionConstants::CENTER_X(),
            "Small fractional offset rounds to 0");
 
     PASS();
@@ -311,7 +311,7 @@ void test_tile_sized_offset() {
 
     ASSERT(result.visible, "Should be visible");
     // 1 tile / 1 tile = 1.0 -> offset = 1 * 4 = 4 physical pixels
-    int expectedX = ProjectionConstants::CENTER_X + 4;
+    int expectedX = ProjectionConstants::CENTER_X() + 4;
     ASSERT(result.screenX == expectedX,
            "Tile-sized offset should give 4 physical pixels");
 
@@ -332,9 +332,9 @@ void test_game_coordinate_range() {
     ASSERT(result.visible, "Should be visible");
     // x/z = 2.5/5 = 0.5 -> offset = 0 (integer part)
     // y/z = 1/5 = 0.2 -> offset = 0 (integer part)
-    ASSERT(result.screenX == ProjectionConstants::CENTER_X,
+    ASSERT(result.screenX == ProjectionConstants::CENTER_X(),
            "X at small angle should be at center");
-    ASSERT(result.screenY == ProjectionConstants::CENTER_Y,
+    ASSERT(result.screenY == ProjectionConstants::CENTER_Y(),
            "Y at small angle should be at center");
 
     PASS();

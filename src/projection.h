@@ -42,18 +42,18 @@ namespace ProjectionConstants {
     constexpr int ORIGINAL_CENTER_X = 160;
     constexpr int ORIGINAL_CENTER_Y = 64;
 
-    // Scaled screen center (1280x1024 physical, 4x scale)
-    constexpr int CENTER_X = ORIGINAL_CENTER_X * ScreenBuffer::PIXEL_SCALE;  // 640
-    constexpr int CENTER_Y = ORIGINAL_CENTER_Y * ScreenBuffer::PIXEL_SCALE;  // 256
+    // Scaled screen center - computed at runtime based on current scale
+    inline int CENTER_X() { return ORIGINAL_CENTER_X * ScreenBuffer::PIXEL_SCALE(); }
+    inline int CENTER_Y() { return ORIGINAL_CENTER_Y * ScreenBuffer::PIXEL_SCALE(); }
 
     // Scale factor for projection (matches original's effective focal length)
-    constexpr int SCALE = ScreenBuffer::PIXEL_SCALE;  // 4
+    inline int SCALE() { return ScreenBuffer::PIXEL_SCALE(); }
 
     // Screen bounds for on-screen check (physical pixels)
     constexpr int SCREEN_LEFT = 0;
-    constexpr int SCREEN_RIGHT = ScreenBuffer::PHYSICAL_WIDTH - 1;   // 1279
     constexpr int SCREEN_TOP = 0;
-    constexpr int SCREEN_BOTTOM = ScreenBuffer::PHYSICAL_HEIGHT - 1; // 1023
+    inline int SCREEN_RIGHT() { return ScreenBuffer::PHYSICAL_WIDTH() - 1; }
+    inline int SCREEN_BOTTOM() { return ScreenBuffer::PHYSICAL_HEIGHT() - 1; }
 }
 
 // =============================================================================

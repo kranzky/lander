@@ -121,6 +121,7 @@ private:
     void triggerCrash();
     void respawnPlayer();
     void resetGame();
+    void updateResolution();  // Recreate texture for new resolution
 
     void drawFPS();
     void drawScoreBar();
@@ -167,16 +168,18 @@ bool Game::init() {
         return false;
     }
 
-    // Set logical size for DPI scaling
-    SDL_RenderSetLogicalSize(renderer, SCREEN_WIDTH, SCREEN_HEIGHT);
+    // Set logical size for DPI scaling (uses current resolution)
+    int initWidth = DisplayConfig::getPhysicalWidth();
+    int initHeight = DisplayConfig::getPhysicalHeight();
+    SDL_RenderSetLogicalSize(renderer, initWidth, initHeight);
 
-    // Create streaming texture for the screen buffer
+    // Create streaming texture for the screen buffer (at current resolution)
     texture = SDL_CreateTexture(
         renderer,
         SDL_PIXELFORMAT_RGBA32,
         SDL_TEXTUREACCESS_STREAMING,
-        SCREEN_WIDTH,
-        SCREEN_HEIGHT
+        initWidth,
+        initHeight
     );
 
     if (!texture) {
@@ -206,8 +209,8 @@ bool Game::init() {
     // Report status
     int drawW, drawH;
     SDL_GL_GetDrawableSize(window, &drawW, &drawH);
-    SDL_Log("Lander initialized: %dx%d logical, %dx%d drawable @ %d FPS",
-            SCREEN_WIDTH, SCREEN_HEIGHT, drawW, drawH, TARGET_FPS);
+    SDL_Log("Lander initialized: %dx%d render, %dx%d drawable @ %d FPS",
+            initWidth, initHeight, drawW, drawH, FPS_OPTIONS[fpsIndex]);
 
 
     return true;
@@ -263,6 +266,12 @@ void Game::handleEvents() {
                 } else if (event.key.keysym.sym == SDLK_2) {
                     // Cycle through target FPS: 15 -> 30 -> 60 -> 120 -> 15
                     fpsIndex = (fpsIndex + 1) % FPS_OPTION_COUNT;
+                } else if (event.key.keysym.sym == SDLK_3) {
+                    // Cycle through display resolutions: 1x -> 2x -> 4x -> 1x
+                    if (DisplayConfig::scale == 1) DisplayConfig::scale = 2;
+                    else if (DisplayConfig::scale == 2) DisplayConfig::scale = 4;
+                    else DisplayConfig::scale = 1;
+                    updateResolution();
                 } else if (event.key.keysym.sym == SDLK_5) {
                     // Toggle sound on/off
                     soundEnabled = !soundEnabled;
@@ -322,6 +331,29 @@ void Game::resetGame() {
     accumulatedMouseY = 0;
     gameState = GameState::PLAYING;
     stateTimer = 0;
+}
+
+void Game::updateResolution() {
+    // Recreate texture for new resolution
+    if (texture) {
+        SDL_DestroyTexture(texture);
+    }
+
+    int width = DisplayConfig::getPhysicalWidth();
+    int height = DisplayConfig::getPhysicalHeight();
+
+    texture = SDL_CreateTexture(
+        renderer,
+        SDL_PIXELFORMAT_RGBA32,
+        SDL_TEXTUREACCESS_STREAMING,
+        width,
+        height
+    );
+
+    // Update logical size for proper scaling
+    SDL_RenderSetLogicalSize(renderer, width, height);
+
+    SDL_Log("Resolution changed to %dx%d (scale %d)", width, height, DisplayConfig::scale);
 }
 
 // =============================================================================
@@ -757,11 +789,13 @@ void Game::drawFPS() {
 
     Color white = Color::white();
     Color black = Color::black();
-    int y = 248;  // Bottom row (256 - 8)
+    int scale = DisplayConfig::scale;
+    int y = 248;  // Bottom row in logical coords (256 - 8)
 
-    // Draw black background bar across the bottom
-    for (int row = 0; row < 8 * SCALE; row++) {
-        screen.drawHorizontalLine(0, SCREEN_WIDTH - 1, y * SCALE + row, black);
+    // Draw black background bar across the bottom (at current resolution)
+    int physWidth = DisplayConfig::getPhysicalWidth();
+    for (int row = 0; row < 8 * scale; row++) {
+        screen.drawHorizontalLine(0, physWidth - 1, y * scale + row, black);
     }
 
     // Bottom left: Landscape size (e.g. "12x10")
@@ -782,9 +816,11 @@ void Game::drawFPS() {
     // Bottom right: Display resolution (e.g. "1280x1024")
     // Calculate position from right edge
     // "1280x1024" = 9 chars = 72 pixels, so start at 320 - 72 = 248
-    x = screen.drawInt(248, y, SCREEN_WIDTH, white);
+    int resWidth = DisplayConfig::getPhysicalWidth();
+    int resHeight = DisplayConfig::getPhysicalHeight();
+    x = screen.drawInt(248, y, resWidth, white);
     x = screen.drawText(x, y, "x", white);
-    screen.drawInt(x, y, SCREEN_HEIGHT, white);
+    screen.drawInt(x, y, resHeight, white);
 }
 
 
@@ -819,20 +855,21 @@ void Game::drawScoreBar() {
     // High score at column 35 (280 pixels from left)
     screen.drawInt(35 * CHAR_WIDTH, y, highScore, white);
 
-    // Fuel bar below the text (starts at y=16, 3 logical pixels tall = 12 physical pixels)
+    // Fuel bar below the text (starts at y=16, 3 logical pixels tall)
     // Original: bar length = fuelLevel / 16, max fuel = 0x1400 = 5120
     // So max bar length = 5120 / 16 = 320 pixels (full screen width)
     Color fuelColor = GameColors::fuelBar();
     int fuelBarLength = player.getFuelLevel() / 16;
     if (fuelBarLength > 320) fuelBarLength = 320;
     if (fuelBarLength > 0) {
-        // Draw 3 logical pixel rows (12 physical pixels) for the fuel bar
+        // Draw 3 logical pixel rows for the fuel bar
         int fuelY = 16;  // Just below row 1 (logical y=16)
-        // Each logical row is SCALE physical pixels tall
+        int scale = DisplayConfig::scale;
+        // Each logical row is 'scale' physical pixels tall
         for (int logicalRow = 0; logicalRow < 3; logicalRow++) {
-            int physicalY = (fuelY + logicalRow) * SCALE;
-            for (int subRow = 0; subRow < SCALE; subRow++) {
-                screen.drawHorizontalLine(0, fuelBarLength * SCALE - 1,
+            int physicalY = (fuelY + logicalRow) * scale;
+            for (int subRow = 0; subRow < scale; subRow++) {
+                screen.drawHorizontalLine(0, fuelBarLength * scale - 1,
                                           physicalY + subRow, fuelColor);
             }
         }
@@ -863,11 +900,12 @@ void Game::drawGameOver() {
     int bgW = textWidth + 16;
     int bgH = CHAR_HEIGHT + 8;
 
-    // Draw black rectangle at physical coordinates
+    // Draw black rectangle at physical coordinates (using current scale)
+    int scale = DisplayConfig::scale;
     Color black = Color::black();
-    for (int row = 0; row < bgH * SCALE; row++) {
-        screen.drawHorizontalLine(bgX * SCALE, (bgX + bgW) * SCALE - 1,
-                                  (bgY * SCALE) + row, black);
+    for (int row = 0; row < bgH * scale; row++) {
+        screen.drawHorizontalLine(bgX * scale, (bgX + bgW) * scale - 1,
+                                  (bgY * scale) + row, black);
     }
 
     // Draw the text
@@ -969,9 +1007,10 @@ void Game::render() {
     drawTestPattern();
 
     // Update texture with screen buffer contents
+    // Use max pitch since buffer stride is always max width
     SDL_UpdateTexture(texture, nullptr, screen.getData(), ScreenBuffer::getPitch());
 
-    // Clear and draw texture
+    // Clear and draw texture (SDL scales to fill window via logical size)
     SDL_RenderClear(renderer);
     SDL_RenderCopy(renderer, texture, nullptr, nullptr);
     SDL_RenderPresent(renderer);

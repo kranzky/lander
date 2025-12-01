@@ -287,12 +287,26 @@ void ParticleSystem::update()
 namespace
 {
     // Particle rendering constants
-    // Original: 3x2 pixels for particles, 3x1 for shadows at 320x256
-    // Scaled 2x for better visual appearance at 1280x1024
-    constexpr int PARTICLE_WIDTH = 6;  // 3 * 2
-    constexpr int PARTICLE_HEIGHT = 4; // 2 * 2
-    constexpr int SHADOW_WIDTH = 6;    // 3 * 2
-    constexpr int SHADOW_HEIGHT = 4;   // 1 * 2 * 2 (doubled)
+    inline int getParticleWidth() {
+        if (DisplayConfig::scale == 4) return 8;    // 1280x1024
+        if (DisplayConfig::scale == 2) return 4;    // 640x512
+        return 2;                                    // 320x256
+    }
+    inline int getParticleHeight() {
+        if (DisplayConfig::scale == 4) return 6;    // 1280x1024
+        if (DisplayConfig::scale == 2) return 3;    // 640x512
+        return 2;                                    // 320x256
+    }
+    inline int getShadowWidth() {
+        if (DisplayConfig::scale == 4) return 8;    // 1280x1024
+        if (DisplayConfig::scale == 2) return 4;    // 640x512
+        return 2;                                    // 320x256
+    }
+    inline int getShadowHeight() {
+        if (DisplayConfig::scale == 4) return 6;    // 1280x1024
+        if (DisplayConfig::scale == 2) return 3;    // 640x512
+        return 2;                                    // 320x256
+    }
 
     // Draw a filled rectangle at the given screen coordinates
     void drawRect(ScreenBuffer &screen, int x, int y, int width, int height, Color color)
@@ -309,10 +323,10 @@ namespace
             left = 0;
         if (top < 0)
             top = 0;
-        if (right > ScreenBuffer::PHYSICAL_WIDTH)
-            right = ScreenBuffer::PHYSICAL_WIDTH;
-        if (bottom > ScreenBuffer::PHYSICAL_HEIGHT)
-            bottom = ScreenBuffer::PHYSICAL_HEIGHT;
+        if (right > ScreenBuffer::PHYSICAL_WIDTH())
+            right = ScreenBuffer::PHYSICAL_WIDTH();
+        if (bottom > ScreenBuffer::PHYSICAL_HEIGHT())
+            bottom = ScreenBuffer::PHYSICAL_HEIGHT();
 
         // Draw the rectangle
         for (int py = top; py < bottom; py++)
@@ -377,7 +391,7 @@ void renderParticles(const Camera &camera, ScreenBuffer &screen)
             if (shadowProj.visible && shadowProj.onScreen)
             {
                 drawRect(screen, shadowProj.screenX, shadowProj.screenY,
-                         SHADOW_WIDTH, SHADOW_HEIGHT, Color::black());
+                         getShadowWidth(), getShadowHeight(), Color::black());
             }
         }
 
@@ -424,7 +438,7 @@ void renderParticles(const Camera &camera, ScreenBuffer &screen)
             }
 
             drawRect(screen, proj.screenX, proj.screenY,
-                     PARTICLE_WIDTH, PARTICLE_HEIGHT, color);
+                     getParticleWidth(), getParticleHeight(), color);
         }
     }
 }
@@ -445,10 +459,17 @@ namespace
     void bufferRect(int row, int x, int y, int width, int height, Color color, bool isShadow)
     {
         // Calculate rectangle corners centered on (x, y)
+        // Use exclusive right/bottom (right = left + width, not left + width - 1)
+        // because the triangle rasterizer treats coordinates inclusively
         int left = x - width / 2;
         int top = y - height / 2;
-        int right = left + width;
-        int bottom = top + height;
+        // Subtract 1 to convert from exclusive to inclusive coordinates
+        int right = left + width - 1;
+        int bottom = top + height - 1;
+
+        // Ensure we have at least a 1-pixel rect
+        if (right < left) right = left;
+        if (bottom < top) bottom = top;
 
         // Draw as two triangles: top-left triangle and bottom-right triangle
         // Triangle 1: top-left, top-right, bottom-left
@@ -572,7 +593,7 @@ static void bufferParticlesFiltered(const Camera &camera, Fixed shipDepthZ, Dept
             if (shadowProj.visible && shadowProj.onScreen)
             {
                 bufferRect(row, shadowProj.screenX, shadowProj.screenY,
-                           SHADOW_WIDTH, SHADOW_HEIGHT, Color::black(), true);
+                           getShadowWidth(), getShadowHeight(), Color::black(), true);
             }
         }
 
@@ -610,7 +631,7 @@ static void bufferParticlesFiltered(const Camera &camera, Fixed shipDepthZ, Dept
             }
 
             bufferRect(row, proj.screenX, proj.screenY,
-                       PARTICLE_WIDTH, PARTICLE_HEIGHT, color, false);
+                       getParticleWidth(), getParticleHeight(), color, false);
         }
     }
 }

@@ -78,15 +78,15 @@ ProjectedVertex projectVertex(Fixed x, Fixed y, Fixed z) {
     int offsetX = static_cast<int>(scaledX / z.raw);
     int offsetY = static_cast<int>(scaledY / z.raw);
 
-    // Apply our 4x resolution scale and center offset
-    result.screenX = ProjectionConstants::CENTER_X + (offsetX * ProjectionConstants::SCALE);
-    result.screenY = ProjectionConstants::CENTER_Y + (offsetY * ProjectionConstants::SCALE);
+    // Apply resolution scale and center offset
+    result.screenX = ProjectionConstants::CENTER_X() + (offsetX * ProjectionConstants::SCALE());
+    result.screenY = ProjectionConstants::CENTER_Y() + (offsetY * ProjectionConstants::SCALE());
 
     // Check if on screen
     result.onScreen = (result.screenX >= ProjectionConstants::SCREEN_LEFT &&
-                       result.screenX <= ProjectionConstants::SCREEN_RIGHT &&
+                       result.screenX <= ProjectionConstants::SCREEN_RIGHT() &&
                        result.screenY >= ProjectionConstants::SCREEN_TOP &&
-                       result.screenY <= ProjectionConstants::SCREEN_BOTTOM);
+                       result.screenY <= ProjectionConstants::SCREEN_BOTTOM());
 
     return result;
 }

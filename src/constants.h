@@ -12,8 +12,17 @@ constexpr int ORIGINAL_WIDTH = 320;
 constexpr int ORIGINAL_HEIGHT = 256;
 constexpr int ORIGINAL_PLAY_HEIGHT = 128;  // Top half is play area
 
-// Scale factor for modern displays
-constexpr int SCALE = 4;
+// Scale factor for modern displays (can be changed at runtime)
+// 4 = 1280x1024, 2 = 640x512, 1 = 320x256
+constexpr int SCALE = 4;  // Default/maximum scale
+
+// Runtime-adjustable scale (declared in constants.h, defined elsewhere)
+namespace DisplayConfig {
+    extern int scale;  // Current scale (1, 2, or 4)
+
+    inline int getPhysicalWidth() { return ORIGINAL_WIDTH * scale; }
+    inline int getPhysicalHeight() { return ORIGINAL_HEIGHT * scale; }
+}
 
 // Target resolution (4x original)
 constexpr int SCREEN_WIDTH = ORIGINAL_WIDTH * SCALE;    // 1280

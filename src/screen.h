@@ -43,16 +43,18 @@ struct Color {
 
 class ScreenBuffer {
 public:
-    // Logical dimensions (original game coordinates)
+    // Logical dimensions (original game coordinates) - always fixed
     static constexpr int LOGICAL_WIDTH = ORIGINAL_WIDTH;    // 320
     static constexpr int LOGICAL_HEIGHT = ORIGINAL_HEIGHT;  // 256
 
-    // Physical dimensions (actual framebuffer)
-    static constexpr int PHYSICAL_WIDTH = SCREEN_WIDTH;     // 1280
-    static constexpr int PHYSICAL_HEIGHT = SCREEN_HEIGHT;   // 1024
+    // Maximum physical dimensions (buffer is always allocated at max size)
+    static constexpr int MAX_PHYSICAL_WIDTH = SCREEN_WIDTH;     // 1280
+    static constexpr int MAX_PHYSICAL_HEIGHT = SCREEN_HEIGHT;   // 1024
 
-    // Scale factor
-    static constexpr int PIXEL_SCALE = SCALE;               // 4
+    // For backward compatibility - these now return current values
+    static int PHYSICAL_WIDTH() { return DisplayConfig::getPhysicalWidth(); }
+    static int PHYSICAL_HEIGHT() { return DisplayConfig::getPhysicalHeight(); }
+    static int PIXEL_SCALE() { return DisplayConfig::scale; }
 
     ScreenBuffer();
     ~ScreenBuffer();
@@ -89,27 +91,37 @@ public:
         return x >= 0 && x < LOGICAL_WIDTH && y >= 0 && y < LOGICAL_HEIGHT;
     }
 
-    // Check if physical coordinates are in bounds
+    // Check if physical coordinates are in bounds (uses current resolution)
     bool inPhysicalBounds(int px, int py) const {
-        return px >= 0 && px < PHYSICAL_WIDTH && py >= 0 && py < PHYSICAL_HEIGHT;
+        return px >= 0 && px < PHYSICAL_WIDTH() && py >= 0 && py < PHYSICAL_HEIGHT();
     }
 
-    // Convert logical to physical coordinates
-    static constexpr int toPhysicalX(int x) { return x * PIXEL_SCALE; }
-    static constexpr int toPhysicalY(int y) { return y * PIXEL_SCALE; }
+    // Convert logical to physical coordinates (uses current scale)
+    static int toPhysicalX(int x) { return x * PIXEL_SCALE(); }
+    static int toPhysicalY(int y) { return y * PIXEL_SCALE(); }
 
     // Direct access to physical buffer (for SDL texture updates)
     const uint8_t* getData() const { return buffer; }
     uint8_t* getData() { return buffer; }
 
-    // Buffer size in bytes (RGBA = 4 bytes per pixel)
+    // Buffer size in bytes (RGBA = 4 bytes per pixel) - always max size
     static constexpr size_t getBufferSize() {
-        return PHYSICAL_WIDTH * PHYSICAL_HEIGHT * 4;
+        return MAX_PHYSICAL_WIDTH * MAX_PHYSICAL_HEIGHT * 4;
     }
 
-    // Physical buffer pitch (bytes per row)
+    // Current buffer size for current resolution
+    static size_t getCurrentBufferSize() {
+        return PHYSICAL_WIDTH() * PHYSICAL_HEIGHT() * 4;
+    }
+
+    // Physical buffer pitch (bytes per row) - always max width for consistent layout
     static constexpr int getPitch() {
-        return PHYSICAL_WIDTH * 4;
+        return MAX_PHYSICAL_WIDTH * 4;
+    }
+
+    // Current pitch for current resolution
+    static int getCurrentPitch() {
+        return PHYSICAL_WIDTH() * 4;
     }
 
     // Save buffer to PNG file
@@ -129,12 +141,12 @@ public:
     int drawInt(int x, int y, int value, Color color, int scale = 1);
 
 private:
-    // Convert physical coordinates to buffer offset
-    static constexpr size_t physicalToOffset(int px, int py) {
-        return (py * PHYSICAL_WIDTH + px) * 4;
+    // Convert physical coordinates to buffer offset (uses max width for stride)
+    static size_t physicalToOffset(int px, int py) {
+        return (py * MAX_PHYSICAL_WIDTH + px) * 4;
     }
 
-    // RGBA buffer (physical resolution)
+    // RGBA buffer (always allocated at max physical resolution)
     uint8_t* buffer;
 };
 
