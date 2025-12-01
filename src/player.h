@@ -182,8 +182,8 @@ namespace PlayerConstants {
     constexpr Fixed START_Z = Fixed::fromRaw(0x04000000);      // 4 tiles (center of launchpad)
     // START_Y is defined after LAUNCHPAD_Y below
 
-    // Initial fuel level
-    constexpr int INITIAL_FUEL = 65536;
+    // Initial fuel level (0xD55 = 3413, about 2/3 of max 0x1400)
+    constexpr int INITIAL_FUEL = 0xD55;
 
     // Debug movement speed (tiles per frame)
     constexpr Fixed DEBUG_MOVE_SPEED = Fixed::fromRaw(0x00199999);  // ~0.1 tiles

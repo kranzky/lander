@@ -431,9 +431,15 @@ LandingState Player::checkLanding() {
     velocity.z = Fixed::fromInt(0);
 
     // Refuel (add fuel up to maximum)
-    fuelLevel += PlayerConstants::REFUEL_RATE;
-    if (fuelLevel > PlayerConstants::MAX_FUEL) {
-        fuelLevel = PlayerConstants::MAX_FUEL;
+    // Original adds 0x20 per frame at 15fps
+    // At 120fps, we add every 8th frame to match original rate
+    static int refuelCounter = 0;
+    refuelCounter++;
+    if ((refuelCounter & 7) == 0) {
+        fuelLevel += PlayerConstants::REFUEL_RATE;
+        if (fuelLevel > PlayerConstants::MAX_FUEL) {
+            fuelLevel = PlayerConstants::MAX_FUEL;
+        }
     }
 
     return LandingState::LANDED;

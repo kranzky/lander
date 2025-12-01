@@ -545,8 +545,14 @@ void Game::update() {
     if (engineActive) {
         // Burn fuel based on thrust level (bit 0 = fire, bit 1 = hover, bit 2 = full thrust)
         // Only bits 1 and 2 burn fuel (firing doesn't use fuel)
-        int burnRate = input.getFuelBurnRate();  // Returns buttons & 0x06
-        player.burnFuel(burnRate);
+        // Original burns fuelBurnRate per frame at 15fps
+        // At 120fps, we burn every 8th frame to match original rate
+        static int fuelBurnCounter = 0;
+        fuelBurnCounter++;
+        if ((fuelBurnCounter & 7) == 0) {
+            int burnRate = input.getFuelBurnRate();  // Returns buttons & 0x06
+            player.burnFuel(burnRate);
+        }
 
         // Spawn from exhaust port (center of yellow triangle on ship underside)
         spawnExhaustParticles(player.getExhaustSpawnPoint(), player.getVelocity(),
@@ -782,18 +788,22 @@ void Game::drawScoreBar() {
     // High score at column 35 (280 pixels from left)
     screen.drawInt(35 * CHAR_WIDTH, y, highScore, white);
 
-    // Fuel bar below the text (starts at y=16, 3 pixels tall)
+    // Fuel bar below the text (starts at y=16, 3 logical pixels tall = 12 physical pixels)
     // Original: bar length = fuelLevel / 16, max fuel = 0x1400 = 5120
     // So max bar length = 5120 / 16 = 320 pixels (full screen width)
     Color fuelColor = GameColors::fuelBar();
     int fuelBarLength = player.getFuelLevel() / 16;
     if (fuelBarLength > 320) fuelBarLength = 320;
     if (fuelBarLength > 0) {
-        // Draw 3 horizontal lines for the fuel bar (at physical coordinates)
+        // Draw 3 logical pixel rows (12 physical pixels) for the fuel bar
         int fuelY = 16;  // Just below row 1 (logical y=16)
-        for (int row = 0; row < 3; row++) {
-            screen.drawHorizontalLine(0, fuelBarLength * SCALE - 1,
-                                      (fuelY + row) * SCALE, fuelColor);
+        // Each logical row is SCALE physical pixels tall
+        for (int logicalRow = 0; logicalRow < 3; logicalRow++) {
+            int physicalY = (fuelY + logicalRow) * SCALE;
+            for (int subRow = 0; subRow < SCALE; subRow++) {
+                screen.drawHorizontalLine(0, fuelBarLength * SCALE - 1,
+                                          physicalY + subRow, fuelColor);
+            }
         }
     }
 }
@@ -802,32 +812,25 @@ void Game::drawGameOver() {
     // Draw "GAME OVER - press a key to start again" centered on screen
     // with black background rectangle behind the text
 
-    const char* line1 = "GAME OVER - press a";
-    const char* line2 = "key to start again";
+    const char* text = "GAME OVER - press a key to start again";
 
     constexpr int CHAR_WIDTH = 8;
     constexpr int CHAR_HEIGHT = 8;
 
-    // Calculate text widths
-    int len1 = 0;
-    for (const char* p = line1; *p; p++) len1++;
-    int len2 = 0;
-    for (const char* p = line2; *p; p++) len2++;
-
-    int width1 = len1 * CHAR_WIDTH;
-    int width2 = len2 * CHAR_WIDTH;
-    int maxWidth = (width1 > width2) ? width1 : width2;
+    // Calculate text width
+    int len = 0;
+    for (const char* p = text; *p; p++) len++;
+    int textWidth = len * CHAR_WIDTH;
 
     // Center position (screen is 320x256 logical)
-    int x1 = (320 - width1) / 2;
-    int x2 = (320 - width2) / 2;
-    int y = 128 - CHAR_HEIGHT;  // Center vertically (2 lines of text)
+    int x = (320 - textWidth) / 2;
+    int y = 128 - CHAR_HEIGHT / 2;  // Center vertically
 
     // Draw black background rectangle (with some padding)
-    int bgX = (320 - maxWidth) / 2 - 8;
+    int bgX = x - 8;
     int bgY = y - 4;
-    int bgW = maxWidth + 16;
-    int bgH = CHAR_HEIGHT * 2 + 8;
+    int bgW = textWidth + 16;
+    int bgH = CHAR_HEIGHT + 8;
 
     // Draw black rectangle at physical coordinates
     Color black = Color::black();
@@ -838,8 +841,7 @@ void Game::drawGameOver() {
 
     // Draw the text
     Color white = Color::white();
-    screen.drawText(x1, y, line1, white);
-    screen.drawText(x2, y + CHAR_HEIGHT, line2, white);
+    screen.drawText(x, y, text, white);
 }
 
 void Game::bufferShip() {
