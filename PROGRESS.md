@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Current Task:** 48
+**Current Task:** 49
 
 **Last Updated:** 2025-12-01
 
@@ -58,11 +58,10 @@
 | 45 | Sound Effects | 360b5e9 |
 | - | v0.6.0 release build with sounds | 34f6902 |
 | - | Fix ship disappearing (increase buffer size) | 19debab |
-| 46 | Falling Rocks (includes Task 47: Rock-Ship Collision) | 5b25c2e |
+| 46 | Falling Rocks (includes Task 47: Rock-Ship Collision) | 926b8b4 |
+| 48 | Score Display | fbcacf2 |
 
 ## Remaining Tasks
-- Task 43: Star Particles
-- Task 48: Score Display
 - Task 49: Fuel Gauge
 - Task 50: Lives Display
 - Task 51: Game State Machine
@@ -72,6 +71,6 @@
 ## Summary
 
 - **Total Tasks:** 53
-- **Completed:** 45 (+3 extras)
+- **Completed:** 46 (+3 extras)
 - **In Progress:** 0
-- **Remaining:** 8
+- **Remaining:** 7

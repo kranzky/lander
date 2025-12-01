@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstring>
 #include "constants.h"
+#include "font.h"
 
 // =============================================================================
 // Screen Buffer
@@ -113,6 +114,19 @@ public:
 
     // Save buffer to PNG file
     bool savePNG(const char* filename) const;
+
+    // Draw a single character at logical coordinates using BBC Micro font
+    // Returns the width of the character drawn (for text positioning)
+    // Scale multiplies the 8x8 font size (scale=1 gives 8x8 pixels in logical coords)
+    int drawChar(int x, int y, char c, Color color, int scale = 1);
+
+    // Draw a string at logical coordinates
+    // Returns the x position after the last character
+    int drawText(int x, int y, const char* text, Color color, int scale = 1);
+
+    // Draw an integer as text at logical coordinates
+    // Returns the x position after the last digit
+    int drawInt(int x, int y, int value, Color color, int scale = 1);
 
 private:
     // Convert physical coordinates to buffer offset

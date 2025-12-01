@@ -264,3 +264,74 @@ bool ScreenBuffer::savePNG(const char* filename) const {
     );
     return result != 0;
 }
+
+int ScreenBuffer::drawChar(int x, int y, char c, Color color, int scale) {
+    const uint8_t* charData = Font::getCharData(c);
+    if (!charData) {
+        return 0;  // Character not in font
+    }
+
+    // Each character is 8x8 pixels, scaled by both font scale and pixel scale
+    int pixelSize = scale * PIXEL_SCALE;
+
+    for (int row = 0; row < Font::CHAR_HEIGHT; row++) {
+        uint8_t rowBits = charData[row];
+        for (int col = 0; col < Font::CHAR_WIDTH; col++) {
+            // MSB is leftmost pixel
+            if (rowBits & (0x80 >> col)) {
+                // Draw a scaled pixel block
+                int px = toPhysicalX(x) + col * pixelSize;
+                int py = toPhysicalY(y) + row * pixelSize;
+                for (int dy = 0; dy < pixelSize; dy++) {
+                    for (int dx = 0; dx < pixelSize; dx++) {
+                        plotPhysicalPixel(px + dx, py + dy, color);
+                    }
+                }
+            }
+        }
+    }
+
+    return Font::CHAR_WIDTH * scale;
+}
+
+int ScreenBuffer::drawText(int x, int y, const char* text, Color color, int scale) {
+    int charWidth = Font::CHAR_WIDTH * scale;
+    while (*text) {
+        drawChar(x, y, *text, color, scale);
+        x += charWidth;
+        text++;
+    }
+    return x;
+}
+
+int ScreenBuffer::drawInt(int x, int y, int value, Color color, int scale) {
+    // Handle negative numbers
+    if (value < 0) {
+        x = drawText(x, y, "-", color, scale);
+        value = -value;
+    }
+
+    // Handle zero
+    if (value == 0) {
+        return drawText(x, y, "0", color, scale);
+    }
+
+    // Convert to string (max 10 digits for int)
+    char buf[12];
+    int i = 0;
+
+    // Build digits in reverse order
+    while (value > 0 && i < 10) {
+        buf[i++] = '0' + (value % 10);
+        value /= 10;
+    }
+
+    // Draw digits in correct order
+    while (i > 0) {
+        char c = buf[--i];
+        drawChar(x, y, c, color, scale);
+        x += Font::CHAR_WIDTH * scale;
+    }
+
+    return x;
+}

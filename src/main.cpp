@@ -94,12 +94,20 @@ private:
     // Debug mode: keyboard controls, no physics
     bool debugMode = false;
 
+    // FPS overlay toggle (default on for debug builds, off for release)
+#ifdef NDEBUG
+    bool showFPS = false;  // Release build: off by default
+#else
+    bool showFPS = true;   // Debug build: on by default
+#endif
+
     // Sound system
     SoundSystem sound;
     int thrustHeldFrames = 0;  // How long thrust has been held (for filter effect)
 
     // Score (used for rock spawning threshold)
-    int score = 0;
+    // Original Lander starts with 500 points
+    int score = 500;
 
     // Helper methods
     void maybeSpawnRock();  // Check if we should spawn a falling rock
@@ -108,9 +116,13 @@ private:
     void resetGame();
 
     void drawFPS();
+    void drawScoreBar();
     void drawDigit(int x, int y, int digit, Color color);
     void drawMinus(int x, int y, Color color);
     int drawNumber(int x, int y, int value, Color color);
+
+    // High score tracking (initial high score is 500 in original Lander)
+    int highScore = 500;
 };
 
 bool Game::init() {
@@ -222,6 +234,8 @@ void Game::handleEvents() {
                     running = false;
                 } else if (event.key.keysym.sym == SDLK_d) {
                     debugMode = !debugMode;
+                } else if (event.key.keysym.sym == SDLK_TAB) {
+                    showFPS = !showFPS;
                 } else if (event.key.keysym.sym == SDLK_1) {
                     GameConstants::landscapeScale = 1;
                 } else if (event.key.keysym.sym == SDLK_2) {
@@ -277,6 +291,7 @@ void Game::respawnPlayer() {
 void Game::resetGame() {
     // Full game reset
     lives = GameConfig::INITIAL_LIVES;
+    score = 500;  // Reset score to initial value (matching original Lander)
     player.reset();
     landingState = LandingState::LANDED;  // Start on launchpad
     crashRecoveryTimer = 0;
@@ -373,6 +388,8 @@ void Game::update() {
     };
 
     if (events.objectDestroyed > 0) {
+        // Each destroyed object adds 20 to score (matching original Lander)
+        score += events.objectDestroyed * 20;
         float vol = calcSpatialVolume(events.objectDestroyedPos);
         if (vol > 0.0f) sound.play(SoundId::BOOM, vol);
     }
@@ -566,6 +583,8 @@ void Game::update() {
         Vec3 gunDir = player.getRotationMatrix().nose();
         // Spawn from nose (midpoint of vertices 0 and 1)
         spawnBulletParticle(player.getBulletSpawnPoint(), player.getVelocity(), gunDir);
+        // Firing a bullet costs 1 point (matching original Lander)
+        if (score > 0) score--;
         // Play shoot sound (reduced volume to match spatial sounds)
         sound.play(SoundId::SHOOT, 0.5f);
     }
@@ -708,103 +727,48 @@ void Game::drawFPS() {
         fpsLastTime = currentTime;
     }
 
+    // Draw FPS in bottom-right corner
+    // Screen is 320x256 logical pixels, font is 8x8
+    // Position for up to 3-digit FPS: 320 - 24 = 296, 256 - 8 = 248
     Color white = Color::white();
+    int x = 296;
+    int y = 248;
+
+    // Draw just the FPS number
+    screen.drawInt(x, y, fpsDisplay, white);
+}
+
+
+void Game::drawScoreBar() {
+    // Score bar at top of screen, matching original Lander layout:
+    // Original is 40 columns (320 pixels / 8 pixels per char)
+    // Row 0: Title "Lander (C) D.J.Braben 1987"
+    // Row 1: Score at left, lives at column 30, high score at column 35
+    //
+    // Characters are 8 pixels wide at scale 1
+
     Color yellow = Color(255, 255, 0);
-    Color cyan = Color(0, 255, 255);
-    int x = 8;
-    int y = 8;
+    Color white = Color::white();
 
-    // Draw FPS
-    drawNumber(x, y, fpsDisplay, white);
-
-    // Draw player position on second line (in yellow)
-    int playerX = player.getX().toInt();
-    int playerY = player.getY().toInt();
-    int playerZ = player.getZ().toInt();
-
-    y += 14;
-    x = 8;
-    x = drawNumber(x, y, playerX, yellow);
-    x += 4;
-    x = drawNumber(x, y, playerY, yellow);
-    x += 4;
-    drawNumber(x, y, playerZ, yellow);
-
-    // Draw camera position on third line (in cyan)
-    int camX = camera.getX().toInt();
-    int camY = camera.getY().toInt();
-    int camZ = camera.getZ().toInt();
-
-    y += 14;
-    x = 8;
-    x = drawNumber(x, y, camX, cyan);
-    x += 4;
-    x = drawNumber(x, y, camY, cyan);
-    x += 4;
-    drawNumber(x, y, camZ, cyan);
-
-    // Draw mouse state on fourth line (relative coords and buttons)
-    const InputState& input = player.getInput();
-    y += 14;
-    x = 8;
-    x = drawNumber(x, y, input.mouseRelX, white);
-    x += 4;
-    x = drawNumber(x, y, input.mouseRelY, white);
-    x += 8;
-    // Show button state as number (0-7)
-    x = drawNumber(x, y, input.buttons, white);
-
-    // Draw landing state indicator
-    x += 16;
-    Color stateColor;
-    int stateValue;
-    switch (landingState) {
-        case LandingState::FLYING:
-            stateColor = white;
-            stateValue = 0;
-            break;
-        case LandingState::LANDED:
-            stateColor = Color(0, 255, 0);  // Green
-            stateValue = 1;
-            break;
-        case LandingState::CRASHED:
-            stateColor = Color(255, 0, 0);  // Red
-            stateValue = 2;
-            break;
+    // Update high score if current score exceeds it
+    if (score > highScore) {
+        highScore = score;
     }
-    drawNumber(x, y, stateValue, stateColor);
 
-    // Draw lives on fifth line
-    y += 14;
-    x = 8;
-    Color livesColor = lives > 1 ? Color(0, 255, 0) : Color(255, 0, 0);  // Green if >1, red if 1 or 0
-    x = drawNumber(x, y, lives, livesColor);
+    constexpr int CHAR_WIDTH = 8;  // 8 pixels per character at scale 1
 
-    // Draw game state indicator
-    x += 16;
-    Color gameStateColor;
-    int gameStateValue;
-    switch (gameState) {
-        case GameState::PLAYING:
-            gameStateColor = white;
-            gameStateValue = 0;
-            break;
-        case GameState::EXPLODING:
-            gameStateColor = Color(255, 128, 0);  // Orange
-            gameStateValue = 1;
-            break;
-        case GameState::GAME_OVER:
-            gameStateColor = Color(255, 0, 0);  // Red
-            gameStateValue = 2;
-            break;
-    }
-    drawNumber(x, y, gameStateValue, gameStateColor);
+    // Row 0: Title (column 0)
+    screen.drawText(0, 0, "Lander Demo/Practice (C) D.J.Braben 1987", white);
 
-    // Draw particle count on sixth line
-    y += 14;
-    x = 8;
-    Color magenta = Color(255, 0, 255);
-    drawNumber(x, y, particleSystem.getParticleCount(), magenta);
+    // Row 1: Score at left (column 0)
+    int y = 8;  // Row 1 = 8 pixels down
+    screen.drawInt(0, y, score, white);
+
+    // Lives at column 30 (240 pixels from left)
+    screen.drawInt(30 * CHAR_WIDTH, y, lives, white);
+
+    // High score at column 35 (280 pixels from left)
+    screen.drawInt(35 * CHAR_WIDTH, y, highScore, white);
 }
 
 void Game::bufferShip() {
@@ -882,8 +846,13 @@ void Game::drawTestPattern() {
     // This draws landscape tiles, buffered objects (including ship), and particles in depth order
     landscapeRenderer.render(screen, camera);
 
-    // Draw FPS overlay
-    drawFPS();
+    // Draw score bar at top of screen
+    drawScoreBar();
+
+    // Draw FPS overlay (toggled with Tab key)
+    if (showFPS) {
+        drawFPS();
+    }
 }
 
 void Game::render() {
