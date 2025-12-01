@@ -52,7 +52,7 @@ public:
 
 private:
     void handleEvents();
-    void update();
+    void update(int mouseRelX, int mouseRelY, uint32_t mouseButtons);
     void render();
     void drawTestPattern();
     void bufferShip();
@@ -109,6 +109,12 @@ private:
     // Score (used for rock spawning threshold)
     // Original Lander starts with 500 points
     int score = 500;
+
+    // Target FPS selection (index into FPS_OPTIONS array)
+    int fpsIndex = DEFAULT_FPS_INDEX;  // Default to 15fps
+
+    // Sound enabled toggle (off by default)
+    bool soundEnabled = false;
 
     // Helper methods
     void maybeSpawnRock();  // Check if we should spawn a falling rock
@@ -191,10 +197,11 @@ bool Game::init() {
     // Initialize the object map with random objects
     placeObjectsOnMap();
 
-    // Initialize sound system
+    // Initialize sound system (disabled by default, press 5 to enable)
     if (!sound.init()) {
         SDL_LogWarn(SDL_LOG_CATEGORY_AUDIO, "Sound system failed to initialize - continuing without audio");
     }
+    sound.setEnabled(false);
 
     // Report status
     int drawW, drawH;
@@ -246,13 +253,20 @@ void Game::handleEvents() {
                 } else if (event.key.keysym.sym == SDLK_TAB) {
                     showFPS = !showFPS;
                 } else if (event.key.keysym.sym == SDLK_1) {
-                    GameConstants::landscapeScale = 1;
+                    // Cycle through landscape scales: 1 -> 2 -> 4 -> 8 -> 1
+                    int scale = GameConstants::landscapeScale;
+                    if (scale == 1) scale = 2;
+                    else if (scale == 2) scale = 4;
+                    else if (scale == 4) scale = 8;
+                    else scale = 1;
+                    GameConstants::landscapeScale = scale;
                 } else if (event.key.keysym.sym == SDLK_2) {
-                    GameConstants::landscapeScale = 2;
-                } else if (event.key.keysym.sym == SDLK_3) {
-                    GameConstants::landscapeScale = 4;
-                } else if (event.key.keysym.sym == SDLK_4) {
-                    GameConstants::landscapeScale = 8;
+                    // Cycle through target FPS: 15 -> 30 -> 60 -> 120 -> 15
+                    fpsIndex = (fpsIndex + 1) % FPS_OPTION_COUNT;
+                } else if (event.key.keysym.sym == SDLK_5) {
+                    // Toggle sound on/off
+                    soundEnabled = !soundEnabled;
+                    sound.setEnabled(soundEnabled);
                 }
                 break;
         }
@@ -371,7 +385,7 @@ void Game::maybeSpawnRock() {
     spawnRock(rockPos);
 }
 
-void Game::update() {
+void Game::update(int mouseRelX, int mouseRelY, uint32_t mouseButtons) {
     // Update particles every frame (including during explosions)
     particleSystem.update();
 
@@ -462,10 +476,6 @@ void Game::update() {
 
     // Normal gameplay (GameState::PLAYING)
 
-    // Get relative mouse movement (cursor is captured)
-    int relX, relY;
-    uint32_t mouseButtons = SDL_GetRelativeMouseState(&relX, &relY);
-
     // Debug mode: keyboard controls for position, mouse for rotation only
     if (debugMode) {
         const Uint8* keys = SDL_GetKeyboardState(nullptr);
@@ -487,8 +497,8 @@ void Game::update() {
 
     // Accumulate mouse position with scaling for sensitivity
     // No decay - ship maintains orientation until player moves mouse (like original)
-    accumulatedMouseX += relX * 2;
-    accumulatedMouseY += relY * 2;
+    accumulatedMouseX += mouseRelX * 2;
+    accumulatedMouseY += mouseRelY * 2;
 
     // Clamp to valid range (±512)
     if (accumulatedMouseX < -512) accumulatedMouseX = -512;
@@ -745,15 +755,36 @@ void Game::drawFPS() {
         fpsLastTime = currentTime;
     }
 
-    // Draw FPS in bottom-right corner
-    // Screen is 320x256 logical pixels, font is 8x8
-    // Position for up to 3-digit FPS: 320 - 24 = 296, 256 - 8 = 248
     Color white = Color::white();
-    int x = 296;
-    int y = 248;
+    Color black = Color::black();
+    int y = 248;  // Bottom row (256 - 8)
 
-    // Draw just the FPS number
+    // Draw black background bar across the bottom
+    for (int row = 0; row < 8 * SCALE; row++) {
+        screen.drawHorizontalLine(0, SCREEN_WIDTH - 1, y * SCALE + row, black);
+    }
+
+    // Bottom left: Landscape size (e.g. "12x10")
+    // TILES_X includes corners, so visible tiles = TILES_X - 1 x TILES_Z - 1
+    int visibleX = TILES_X - 1;
+    int visibleZ = TILES_Z - 1;
+    int x = screen.drawInt(0, y, visibleX, white);
+    x = screen.drawText(x, y, "x", white);
+    screen.drawInt(x, y, visibleZ, white);
+
+    // Bottom center: Target FPS / Actual FPS (e.g. "60/58")
+    int targetFPS = FPS_OPTIONS[fpsIndex];
+    int centerX = 160 - 24;  // Approximate center for "NNN/NNN"
+    x = screen.drawInt(centerX, y, targetFPS, white);
+    x = screen.drawText(x, y, "/", white);
     screen.drawInt(x, y, fpsDisplay, white);
+
+    // Bottom right: Display resolution (e.g. "1280x1024")
+    // Calculate position from right edge
+    // "1280x1024" = 9 chars = 72 pixels, so start at 320 - 72 = 248
+    x = screen.drawInt(248, y, SCREEN_WIDTH, white);
+    x = screen.drawText(x, y, "x", white);
+    screen.drawInt(x, y, SCREEN_HEIGHT, white);
 }
 
 
@@ -962,15 +993,30 @@ void Game::run() {
     while (running) {
         Uint32 frameStart = SDL_GetTicks();
 
+        // Handle events once per frame (not per physics step)
         handleEvents();
-        update();
+
+        // Get mouse input once per frame (before physics loop)
+        // SDL_GetRelativeMouseState returns accumulated movement since last call
+        int relX, relY;
+        uint32_t mouseButtons = SDL_GetRelativeMouseState(&relX, &relY);
+
+        // Run physics multiple times per frame at lower FPS
+        // This keeps physics consistent regardless of frame rate
+        int physicsScale = PHYSICS_SCALE[fpsIndex];
+        for (int i = 0; i < physicsScale; i++) {
+            // On first iteration, pass the mouse delta; on subsequent ones, pass 0
+            // This ensures mouse movement is only applied once per frame
+            update(i == 0 ? relX : 0, i == 0 ? relY : 0, mouseButtons);
+        }
         render();
 
-        // Frame rate limiting (disabled for benchmarking)
-        // Uint32 frameTime = SDL_GetTicks() - frameStart;
-        // if (frameTime < FRAME_TIME_MS) {
-        //     SDL_Delay(FRAME_TIME_MS - frameTime);
-        // }
+        // Frame rate limiting based on target FPS
+        Uint32 frameTime = SDL_GetTicks() - frameStart;
+        Uint32 targetFrameTime = FRAME_TIME_MS_LOOKUP[fpsIndex];
+        if (frameTime < targetFrameTime) {
+            SDL_Delay(targetFrameTime - frameTime);
+        }
     }
 }
 

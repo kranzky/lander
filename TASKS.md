@@ -599,17 +599,8 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 43: Star Particles
-**Goal**: Implement star particles that appear at high altitude for orientation feedback.
-
-**Research**: Study `Lander.arm` to find star particle implementation - altitude threshold, spawn behavior, movement pattern.
-
-**Deliverables**:
-- Star particles appear when ship exceeds altitude threshold
-- Provide visual feedback for direction and speed when ground not visible
-- Match original behavior from disassembly
-
-**Verification**: Fly to high altitude; stars appear and provide sense of motion/direction.
+### Task 43: Star Particles [REMOVED]
+**Status**: Removed - not part of original Lander demo.
 
 ---
 
@@ -715,6 +706,8 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 - Bug fixes found during testing
 - Performance optimization if needed
 - Sutherland-Hodgman triangle clipping for smooth screen-edge rendering (Zarch-style)
+- Save and load current settings (landscape size, fps, resolution, full screen,
+  smooth screen edge rendering, audio)
 - Final verification against original
 - Release build deployed to itch.io for Mac and Windows
 
@@ -734,14 +727,14 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 | 6 | 24-29 | Particles (system, rendering, types) |
 | 7 | 30-37 | Objects (map, models, rendering, destruction) |
 | 8 | 34-35 | Graphics buffers (depth sorting) |
-| 9 | 38-43 | Particle refinements (spawn locations, depth sorting, clipping, stars) |
+| 9 | 38-42 | Particle refinements (spawn locations, depth sorting, clipping) |
 | 10 | 44 | Smooth ship controls |
 | 11 | 45 | Sound effects |
 | 12 | 46 | Falling Rocks (merged with Task 47) |
 | 13 | 48-52 | UI and game state |
 | 14 | 53 | Polish |
 
-**Total: 53 tasks**
+**Total: 52 tasks** (Task 43 removed - not part of original demo)
 
 Each task is designed to be:
 - Completable in a focused session

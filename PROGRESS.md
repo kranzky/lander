@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Current Task:** 52
+**Current Task:** 53
 
 **Last Updated:** 2025-12-01
 
@@ -61,14 +61,17 @@
 | 46 | Falling Rocks (includes Task 47: Rock-Ship Collision) | 926b8b4 |
 | 48 | Score Display | 89e9473 |
 | 49 | Fuel Gauge (includes Task 50, 51) | e58d05a |
+| 52 | Frame Timing and Physics Scaling | pending |
+
+## Removed Tasks
+- Task 43: Star Particles (not part of original Lander demo)
 
 ## Remaining Tasks
-- Task 52: Frame Timing and Physics Scaling (limit to 120/60/30/15fps with lookup table for physics values, user-selectable)
 - Task 53: Polish and Bug Fixes
 
 ## Summary
 
-- **Total Tasks:** 53
-- **Completed:** 49 (+3 extras)
+- **Total Tasks:** 52 (excluding removed Task 43)
+- **Completed:** 50 (+4 extras)
 - **In Progress:** 0
-- **Remaining:** 4
+- **Remaining:** 1
