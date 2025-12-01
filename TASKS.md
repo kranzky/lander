@@ -676,41 +676,20 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 49: Fuel Gauge
-**Goal**: Render the fuel level indicator.
+### Task 49: Fuel Gauge (includes Task 50 and Task 51)
+**Goal**: Render the fuel level indicator, lives display, and complete game state machine.
 
 **Deliverables**:
-- Fuel bar rendering (filled rectangle)
-- Fuel level tracking
-- Fuel consumption on thrust
-- Low fuel visual indication
+- Fuel bar rendering (3-pixel tall green bar below score bar, matching original)
+- Fuel level tracking and consumption on thrust (bits 1-2 of button state)
+- Engine disabled when fuel is empty
+- Lives display at column 30 of score bar
+- Game state machine: Playing, Exploding, GameOver
+- "GAME OVER - press a key to start again" message on game over
+- Wait for keypress before restarting (not auto-restart)
+- Full game reset on new game
 
-**Verification**: Fuel bar depletes when thrusting.
-
----
-
-### Task 50: Lives Display
-**Goal**: Show remaining lives on screen.
-
-**Deliverables**:
-- Lives counter display
-- Update on crash
-- Game over state when lives = 0
-
-**Verification**: Lives display correctly, game over works.
-
----
-
-### Task 51: Game State Machine
-**Goal**: Implement clean game state transitions.
-
-**Deliverables**:
-- States: Playing, Crashed, Landed, GameOver
-- State transition logic
-- Reset functionality for new game
-- Clean initialization
-
-**Verification**: All state transitions work correctly.
+**Verification**: Fuel bar depletes when thrusting, engine stops when empty, lives decrement on crash, game over message shows and waits for keypress.
 
 ---
 

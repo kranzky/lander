@@ -88,8 +88,9 @@ private:
     // Game state
     GameState gameState = GameState::PLAYING;
     int lives = GameConfig::INITIAL_LIVES;
-    int stateTimer = 0;  // Timer for explosion/game over animations
+    int stateTimer = 0;  // Timer for explosion animation
     Vec3 explosionPos;   // Position where explosion occurred (for future particle effects)
+    bool waitingForKeypress = false;  // True when showing "GAME OVER" message
 
     // Debug mode: keyboard controls, no physics
     bool debugMode = false;
@@ -117,6 +118,7 @@ private:
 
     void drawFPS();
     void drawScoreBar();
+    void drawGameOver();
     void drawDigit(int x, int y, int digit, Color color);
     void drawMinus(int x, int y, Color color);
     int drawNumber(int x, int y, int value, Color color);
@@ -230,6 +232,13 @@ void Game::handleEvents() {
                 break;
 
             case SDL_KEYDOWN:
+                // If waiting for keypress after game over, any key restarts
+                if (waitingForKeypress && event.key.keysym.sym != SDLK_ESCAPE) {
+                    waitingForKeypress = false;
+                    resetGame();
+                    break;
+                }
+
                 if (event.key.keysym.sym == SDLK_ESCAPE) {
                     running = false;
                 } else if (event.key.keysym.sym == SDLK_d) {
@@ -434,9 +443,9 @@ void Game::update() {
                 // Respawn player on launchpad
                 respawnPlayer();
             } else {
-                // Game over
+                // Game over - wait for keypress
                 gameState = GameState::GAME_OVER;
-                stateTimer = GameConfig::GAME_OVER_DELAY;
+                waitingForKeypress = true;
             }
         }
         // Camera stays at explosion position during explosion
@@ -445,11 +454,9 @@ void Game::update() {
     }
 
     if (gameState == GameState::GAME_OVER) {
-        // During game over, count down then restart
-        stateTimer--;
-        if (stateTimer <= 0) {
-            resetGame();
-        }
+        // Wait for keypress to restart (handled in handleEvents)
+        // Just keep the camera at explosion position
+        camera.followTarget(explosionPos, false);
         return;
     }
 
@@ -536,6 +543,11 @@ void Game::update() {
     bool hoverThrust = input.isHovering() && !fullThrust;
 
     if (engineActive) {
+        // Burn fuel based on thrust level (bit 0 = fire, bit 1 = hover, bit 2 = full thrust)
+        // Only bits 1 and 2 burn fuel (firing doesn't use fuel)
+        int burnRate = input.getFuelBurnRate();  // Returns buttons & 0x06
+        player.burnFuel(burnRate);
+
         // Spawn from exhaust port (center of yellow triangle on ship underside)
         spawnExhaustParticles(player.getExhaustSpawnPoint(), player.getVelocity(),
                               player.getExhaustDirection(), fullThrust);
@@ -744,10 +756,10 @@ void Game::drawScoreBar() {
     // Original is 40 columns (320 pixels / 8 pixels per char)
     // Row 0: Title "Lander (C) D.J.Braben 1987"
     // Row 1: Score at left, lives at column 30, high score at column 35
+    // Below row 1: Fuel bar (3 pixels tall)
     //
     // Characters are 8 pixels wide at scale 1
 
-    Color yellow = Color(255, 255, 0);
     Color white = Color::white();
 
     // Update high score if current score exceeds it
@@ -769,6 +781,65 @@ void Game::drawScoreBar() {
 
     // High score at column 35 (280 pixels from left)
     screen.drawInt(35 * CHAR_WIDTH, y, highScore, white);
+
+    // Fuel bar below the text (starts at y=16, 3 pixels tall)
+    // Original: bar length = fuelLevel / 16, max fuel = 0x1400 = 5120
+    // So max bar length = 5120 / 16 = 320 pixels (full screen width)
+    Color fuelColor = GameColors::fuelBar();
+    int fuelBarLength = player.getFuelLevel() / 16;
+    if (fuelBarLength > 320) fuelBarLength = 320;
+    if (fuelBarLength > 0) {
+        // Draw 3 horizontal lines for the fuel bar (at physical coordinates)
+        int fuelY = 16;  // Just below row 1 (logical y=16)
+        for (int row = 0; row < 3; row++) {
+            screen.drawHorizontalLine(0, fuelBarLength * SCALE - 1,
+                                      (fuelY + row) * SCALE, fuelColor);
+        }
+    }
+}
+
+void Game::drawGameOver() {
+    // Draw "GAME OVER - press a key to start again" centered on screen
+    // with black background rectangle behind the text
+
+    const char* line1 = "GAME OVER - press a";
+    const char* line2 = "key to start again";
+
+    constexpr int CHAR_WIDTH = 8;
+    constexpr int CHAR_HEIGHT = 8;
+
+    // Calculate text widths
+    int len1 = 0;
+    for (const char* p = line1; *p; p++) len1++;
+    int len2 = 0;
+    for (const char* p = line2; *p; p++) len2++;
+
+    int width1 = len1 * CHAR_WIDTH;
+    int width2 = len2 * CHAR_WIDTH;
+    int maxWidth = (width1 > width2) ? width1 : width2;
+
+    // Center position (screen is 320x256 logical)
+    int x1 = (320 - width1) / 2;
+    int x2 = (320 - width2) / 2;
+    int y = 128 - CHAR_HEIGHT;  // Center vertically (2 lines of text)
+
+    // Draw black background rectangle (with some padding)
+    int bgX = (320 - maxWidth) / 2 - 8;
+    int bgY = y - 4;
+    int bgW = maxWidth + 16;
+    int bgH = CHAR_HEIGHT * 2 + 8;
+
+    // Draw black rectangle at physical coordinates
+    Color black = Color::black();
+    for (int row = 0; row < bgH * SCALE; row++) {
+        screen.drawHorizontalLine(bgX * SCALE, (bgX + bgW) * SCALE - 1,
+                                  (bgY * SCALE) + row, black);
+    }
+
+    // Draw the text
+    Color white = Color::white();
+    screen.drawText(x1, y, line1, white);
+    screen.drawText(x2, y + CHAR_HEIGHT, line2, white);
 }
 
 void Game::bufferShip() {
@@ -848,6 +919,11 @@ void Game::drawTestPattern() {
 
     // Draw score bar at top of screen
     drawScoreBar();
+
+    // Draw game over message if waiting for keypress
+    if (gameState == GameState::GAME_OVER && waitingForKeypress) {
+        drawGameOver();
+    }
 
     // Draw FPS overlay (toggled with Tab key)
     if (showFPS) {

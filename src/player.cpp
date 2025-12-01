@@ -457,6 +457,11 @@ bool Player::isEngineActive() const {
         return false;
     }
 
+    // Check if we have fuel
+    if (fuelLevel <= 0) {
+        return false;
+    }
+
     // Check if below the altitude limit where engines work
     // In our coordinate system, negative Y is up, so check if Y >= HIGHEST_ALTITUDE
     // (HIGHEST_ALTITUDE is a large negative value, -52 tiles)
