@@ -65,9 +65,11 @@ public:
 private:
     std::vector<BufferedTriangle> triangles;
 
-    // Maximum triangles per buffer (based on original BUFFER_SIZE / 28 bytes per triangle)
-    // Original: 4308 / 28 ≈ 153 triangles
-    static constexpr size_t MAX_TRIANGLES = 160;
+    // Maximum triangles per buffer
+    // Original: 4308 / 28 ≈ 153 triangles, but we have more particles and need headroom
+    // At 484 max particles * 4 triangles each = 1936 triangles if all in one row (worst case)
+    // Use 512 to provide comfortable headroom for typical cases
+    static constexpr size_t MAX_TRIANGLES = 512;
 };
 
 // Main graphics buffer system managing all tile row buffers
