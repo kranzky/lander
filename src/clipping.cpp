@@ -4,7 +4,7 @@
 #include "clipping.h"
 
 namespace ClippingConfig {
-    bool enabled = false;  // Disabled by default, toggled with key 4
+    bool enabled = true;  // Enabled by default, toggled with key 4
 }
 
 // =============================================================================

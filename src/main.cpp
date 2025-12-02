@@ -114,8 +114,8 @@ private:
     // Target FPS selection (index into FPS_OPTIONS array)
     int fpsIndex = DEFAULT_FPS_INDEX;  // Default to 15fps
 
-    // Sound enabled toggle (off by default)
-    bool soundEnabled = false;
+    // Sound enabled toggle (on by default)
+    bool soundEnabled = true;
 
     // Fullscreen toggle
     bool fullscreen = false;
@@ -204,11 +204,11 @@ bool Game::init() {
     // Initialize the object map with random objects
     placeObjectsOnMap();
 
-    // Initialize sound system (disabled by default, press 5 to enable)
+    // Initialize sound system (enabled by default, press 5 to disable)
     if (!sound.init()) {
         SDL_LogWarn(SDL_LOG_CATEGORY_AUDIO, "Sound system failed to initialize - continuing without audio");
     }
-    sound.setEnabled(false);
+    sound.setEnabled(true);
 
     // Report status
     int drawW, drawH;
