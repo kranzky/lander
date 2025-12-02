@@ -16,6 +16,7 @@
 #include "object_map.h"
 #include "sound.h"
 #include "clipping.h"
+#include "settings.h"
 
 // =============================================================================
 // Lander - C++/SDL Port
@@ -126,6 +127,7 @@ private:
     void respawnPlayer();
     void resetGame();
     void updateResolution();  // Recreate texture for new resolution
+    void saveCurrentSettings();  // Save settings to file
 
     void drawFPS();
     void drawScoreBar();
@@ -139,6 +141,15 @@ private:
 };
 
 bool Game::init() {
+    // Load saved settings
+    GameSettings settings = loadSettings();
+    DisplayConfig::scale = settings.scale;
+    fpsIndex = settings.fpsIndex;
+    fullscreen = settings.fullscreen;
+    ClippingConfig::enabled = settings.smoothClipping;
+    soundEnabled = settings.soundEnabled;
+    GameConstants::landscapeScale = settings.landscapeScale;
+
     // Initialize SDL
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_Init failed: %s", SDL_GetError());
@@ -204,11 +215,16 @@ bool Game::init() {
     // Initialize the object map with random objects
     placeObjectsOnMap();
 
-    // Initialize sound system (enabled by default, press 5 to disable)
+    // Initialize sound system (uses loaded settings)
     if (!sound.init()) {
         SDL_LogWarn(SDL_LOG_CATEGORY_AUDIO, "Sound system failed to initialize - continuing without audio");
     }
-    sound.setEnabled(true);
+    sound.setEnabled(soundEnabled);
+
+    // Apply fullscreen if loaded from settings
+    if (fullscreen) {
+        SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+    }
 
     // Report status
     int drawW, drawH;
@@ -249,7 +265,11 @@ void Game::handleEvents() {
                 // Track fullscreen state when changed via OS controls (e.g., macOS green button)
                 if (event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
                     Uint32 flags = SDL_GetWindowFlags(window);
+                    bool wasFullscreen = fullscreen;
                     fullscreen = (flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP)) != 0;
+                    if (fullscreen != wasFullscreen) {
+                        saveCurrentSettings();
+                    }
                 } else if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
                     // Release mouse when window loses focus
                     SDL_SetRelativeMouseMode(SDL_FALSE);
@@ -288,6 +308,7 @@ void Game::handleEvents() {
                     } else {
                         SDL_SetWindowFullscreen(window, 0);
                     }
+                    saveCurrentSettings();
                 } else if (event.key.keysym.sym == SDLK_d) {
                     debugMode = !debugMode;
                 } else if (event.key.keysym.sym == SDLK_TAB) {
@@ -300,22 +321,27 @@ void Game::handleEvents() {
                     else if (scale == 4) scale = 8;
                     else scale = 1;
                     GameConstants::landscapeScale = scale;
+                    saveCurrentSettings();
                 } else if (event.key.keysym.sym == SDLK_2) {
                     // Cycle through target FPS: 15 -> 30 -> 60 -> 120 -> 15
                     fpsIndex = (fpsIndex + 1) % FPS_OPTION_COUNT;
+                    saveCurrentSettings();
                 } else if (event.key.keysym.sym == SDLK_3) {
                     // Cycle through display resolutions: 1x -> 2x -> 4x -> 1x
                     if (DisplayConfig::scale == 1) DisplayConfig::scale = 2;
                     else if (DisplayConfig::scale == 2) DisplayConfig::scale = 4;
                     else DisplayConfig::scale = 1;
                     updateResolution();
+                    saveCurrentSettings();
                 } else if (event.key.keysym.sym == SDLK_4) {
                     // Toggle smooth edge clipping
                     ClippingConfig::enabled = !ClippingConfig::enabled;
+                    saveCurrentSettings();
                 } else if (event.key.keysym.sym == SDLK_5) {
                     // Toggle sound on/off
                     soundEnabled = !soundEnabled;
                     sound.setEnabled(soundEnabled);
+                    saveCurrentSettings();
                 }
                 break;
         }
@@ -397,6 +423,17 @@ void Game::updateResolution() {
     SDL_RenderSetLogicalSize(renderer, width, height);
 
     SDL_Log("Resolution changed to %dx%d (scale %d)", width, height, DisplayConfig::scale);
+}
+
+void Game::saveCurrentSettings() {
+    GameSettings settings;
+    settings.scale = DisplayConfig::scale;
+    settings.fpsIndex = fpsIndex;
+    settings.fullscreen = fullscreen;
+    settings.smoothClipping = ClippingConfig::enabled;
+    settings.soundEnabled = soundEnabled;
+    settings.landscapeScale = GameConstants::landscapeScale;
+    saveSettings(settings);
 }
 
 // =============================================================================
