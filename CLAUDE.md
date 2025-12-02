@@ -29,10 +29,12 @@ ctest          # Run all tests
 - `src/` - Source files (.cpp, .h)
 - `test/` - Test files (test_*.cpp)
 - `build/` - Build output (created by cmake)
-- `PROGRESS.md` - Task tracking with commit hashes
+- `docs/` - Documentation (PLAN.md, TASKS.md, PROGRESS.md)
+- `sounds/` - Sound effect WAV files
+- `scripts/` - Build and release scripts
 - `Lander.arm` - Commented disassembly of the original Lander demo
 
 ## Current Progress
 
-See PROGRESS.md for task status. Each completed task has a commit hash. See
-TASKS.md for task details. Make sure to keep these two files in sync.
+See docs/PROGRESS.md for task status. Each completed task has a commit hash. See
+docs/TASKS.md for task details. Make sure to keep these two files in sync.
