@@ -11,12 +11,26 @@
 #include <unistd.h>
 #endif
 
+#ifdef _WIN32
+#include <shlobj.h>
+#include <direct.h>
+#endif
+
 // =============================================================================
 // Settings path - use platform-appropriate location
 // =============================================================================
 
 std::string getSettingsPath() {
-#ifdef __APPLE__
+#ifdef _WIN32
+    // Windows: %APPDATA%\Lander\settings.cfg
+    char appDataPath[MAX_PATH];
+    if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, appDataPath))) {
+        std::string dir = std::string(appDataPath) + "\\Lander";
+        // Create directory if it doesn't exist
+        _mkdir(dir.c_str());
+        return dir + "\\settings.cfg";
+    }
+#elif defined(__APPLE__)
     // macOS: ~/Library/Application Support/Lander/settings.cfg
     const char* home = getenv("HOME");
     if (!home) {

@@ -1,6 +1,7 @@
 #include <SDL.h>
 #include <cstdlib>
 #include <cstring>
+#include <cmath>
 #include <algorithm>
 #include "constants.h"
 #include "screen.h"
