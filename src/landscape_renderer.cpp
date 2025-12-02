@@ -423,6 +423,26 @@ void LandscapeRenderer::renderObjects(ScreenBuffer& screen, const Camera& camera
     // Identity matrix for static objects
     static const Mat3x3 identityMatrix = Mat3x3::identity();
 
+    // Calculate clipping boundaries for object culling (same as landscape rendering)
+    // These are fixed screen boundaries that don't move with camera fraction
+    int32_t LANDSCAPE_X_RAW = (TILES_X - 2) * TILE_SIZE.raw / 2;
+    int32_t LANDSCAPE_Z_RAW = ((TILES_Z - 1) + 10) * TILE_SIZE.raw;
+    Fixed camXFrac = camera.getXFraction();
+    Fixed camZFrac = camera.getZFraction();
+
+    // Screen-relative starting position (includes camera fraction for smooth scrolling)
+    int32_t startX = -LANDSCAPE_X_RAW - camXFrac.raw;
+    int32_t startZ = LANDSCAPE_Z_RAW - camZFrac.raw;
+
+    // Clip boundaries are FIXED (don't include camera fraction)
+    // These define the visible area for object culling, matching landscape clip planes
+    int32_t baseStartX = -LANDSCAPE_X_RAW;
+    int32_t baseStartZ = LANDSCAPE_Z_RAW;
+    Fixed clipLeftX = Fixed::fromRaw(baseStartX);
+    Fixed clipRightX = Fixed::fromRaw(baseStartX + (TILES_X - 1) * TILE_SIZE.raw);
+    Fixed clipFarZ = Fixed::fromRaw(baseStartZ);
+    Fixed clipNearZ = Fixed::fromRaw(baseStartZ - (TILES_Z - 1) * TILE_SIZE.raw);
+
     // Process rows from back (far) to front (near) - same order as DrawObjects
     // This ensures distant objects are drawn before closer ones
     for (int row = 0; row < TILES_Z; row++) {
@@ -433,7 +453,9 @@ void LandscapeRenderer::renderObjects(ScreenBuffer& screen, const Camera& camera
         // Process each column left to right
         // Start from col=1 to prevent objects extending past the left landscape edge
         // (col=0 would position objects 0.5 tiles left of the leftmost landscape tile)
-        for (int col = 1; col < TILES_X; col++) {
+        // When clipping is enabled, extend iteration to include extra tiles on edges
+        int extraTiles = ClippingConfig::enabled ? 1 : 0;
+        for (int col = 1 - extraTiles; col < TILES_X + extraTiles; col++) {
             // World X for this tile - centered on camera
             int worldXInt = camTileX - halfTilesX + col;
 
@@ -483,6 +505,25 @@ void LandscapeRenderer::renderObjects(ScreenBuffer& screen, const Camera& camera
             // Calculate object's world position (center of tile)
             Fixed worldX = Fixed::fromInt(worldXInt);
             Fixed worldZ = Fixed::fromInt(worldZInt);
+
+            // When smooth clipping is enabled, cull objects outside the clip boundaries
+            // Check if the object's position (tile center) is within the visible area
+            if (ClippingConfig::enabled) {
+                // Calculate screen-relative position of the object (tile center)
+                // Objects at col sit on the tile between corners (col-1) and col
+                // Tile center X = startX + (col-1)*TILE_SIZE + TILE_SIZE/2
+                //               = startX + col*TILE_SIZE - TILE_SIZE/2
+                // Tile center Z = startZ - row*TILE_SIZE - TILE_SIZE/2
+                int32_t objX = startX + col * TILE_SIZE.raw - TILE_SIZE.raw / 2;
+                int32_t objZ = startZ - row * TILE_SIZE.raw - TILE_SIZE.raw / 2;
+
+                // Skip if object center is outside clip boundaries
+                // Extend boundaries to spawn objects slightly earlier
+                if (objX < clipLeftX.raw - TILE_SIZE.raw / 4 || objX > clipRightX.raw + TILE_SIZE.raw / 4 ||
+                    objZ > clipFarZ.raw + TILE_SIZE.raw * 3 / 4 || objZ < clipNearZ.raw - TILE_SIZE.raw * 3 / 4) {
+                    continue;
+                }
+            }
 
             // Get terrain altitude at this position
             Fixed altitude = getLandscapeAltitude(worldX, worldZ);
