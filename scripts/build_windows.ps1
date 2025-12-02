@@ -48,12 +48,13 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "Step 4: Copying files to dist..." -ForegroundColor Yellow
 Copy-Item -Force (Join-Path $BuildDir "lander.exe") $DistDir
 Copy-Item -Force (Join-Path $SDL2Dir "bin/SDL2.dll") $DistDir
+Copy-Item -Force -Recurse (Join-Path $ProjectDir "sounds") (Join-Path $DistDir "sounds")
 
 # Step 5: Create zip
 Write-Host "Step 5: Creating distribution archive..." -ForegroundColor Yellow
 $ZipPath = Join-Path $DistDir "Lander-Windows.zip"
 Remove-Item -Force $ZipPath -ErrorAction SilentlyContinue
-Compress-Archive -Path (Join-Path $DistDir "lander.exe"), (Join-Path $DistDir "SDL2.dll") `
+Compress-Archive -Path (Join-Path $DistDir "lander.exe"), (Join-Path $DistDir "SDL2.dll"), (Join-Path $DistDir "sounds") `
     -DestinationPath $ZipPath -Force
 
 Write-Host ""
