@@ -71,6 +71,7 @@ bool saveSettings(const GameSettings& settings) {
     file << "soundEnabled=" << (settings.soundEnabled ? 1 : 0) << "\n";
     file << "landscapeScale=" << settings.landscapeScale << "\n";
     file << "starsEnabled=" << (settings.starsEnabled ? 1 : 0) << "\n";
+    file << "highScore=" << settings.highScore << "\n";
 
     file.close();
     return true;
@@ -131,6 +132,11 @@ GameSettings loadSettings() {
             }
         } else if (key == "starsEnabled") {
             settings.starsEnabled = (std::atoi(value.c_str()) != 0);
+        } else if (key == "highScore") {
+            int v = std::atoi(value.c_str());
+            if (v >= 500) {  // High score must be at least 500 (initial value)
+                settings.highScore = v;
+            }
         }
     }
 

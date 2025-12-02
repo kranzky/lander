@@ -157,6 +157,7 @@ bool Game::init() {
     soundEnabled = settings.soundEnabled;
     GameConstants::landscapeScale = settings.landscapeScale;
     starsEnabled = settings.starsEnabled;
+    highScore = settings.highScore;
 
     // Initialize SDL
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -962,6 +963,17 @@ void Game::drawScoreBar() {
     // Update high score if current score exceeds it
     if (score > highScore) {
         highScore = score;
+        // Save high score immediately
+        GameSettings settings;
+        settings.scale = DisplayConfig::scale;
+        settings.fpsIndex = fpsIndex;
+        settings.fullscreen = fullscreen;
+        settings.smoothClipping = ClippingConfig::enabled;
+        settings.soundEnabled = soundEnabled;
+        settings.landscapeScale = GameConstants::landscapeScale;
+        settings.starsEnabled = starsEnabled;
+        settings.highScore = highScore;
+        saveSettings(settings);
     }
 
     constexpr int CHAR_WIDTH = 8;  // 8 pixels per character at scale 1

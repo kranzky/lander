@@ -15,6 +15,7 @@ struct GameSettings {
     bool soundEnabled;   // Sound effects enabled
     int landscapeScale;  // Landscape scale (1, 2, 4, or 8)
     bool starsEnabled;   // Star particles at high altitude
+    int highScore;       // Persistent high score
 
     // Default values
     GameSettings()
@@ -25,6 +26,7 @@ struct GameSettings {
         , soundEnabled(true)
         , landscapeScale(1)
         , starsEnabled(true)
+        , highScore(500)     // Initial high score matches original Lander
     {}
 };
 
