@@ -116,6 +116,9 @@ private:
     // Sound enabled toggle (off by default)
     bool soundEnabled = false;
 
+    // Fullscreen toggle
+    bool fullscreen = false;
+
     // Helper methods
     void maybeSpawnRock();  // Check if we should spawn a falling rock
     void triggerCrash();
@@ -148,7 +151,7 @@ bool Game::init() {
         SDL_WINDOWPOS_CENTERED,
         SCREEN_WIDTH,
         SCREEN_HEIGHT,
-        SDL_WINDOW_SHOWN | SDL_WINDOW_ALLOW_HIGHDPI
+        SDL_WINDOW_SHOWN | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_RESIZABLE
     );
 
     if (!window) {
@@ -241,7 +244,30 @@ void Game::handleEvents() {
                 running = false;
                 break;
 
+            case SDL_WINDOWEVENT:
+                // Track fullscreen state when changed via OS controls (e.g., macOS green button)
+                if (event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
+                    Uint32 flags = SDL_GetWindowFlags(window);
+                    fullscreen = (flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP)) != 0;
+                } else if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
+                    // Release mouse when window loses focus
+                    SDL_SetRelativeMouseMode(SDL_FALSE);
+                }
+                break;
+
+            case SDL_MOUSEBUTTONDOWN:
+                // Recapture mouse when clicking on window (after Cmd+Tab etc.)
+                if (SDL_GetRelativeMouseMode() == SDL_FALSE) {
+                    SDL_SetRelativeMouseMode(SDL_TRUE);
+                }
+                break;
+
             case SDL_KEYDOWN:
+                // Ignore all keys when mouse is not captured
+                if (SDL_GetRelativeMouseMode() == SDL_FALSE) {
+                    break;
+                }
+
                 // If waiting for keypress after game over, any key restarts
                 if (waitingForKeypress && event.key.keysym.sym != SDLK_ESCAPE) {
                     waitingForKeypress = false;
@@ -251,6 +277,16 @@ void Game::handleEvents() {
 
                 if (event.key.keysym.sym == SDLK_ESCAPE) {
                     running = false;
+                } else if (event.key.keysym.sym == SDLK_F11 ||
+                           (event.key.keysym.sym == SDLK_RETURN &&
+                            (event.key.keysym.mod & KMOD_ALT))) {
+                    // Toggle fullscreen (F11 or Alt+Enter)
+                    fullscreen = !fullscreen;
+                    if (fullscreen) {
+                        SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+                    } else {
+                        SDL_SetWindowFullscreen(window, 0);
+                    }
                 } else if (event.key.keysym.sym == SDLK_d) {
                     debugMode = !debugMode;
                 } else if (event.key.keysym.sym == SDLK_TAB) {
@@ -1040,8 +1076,14 @@ void Game::run() {
 
         // Get mouse input once per frame (before physics loop)
         // SDL_GetRelativeMouseState returns accumulated movement since last call
-        int relX, relY;
+        // Only use mouse input when mouse is captured
+        int relX = 0, relY = 0;
         uint32_t mouseButtons = SDL_GetRelativeMouseState(&relX, &relY);
+        if (SDL_GetRelativeMouseMode() == SDL_FALSE) {
+            relX = 0;
+            relY = 0;
+            mouseButtons = 0;
+        }
 
         // Run physics multiple times per frame at lower FPS
         // This keeps physics consistent regardless of frame rate
