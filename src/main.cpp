@@ -124,6 +124,9 @@ private:
     // Fullscreen toggle
     bool fullscreen = false;
 
+    // Pause state
+    bool paused = false;
+
     // Helper methods
     void maybeSpawnRock();  // Check if we should spawn a falling rock
     void triggerCrash();
@@ -315,6 +318,10 @@ void Game::handleEvents() {
                     saveCurrentSettings();
                 } else if (event.key.keysym.sym == SDLK_d) {
                     debugMode = !debugMode;
+                    if (debugMode) {
+                        // Zero velocity when entering debug mode
+                        player.setVelocity(Fixed(0), Fixed(0), Fixed(0));
+                    }
                 } else if (event.key.keysym.sym == SDLK_TAB) {
                     showFPS = !showFPS;
                 } else if (event.key.keysym.sym == SDLK_1) {
@@ -350,6 +357,9 @@ void Game::handleEvents() {
                     // Toggle stars on/off
                     starsEnabled = !starsEnabled;
                     saveCurrentSettings();
+                } else if (event.key.keysym.sym == SDLK_p) {
+                    // Toggle pause
+                    paused = !paused;
                 }
                 break;
         }
@@ -644,7 +654,13 @@ void Game::update(int mouseRelX, int mouseRelY, uint32_t mouseButtons) {
     player.updateOrientation();
 
     // Update ship physics (gravity, thrust, friction) - skip in debug mode
-    bool hitTerrain = debugMode ? false : player.updatePhysics();
+    bool hitTerrain = false;
+    if (debugMode) {
+        // Still update exhaust direction for particle spawning
+        player.updateExhaustDirection();
+    } else {
+        hitTerrain = player.updatePhysics();
+    }
 
     // Check ship-object collision (from original Lander.arm lines 2095-2150)
     // Original logic:
@@ -956,6 +972,11 @@ void Game::drawScoreBar() {
     int y = 8;  // Row 1 = 8 pixels down
     screen.drawInt(0, y, score, white);
 
+    // Paused indicator (midway between score and lives)
+    if (paused) {
+        screen.drawText(10 * CHAR_WIDTH, y, "*** PAUSED ***", white);
+    }
+
     // Lives at column 30 (240 pixels from left)
     screen.drawInt(30 * CHAR_WIDTH, y, lives, white);
 
@@ -1160,11 +1181,14 @@ void Game::run() {
 
         // Run physics multiple times per frame at lower FPS
         // This keeps physics consistent regardless of frame rate
-        int physicsScale = PHYSICS_SCALE[fpsIndex];
-        for (int i = 0; i < physicsScale; i++) {
-            // On first iteration, pass the mouse delta; on subsequent ones, pass 0
-            // This ensures mouse movement is only applied once per frame
-            update(i == 0 ? relX : 0, i == 0 ? relY : 0, mouseButtons);
+        // Skip update when paused
+        if (!paused) {
+            int physicsScale = PHYSICS_SCALE[fpsIndex];
+            for (int i = 0; i < physicsScale; i++) {
+                // On first iteration, pass the mouse delta; on subsequent ones, pass 0
+                // This ensures mouse movement is only applied once per frame
+                update(i == 0 ? relX : 0, i == 0 ? relY : 0, mouseButtons);
+            }
         }
         render();
 

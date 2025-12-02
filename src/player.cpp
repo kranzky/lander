@@ -372,6 +372,23 @@ bool Player::updatePhysics() {
 }
 
 // =============================================================================
+// Update Exhaust Direction
+// =============================================================================
+//
+// Updates the exhaust direction from the current rotation matrix.
+// Used in debug mode when physics are skipped but we still want particles
+// to spawn in the correct direction.
+//
+// =============================================================================
+
+void Player::updateExhaustDirection() {
+    const Vec3& roofVec = rotationMatrix.roof();
+    exhaustDirection.x = roofVec.x;
+    exhaustDirection.y = roofVec.y;
+    exhaustDirection.z = roofVec.z;
+}
+
+// =============================================================================
 // Launchpad Landing Check
 // =============================================================================
 //

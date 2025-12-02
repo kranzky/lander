@@ -88,6 +88,9 @@ public:
     // Returns true if the ship hit terrain
     bool updatePhysics();
 
+    // Update exhaust direction from current rotation matrix (for debug mode)
+    void updateExhaustDirection();
+
     // Check for landing on launchpad after terrain collision detected
     // Returns the resulting landing state
     LandingState checkLanding();
