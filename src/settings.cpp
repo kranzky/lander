@@ -4,12 +4,35 @@
 #include "settings.h"
 #include <fstream>
 #include <cstdlib>
+#include <sys/stat.h>
+
+#ifdef __APPLE__
+#include <pwd.h>
+#include <unistd.h>
+#endif
 
 // =============================================================================
-// Settings path - save in current directory alongside executable
+// Settings path - use platform-appropriate location
 // =============================================================================
 
 std::string getSettingsPath() {
+#ifdef __APPLE__
+    // macOS: ~/Library/Application Support/Lander/settings.cfg
+    const char* home = getenv("HOME");
+    if (!home) {
+        struct passwd* pw = getpwuid(getuid());
+        if (pw) {
+            home = pw->pw_dir;
+        }
+    }
+    if (home) {
+        std::string dir = std::string(home) + "/Library/Application Support/Lander";
+        // Create directory if it doesn't exist
+        mkdir(dir.c_str(), 0755);
+        return dir + "/settings.cfg";
+    }
+#endif
+    // Fallback to current directory
     return "settings.cfg";
 }
 
