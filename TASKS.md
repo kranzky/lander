@@ -702,8 +702,6 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 **Goal**: Final cleanup and bug fixing.
 
 **Deliverables**:
-- Bug: destroyed objects must be renewed when starting a new game
-- Bug: shouldn't be able to fly when fuel reaches zero
 - Sutherland-Hodgman triangle clipping for smooth screen-edge rendering (Zarch-style),
   disabled by default but toggled with the 4 key
 - Save and load current settings (landscape size, fps, resolution, full screen,

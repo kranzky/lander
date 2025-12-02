@@ -262,6 +262,12 @@ bool Player::updatePhysics() {
     bool fullThrust = input.isThrusting();
     bool hover = input.isHovering();
 
+    // Check if we have fuel - no fuel means no thrust
+    if (fuelLevel <= 0) {
+        fullThrust = false;
+        hover = false;
+    }
+
     // Check if above the altitude where engines work (52 tiles up)
     // If too high, cut the engines - ship will fall back down due to gravity
     // In our coordinate system, negative Y is up, so check if Y < HIGHEST_ALTITUDE

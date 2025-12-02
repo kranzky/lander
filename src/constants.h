@@ -37,7 +37,7 @@ constexpr int PLAY_HEIGHT = ORIGINAL_PLAY_HEIGHT * SCALE;  // 512
 // Physics values are tuned for 120fps and scaled down for lower frame rates.
 constexpr int FPS_OPTIONS[] = {15, 30, 60, 120};
 constexpr int FPS_OPTION_COUNT = 4;
-constexpr int DEFAULT_FPS_INDEX = 0;  // Start at 15fps (original Lander frame rate)
+constexpr int DEFAULT_FPS_INDEX = 2;  // Start at 60fps
 
 // Frame time lookup table (milliseconds per frame)
 constexpr int FRAME_TIME_MS_LOOKUP[] = {

@@ -331,6 +331,9 @@ void Game::resetGame() {
     accumulatedMouseY = 0;
     gameState = GameState::PLAYING;
     stateTimer = 0;
+
+    // Restore all destroyed objects (in place, without re-rolling RNG)
+    objectMap.restoreDestroyedObjects();
 }
 
 void Game::updateResolution() {

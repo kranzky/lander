@@ -7,7 +7,7 @@
 
 // Define the runtime scale variable
 namespace DisplayConfig {
-    int scale = 1;  // Initialize to 1x (320x256, matching original Lander)
+    int scale = 4;  // Initialize to 4x (1280x1024)
 }
 
 ScreenBuffer::ScreenBuffer() {

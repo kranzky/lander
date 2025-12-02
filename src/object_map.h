@@ -99,6 +99,13 @@ public:
     // Check if object type is a destroyed/smoking variant
     static bool isDestroyedType(uint8_t objectType);
 
+    // Get original (non-destroyed) type from a destroyed type
+    // Returns the input if it's not a destroyed type
+    static uint8_t getOriginalType(uint8_t objectType);
+
+    // Restore all destroyed objects to their original types
+    void restoreDestroyedObjects();
+
 private:
     uint8_t map[ObjectMapConstants::MAP_SIZE][ObjectMapConstants::MAP_SIZE];
 };
