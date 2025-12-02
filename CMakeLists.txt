@@ -28,6 +28,7 @@ set(SOURCES
     src/graphics_buffer.cpp
     src/scale.cpp
     src/sound.cpp
+    src/clipping.cpp
 )
 
 # Create executable

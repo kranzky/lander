@@ -4,6 +4,7 @@
 #include "landscape_renderer.h"
 #include "graphics_buffer.h"
 #include "particles.h"
+#include "clipping.h"
 
 using namespace GameConstants;
 
@@ -101,15 +102,11 @@ void LandscapeRenderer::drawTile(
     ScreenBuffer& screen,
     const CornerData& topLeft, const CornerData& topRight,
     const CornerData& bottomLeft, const CornerData& bottomRight,
-    int tileRow, Fixed tileX, Fixed tileZ)
+    int tileRow, Fixed tileX, Fixed tileZ,
+    int clipFlags, Fixed clipLeftX, Fixed clipRightX,
+    Fixed clipNearZ, Fixed clipFarZ)
 {
-    // All corners must be valid to draw
-    if (!topLeft.valid || !topRight.valid ||
-        !bottomLeft.valid || !bottomRight.valid) {
-        return;
-    }
-
-    // Calculate tile color
+    // Calculate tile color (before clipping, using original corners)
     // Use average altitude for color determination
     Fixed avgAltitude = Fixed::fromRaw(
         (topLeft.altitude.raw + topRight.altitude.raw +
@@ -128,20 +125,87 @@ void LandscapeRenderer::drawTile(
     // Get color
     Color color = getLandscapeTileColor(avgAltitude.raw, tileRow, slope, type);
 
-    // Draw as two triangles
-    // Triangle 1: topLeft, topRight, bottomLeft
-    screen.drawTriangle(
-        topLeft.screenX, topLeft.screenY,
-        topRight.screenX, topRight.screenY,
-        bottomLeft.screenX, bottomLeft.screenY,
-        color);
 
-    // Triangle 2: topRight, bottomRight, bottomLeft
-    screen.drawTriangle(
-        topRight.screenX, topRight.screenY,
-        bottomRight.screenX, bottomRight.screenY,
-        bottomLeft.screenX, bottomLeft.screenY,
-        color);
+    // If no clipping needed, use the fast path
+    if (clipFlags == CLIP_NONE) {
+        // All corners must be valid to draw
+        if (!topLeft.valid || !topRight.valid ||
+            !bottomLeft.valid || !bottomRight.valid) {
+            return;
+        }
+
+        // Draw as two triangles
+        // Triangle 1: topLeft, topRight, bottomLeft
+        screen.drawTriangle(
+            topLeft.screenX, topLeft.screenY,
+            topRight.screenX, topRight.screenY,
+            bottomLeft.screenX, bottomLeft.screenY,
+            color);
+
+        // Triangle 2: topRight, bottomRight, bottomLeft
+        screen.drawTriangle(
+            topRight.screenX, topRight.screenY,
+            bottomRight.screenX, bottomRight.screenY,
+            bottomLeft.screenX, bottomLeft.screenY,
+            color);
+        return;
+    }
+
+    // Clipping path: build quad from 3D coordinates, clip, then project
+    // Quad corners in order: topLeft, topRight, bottomRight, bottomLeft
+    ClipVertex3D quad[4] = {
+        {topLeft.relX, topLeft.relY, topLeft.relZ},
+        {topRight.relX, topRight.relY, topRight.relZ},
+        {bottomRight.relX, bottomRight.relY, bottomRight.relZ},
+        {bottomLeft.relX, bottomLeft.relY, bottomLeft.relZ}
+    };
+
+    // Start with the quad as a polygon
+    ClippedPolygon3D poly;
+    poly.count = 4;
+    for (int i = 0; i < 4; i++) {
+        poly.vertices[i] = quad[i];
+    }
+
+    // Clip against each requested plane
+    if (clipFlags & CLIP_LEFT) {
+        poly = clipPolygonLeft(poly, clipLeftX);
+        if (poly.count < 3) return;
+    }
+    if (clipFlags & CLIP_RIGHT) {
+        poly = clipPolygonRight(poly, clipRightX);
+        if (poly.count < 3) return;
+    }
+    if (clipFlags & CLIP_NEAR) {
+        poly = clipPolygonNear(poly, clipNearZ);
+        if (poly.count < 3) return;
+    }
+    if (clipFlags & CLIP_FAR) {
+        poly = clipPolygonFar(poly, clipFarZ);
+        if (poly.count < 3) return;
+    }
+
+    // Project clipped vertices to screen
+    int screenX[MAX_CLIP_VERTICES_3D];
+    int screenY[MAX_CLIP_VERTICES_3D];
+    for (int i = 0; i < poly.count; i++) {
+        ProjectedVertex proj = projectVertex(poly.vertices[i].x, poly.vertices[i].y, poly.vertices[i].z);
+        if (!proj.visible) {
+            // Vertex behind camera - skip this polygon
+            return;
+        }
+        screenX[i] = proj.screenX;
+        screenY[i] = proj.screenY;
+    }
+
+    // Triangulate and draw using fan triangulation
+    for (int i = 1; i < poly.count - 1; i++) {
+        screen.drawTriangle(
+            screenX[0], screenY[0],
+            screenX[i], screenY[i],
+            screenX[i + 1], screenY[i + 1],
+            color);
+    }
 }
 
 // =============================================================================
@@ -185,21 +249,59 @@ void LandscapeRenderer::render(ScreenBuffer& screen, const Camera& camera)
     // Center the grid on camera position
     int halfTilesX = TILES_X / 2;
 
+    // When clipping is enabled, render 1 extra tile on each edge
+    // These will be clipped against the visible boundary
+    int extraTiles = ClippingConfig::enabled ? 1 : 0;
+    int colStart = -extraTiles;           // Start 1 tile to the left
+    int colEnd = TILES_X + extraTiles;    // End 1 tile to the right
+    int rowStart = -extraTiles;           // Start 1 row further back
+    int rowEnd = TILES_Z + extraTiles;    // End 1 row closer
+
+    // Adjust starting position for extra tiles
+    int32_t adjustedStartX = startX - (extraTiles * TILE_SIZE.raw);
+    int32_t adjustedStartZ = startZ + (extraTiles * TILE_SIZE.raw);
+
+    // Calculate clipping planes (in screen-relative/camera coordinates)
+    // These are the FIXED screen boundaries - they don't move with camera fraction!
+    // This is what creates the smooth scrolling effect: tiles slide past fixed clip planes.
+    //
+    // When camFrac = 0, the original grid fits exactly in the clip box.
+    // When camFrac != 0, tiles slide partially outside the clip box and get clipped.
+    //
+    // Use the base landscape offset (without camera fraction) for clip planes:
+    int32_t baseStartX = -LANDSCAPE_X_RAW;  // Without camXFrac
+    int32_t baseStartZ = LANDSCAPE_Z_RAW;   // Without camZFrac
+
+    // Left clipping plane: leftmost screen boundary
+    Fixed clipLeftX = Fixed::fromRaw(baseStartX);
+    // Right clipping plane: rightmost screen boundary
+    Fixed clipRightX = Fixed::fromRaw(baseStartX + (TILES_X - 1) * TILE_SIZE.raw);
+    // Far clipping plane: furthest screen boundary
+    Fixed clipFarZ = Fixed::fromRaw(baseStartZ);
+    // Near clipping plane: nearest screen boundary
+    Fixed clipNearZ = Fixed::fromRaw(baseStartZ - (TILES_Z - 1) * TILE_SIZE.raw);
+
     // Process rows from back (far) to front (near)
     // Row 0 is furthest, Row TILES_Z-1 is nearest
-    for (int row = 0; row < TILES_Z; row++) {
+    for (int row = rowStart; row < rowEnd; row++) {
         // Calculate screen-relative Z for this row of corners
-        int32_t relZRaw = startZ - (row * TILE_SIZE.raw);
+        int32_t relZRaw = adjustedStartZ - ((row + extraTiles) * TILE_SIZE.raw);
         Fixed relZ = Fixed::fromRaw(relZRaw);
 
         // World Z for this row - tiles extend forward from camera
         // Row 0 = back (camTileZ + TILES_Z - 1), Row TILES_Z-1 = front (camTileZ)
         int worldZInt = camTileZ + (TILES_Z - 1 - row);
 
+        // Array index (offset by extraTiles to handle negative row indices)
+        int rowIdx = row + extraTiles;
+
         // Process each corner in this row
-        for (int col = 0; col < TILES_X; col++) {
+        for (int col = colStart; col < colEnd; col++) {
+            // Array index (offset by extraTiles to handle negative col indices)
+            int colIdx = col + extraTiles;
+
             // Calculate screen-relative X for this corner
-            int32_t relXRaw = startX + (col * TILE_SIZE.raw);
+            int32_t relXRaw = adjustedStartX + (colIdx * TILE_SIZE.raw);
             Fixed relX = Fixed::fromRaw(relXRaw);
 
             // World X for this corner - centered on camera tile position
@@ -216,33 +318,60 @@ void LandscapeRenderer::render(ScreenBuffer& screen, const Camera& camera)
             Fixed relY = Fixed::fromRaw(altitude.raw - camY.raw);
 
             // Project corner to screen (coordinates are already camera-relative)
-            currentRow[col] = projectCornerRelative(relX, relY, relZ);
-            currentRow[col].altitude = altitude;
+            currentRow[colIdx] = projectCornerRelative(relX, relY, relZ);
+            currentRow[colIdx].altitude = altitude;
+            // Store 3D coordinates for clipping
+            currentRow[colIdx].relX = relX;
+            currentRow[colIdx].relY = relY;
+            currentRow[colIdx].relZ = relZ;
         }
 
         // Draw tiles (need at least one previous row)
-        if (row > 0) {
-            for (int col = 0; col < TILES_X - 1; col++) {
+        if (row > rowStart) {
+            for (int col = colStart; col < colEnd - 1; col++) {
+                int colIdx = col + extraTiles;
+
                 // World tile coordinates for color/type lookup
                 int worldXInt = camTileX - halfTilesX + col;
                 int worldZInt = camTileZ + (TILES_Z - row);
                 Fixed tileX = Fixed::fromInt(worldXInt);
                 Fixed tileZ = Fixed::fromInt(worldZInt);
 
+                // Determine clip flags for edge tiles
+                // We need to clip both:
+                // - Extra tiles sliding INTO view (col=-1, col=TILES_X-1, row=0, row=TILES_Z)
+                // - Original edge tiles sliding OUT of view (col=0, col=TILES_X-2, row=1, row=TILES_Z-1)
+                int clipFlags = CLIP_NONE;
+                if (ClippingConfig::enabled) {
+                    // Left edge: extra tile (col=-1) and first original tile (col=0)
+                    if (col <= 0) clipFlags |= CLIP_LEFT;
+                    // Right edge: last original tile (col=TILES_X-2) and extra tile (col=TILES_X-1)
+                    if (col >= TILES_X - 2) clipFlags |= CLIP_RIGHT;
+                    // Far edge: extra row (row=0) and first original row (row=1)
+                    if (row <= 1) clipFlags |= CLIP_FAR;
+                    // Near edge: last original row (row=TILES_Z-1) and extra row (row=TILES_Z)
+                    if (row >= TILES_Z - 1) clipFlags |= CLIP_NEAR;
+                }
+
                 drawTile(screen,
-                         previousRow[col], previousRow[col + 1],
-                         currentRow[col], currentRow[col + 1],
-                         row, tileX, tileZ);
+                         previousRow[colIdx], previousRow[colIdx + 1],
+                         currentRow[colIdx], currentRow[colIdx + 1],
+                         row, tileX, tileZ,
+                         clipFlags, clipLeftX, clipRightX, clipNearZ, clipFarZ);
             }
 
             // Draw objects for this row (buffered by renderObjects())
             // Row mapping: render row R draws tiles for object buffer row R-1
-            graphicsBuffers.drawAndClearRow(row - 1, screen);
+            // Only draw object buffers for valid row indices
+            if (row > 0 && row <= TILES_Z) {
+                graphicsBuffers.drawAndClearRow(row - 1, screen);
+            }
         }
 
         // Swap rows: current becomes previous for next iteration
-        for (int col = 0; col < TILES_X; col++) {
-            previousRow[col] = currentRow[col];
+        for (int col = colStart; col < colEnd; col++) {
+            int colIdx = col + extraTiles;
+            previousRow[colIdx] = currentRow[colIdx];
         }
     }
 

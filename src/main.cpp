@@ -15,6 +15,7 @@
 #include "particles.h"
 #include "object_map.h"
 #include "sound.h"
+#include "clipping.h"
 
 // =============================================================================
 // Lander - C++/SDL Port
@@ -308,6 +309,9 @@ void Game::handleEvents() {
                     else if (DisplayConfig::scale == 2) DisplayConfig::scale = 4;
                     else DisplayConfig::scale = 1;
                     updateResolution();
+                } else if (event.key.keysym.sym == SDLK_4) {
+                    // Toggle smooth edge clipping
+                    ClippingConfig::enabled = !ClippingConfig::enabled;
                 } else if (event.key.keysym.sym == SDLK_5) {
                     // Toggle sound on/off
                     soundEnabled = !soundEnabled;

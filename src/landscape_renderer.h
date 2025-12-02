@@ -53,9 +53,12 @@ private:
         int screenY;
         Fixed altitude;
         bool valid;
+        // 3D coordinates for clipping (camera-relative)
+        Fixed relX, relY, relZ;
     };
 
-    static constexpr int MAX_CORNERS = GameConstants::MAX_TILES_X;
+    // Extra corners for edge clipping (1 extra on each side)
+    static constexpr int MAX_CORNERS = GameConstants::MAX_TILES_X + 2;
     CornerData currentRow[MAX_CORNERS];
     CornerData previousRow[MAX_CORNERS];
 
@@ -66,11 +69,23 @@ private:
     // Project a corner using camera-relative coordinates directly
     CornerData projectCornerRelative(Fixed relX, Fixed relY, Fixed relZ);
 
+    // Edge flags for clipping
+    static constexpr int CLIP_NONE = 0;
+    static constexpr int CLIP_LEFT = 1;
+    static constexpr int CLIP_RIGHT = 2;
+    static constexpr int CLIP_NEAR = 4;
+    static constexpr int CLIP_FAR = 8;
+
     // Draw a single tile (quadrilateral) given 4 corners
+    // clipFlags indicates which edges to clip against
+    // clipLeft/Right/Near/Far are the clipping plane positions
     void drawTile(ScreenBuffer& screen,
                   const CornerData& topLeft, const CornerData& topRight,
                   const CornerData& bottomLeft, const CornerData& bottomRight,
-                  int tileRow, Fixed tileX, Fixed tileZ);
+                  int tileRow, Fixed tileX, Fixed tileZ,
+                  int clipFlags = CLIP_NONE,
+                  Fixed clipLeft = Fixed(), Fixed clipRight = Fixed(),
+                  Fixed clipNear = Fixed(), Fixed clipFar = Fixed());
 
     // Determine tile type based on position
     TileType getTileType(Fixed x, Fixed z, Fixed altitude);
