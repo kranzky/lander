@@ -896,29 +896,38 @@ void Game::drawFPS() {
         screen.drawHorizontalLine(0, physWidth - 1, y * scale + row, black);
     }
 
-    // Bottom left: Landscape size (e.g. "12x10")
-    // TILES_X includes corners, so visible tiles = TILES_X - 1 x TILES_Z - 1
+    // Display all 6 settings evenly spaced (keys 1-6)
+    // Screen is 320 logical pixels
+    int x;
+
+    // Key 1: Landscape scale (show tiles, e.g. "12x10")
     int visibleX = TILES_X - 1;
     int visibleZ = TILES_Z - 1;
-    int x = screen.drawInt(0, y, visibleX, white);
+    x = screen.drawInt(0, y, visibleX, white);
     x = screen.drawText(x, y, "x", white);
     screen.drawInt(x, y, visibleZ, white);
 
-    // Bottom center: Target FPS / Actual FPS (e.g. "60/58")
+    // Key 2: FPS (target/actual, e.g. "60/58")
     int targetFPS = FPS_OPTIONS[fpsIndex];
-    int centerX = 160 - 24;  // Approximate center for "NNN/NNN"
-    x = screen.drawInt(centerX, y, targetFPS, white);
+    x = screen.drawInt(48, y, targetFPS, white);
     x = screen.drawText(x, y, "/", white);
     screen.drawInt(x, y, fpsDisplay, white);
 
-    // Bottom right: Display resolution (e.g. "1280x1024")
-    // Calculate position from right edge
-    // "1280x1024" = 9 chars = 72 pixels, so start at 320 - 72 = 248
+    // Key 3: Display resolution (e.g. "1280x1024")
     int resWidth = DisplayConfig::getPhysicalWidth();
     int resHeight = DisplayConfig::getPhysicalHeight();
-    x = screen.drawInt(248, y, resWidth, white);
+    x = screen.drawInt(112, y, resWidth, white);
     x = screen.drawText(x, y, "x", white);
     screen.drawInt(x, y, resHeight, white);
+
+    // Key 4: Smooth clipping (ON/OFF)
+    screen.drawText(200, y, ClippingConfig::enabled ? "CLIP" : "clip", white);
+
+    // Key 5: Sound (ON/OFF)
+    screen.drawText(248, y, soundEnabled ? "SFX" : "sfx", white);
+
+    // Key 6: Stars (ON/OFF)
+    screen.drawText(288, y, starsEnabled ? "STAR" : "star", white);
 }
 
 
