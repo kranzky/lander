@@ -599,8 +599,22 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 
 ---
 
-### Task 43: Star Particles [REMOVED]
-**Status**: Removed - not part of original Lander demo.
+### Task 43: Star Particles
+**Goal**: Implement decorative star particles at high altitude for visual feedback.
+
+**Deliverables**:
+- Stars spawn in 16x16x16 tile cube around player
+- Altitude-based density: no stars below 10 tiles, linear ramp to max at 52 tiles
+- Maximum 400 stars at full density
+- Spawn cube offset by player velocity (stars appear ahead of movement)
+- Random size (1-3 base pixels), random brightness (160-255 grey)
+- Fast fade in (~0.06s), slower fade out (~0.18s)
+- Lifetime ~1.5 seconds with variation
+- Stars depth-sorted with landscape, no shadows
+- Toggle with key 6 (enabled by default), persisted in settings
+- Increased MAX_PARTICLES from 484 to 900 to accommodate stars
+
+**Verification**: Stars visible at high altitude, provide sense of motion, toggle works.
 
 ---
 
@@ -727,14 +741,14 @@ Future tasks will add sub-pixel precision (Fixed → physical) for smooth animat
 | 6 | 24-29 | Particles (system, rendering, types) |
 | 7 | 30-37 | Objects (map, models, rendering, destruction) |
 | 8 | 34-35 | Graphics buffers (depth sorting) |
-| 9 | 38-42 | Particle refinements (spawn locations, depth sorting, clipping) |
+| 9 | 38-43 | Particle refinements (spawn locations, depth sorting, clipping, stars) |
 | 10 | 44 | Smooth ship controls |
 | 11 | 45 | Sound effects |
 | 12 | 46 | Falling Rocks (merged with Task 47) |
 | 13 | 48-52 | UI and game state |
 | 14 | 53 | Polish |
 
-**Total: 52 tasks** (Task 43 removed - not part of original demo)
+**Total: 53 tasks**
 
 Each task is designed to be:
 - Completable in a focused session

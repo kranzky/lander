@@ -2,9 +2,9 @@
 
 ## Current Status
 
-**Current Task:** 53
+**Current Task:** Complete
 
-**Last Updated:** 2025-12-01
+**Last Updated:** 2025-12-02
 
 ## Completed Tasks
 
@@ -53,6 +53,7 @@
 | 40 | Bullet Reimplementation | 20ba6e4 |
 | 41 | Particle-Ship Depth Sorting | aef9a48 |
 | 42 | Particle Visibility Clipping | 149b7e9 |
+| 43 | Star Particles | cc52daf |
 | 44 | Smooth Ship Controls | 2b1f3f0 |
 | - | Ship-Object Collision (fly low over objects = crash) | 1de7719 |
 | 45 | Sound Effects | 360b5e9 |
@@ -60,18 +61,17 @@
 | - | Fix ship disappearing (increase buffer size) | 19debab |
 | 46 | Falling Rocks (includes Task 47: Rock-Ship Collision) | 926b8b4 |
 | 48 | Score Display | 89e9473 |
-| 49 | Fuel Gauge (includes Task 50, 51) | e58d05a |
-| 52 | Frame Timing and Physics Scaling | pending |
-
-## Removed Tasks
-- Task 43: Star Particles (not part of original Lander demo)
-
-## Remaining Tasks
-- Task 53: Polish and Bug Fixes
+| 49 | Fuel Gauge (includes Task 50, 51) | 406609d |
+| 52 | Frame Timing and Physics Scaling | 6045232 |
+| 53 | Polish and Bug Fixes | cc52daf |
+| - | Runtime resolution selection | 6655c89 |
+| - | Fullscreen toggle | 7d11eee |
+| - | Smooth edge clipping (key 4 toggle) | 17468a4 |
+| - | Save and load settings | dc1d239 |
 
 ## Summary
 
-- **Total Tasks:** 52 (excluding removed Task 43)
-- **Completed:** 50 (+4 extras)
+- **Total Tasks:** 53
+- **Completed:** 53 (+6 extras)
 - **In Progress:** 0
-- **Remaining:** 1
+- **Remaining:** 0
