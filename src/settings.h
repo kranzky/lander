@@ -14,6 +14,7 @@ struct GameSettings {
     bool smoothClipping; // Smooth edge clipping enabled
     bool soundEnabled;   // Sound effects enabled
     int landscapeScale;  // Landscape scale (1, 2, 4, or 8)
+    bool starsEnabled;   // Star particles at high altitude
 
     // Default values
     GameSettings()
@@ -23,6 +24,7 @@ struct GameSettings {
         , smoothClipping(true)
         , soundEnabled(true)
         , landscapeScale(1)
+        , starsEnabled(true)
     {}
 };
 

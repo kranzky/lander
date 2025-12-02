@@ -36,10 +36,11 @@ namespace ParticleFlags {
     constexpr uint32_t DESTROYS_OBJECTS = 0x00200000; // Bit 21: can destroy objects
     constexpr uint32_t BIG_SPLASH = 0x00800000;       // Bit 23: big splash (65 vs 4 particles)
     constexpr uint32_t EXPLODES_ON_GROUND = 0x01000000; // Bit 24: explode on terrain (sparks)
+    constexpr uint32_t IS_STAR = 0x02000000;          // Bit 25: particle is a star
 }
 
 namespace ParticleConstants {
-    constexpr int MAX_PARTICLES = 484;  // From original Lander
+    constexpr int MAX_PARTICLES = 900;  // Increased from 484 to support stars
 
     // Gravity for particles - same as player gravity so they fall together
     constexpr int32_t PARTICLE_GRAVITY = 0xC00;
@@ -48,12 +49,36 @@ namespace ParticleConstants {
     constexpr int BOUNCE_DAMPING_SHIFT = 1;  // Divide by 2 on bounce
 }
 
+// =============================================================================
+// Star Particle Configuration
+// =============================================================================
+
+namespace StarConfig {
+    constexpr int MAX_STARS = 400;              // Maximum active stars
+    constexpr int32_t MIN_ALTITUDE = 10 << 24;  // 10 tiles in 8.24 fixed point
+    constexpr int32_t MAX_ALTITUDE = 52 << 24;  // 52 tiles (engine cutout)
+    constexpr int32_t SPAWN_RADIUS = 8 << 24;   // 8 tiles half-cube size (16x16x16 cube)
+    constexpr int LIFETIME_MIN_FRAMES = 150;    // ~1.25 seconds at 120fps
+    constexpr int LIFETIME_MAX_FRAMES = 210;    // ~1.75 seconds at 120fps
+    constexpr int FADE_IN_FRAMES = 8;           // ~0.06 seconds at 120fps
+    constexpr int FADE_OUT_FRAMES = 22;         // ~0.18 seconds at 120fps
+    constexpr int MIN_BRIGHTNESS = 160;         // Minimum grey value
+    constexpr int MAX_BRIGHTNESS = 255;         // Maximum grey value
+    constexpr int MIN_SIZE = 1;                 // Minimum size in base pixels
+    constexpr int MAX_SIZE = 3;                 // Maximum size in base pixels
+}
+
 // Single particle data structure
 struct Particle {
     Vec3 position;      // World position (x, y, z)
     Vec3 velocity;      // Velocity per frame
     int32_t lifespan;   // Frames remaining (0 = expired)
     uint32_t flags;     // ParticleFlags
+
+    // Star-specific fields (only used when IS_STAR flag is set)
+    int32_t initialLifespan;  // Starting lifespan (for fade calculation)
+    uint8_t starSize;         // Size in base pixels (1-3)
+    uint8_t starBrightness;   // Grey value (160-255)
 
     // Check if particle is active
     bool isActive() const { return lifespan > 0; }
@@ -75,6 +100,7 @@ struct Particle {
     bool bouncesOffTerrain() const { return (flags & ParticleFlags::BOUNCES) != 0; }
     bool hasBigSplash() const { return (flags & ParticleFlags::BIG_SPLASH) != 0; }
     bool explodesOnGround() const { return (flags & ParticleFlags::EXPLODES_ON_GROUND) != 0; }
+    bool isStar() const { return (flags & ParticleFlags::IS_STAR) != 0; }
 };
 
 // Particle system manager
@@ -331,5 +357,28 @@ void bufferRocks(const Camera& camera);
 // cameraPos: camera's world position (rocks are relative to camera)
 // Returns true if a rock hit the player (and sets rockHitPlayer event)
 bool checkRockPlayerCollision(const Vec3& playerPos, const Vec3& cameraPos);
+
+// =============================================================================
+// Star Particle System
+// =============================================================================
+//
+// Stars provide visual feedback for speed and direction at high altitude.
+// They spawn in a cube around the player and fade in/out smoothly.
+//
+// =============================================================================
+
+// Update star spawning based on player position and altitude
+// Called once per frame when stars are enabled
+// playerPos: player's world position
+// playerVel: player's velocity (used to offset spawn cube ahead of movement)
+// playerAltitude: height above terrain (for density calculation)
+void updateStars(const Vec3& playerPos, const Vec3& playerVel, int32_t playerAltitude);
+
+// Get current star count
+int getStarCount();
+
+// Render stars with proper depth sorting
+// Stars are rendered as filled squares with fade effect
+void bufferStars(const Camera& camera);
 
 #endif // LANDER_PARTICLES_H

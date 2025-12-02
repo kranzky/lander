@@ -538,6 +538,12 @@ static void bufferParticlesFiltered(const Camera &camera, Fixed shipDepthZ, Dept
             continue;
         }
 
+        // Skip stars - they're rendered separately without shadows
+        if (p.isStar())
+        {
+            continue;
+        }
+
         // Transform particle position to camera-relative coordinates
         Vec3 cameraRelPos = camera.worldToCamera(p.position);
 
@@ -1358,4 +1364,192 @@ bool checkRockPlayerCollision(const Vec3& playerPos, const Vec3& cameraPos)
     }
 
     return false;
+}
+
+// =============================================================================
+// Star Particle System
+// =============================================================================
+//
+// Stars provide visual feedback at high altitude. They spawn in a cube around
+// the player and fade in/out smoothly.
+//
+// =============================================================================
+
+// Simple random number generator for stars
+static uint32_t starRandom()
+{
+    static uint32_t seed = 12345;
+    seed = seed * 1103515245 + 12345;
+    return seed;
+}
+
+// Spawn a single star at a random position in the cube around the player
+// The cube center is offset in the direction of player velocity
+static void spawnStar(const Vec3& playerPos, const Vec3& playerVel)
+{
+    // Random position within spawn cube (24x24x24 tiles centered on player)
+    int32_t offsetX = (starRandom() % (StarConfig::SPAWN_RADIUS * 2)) - StarConfig::SPAWN_RADIUS;
+    int32_t offsetY = (starRandom() % (StarConfig::SPAWN_RADIUS * 2)) - StarConfig::SPAWN_RADIUS;
+    int32_t offsetZ = (starRandom() % (StarConfig::SPAWN_RADIUS * 2)) - StarConfig::SPAWN_RADIUS;
+
+    // Offset spawn center based on velocity (spawn ahead of player movement)
+    // Scale velocity to shift spawn cube center by up to ~1.5 tiles at high speed
+    // Velocity is typically in range of ~0.1-0.5 tiles/frame at 120fps
+    constexpr int32_t VEL_SCALE = 32;  // Multiplier for velocity offset
+    int32_t velOffsetX = (playerVel.x.raw >> 16) * VEL_SCALE;
+    int32_t velOffsetY = (playerVel.y.raw >> 16) * VEL_SCALE;
+    int32_t velOffsetZ = (playerVel.z.raw >> 16) * VEL_SCALE;
+
+    Vec3 pos;
+    pos.x = Fixed::fromRaw(playerPos.x.raw + offsetX + velOffsetX);
+    pos.y = Fixed::fromRaw(playerPos.y.raw + offsetY + velOffsetY);
+    pos.z = Fixed::fromRaw(playerPos.z.raw + offsetZ + velOffsetZ);
+
+    // Stars don't move
+    Vec3 vel = {Fixed(0), Fixed(0), Fixed(0)};
+
+    // Random lifespan within range
+    int32_t lifespanRange = StarConfig::LIFETIME_MAX_FRAMES - StarConfig::LIFETIME_MIN_FRAMES;
+    int32_t lifespan = StarConfig::LIFETIME_MIN_FRAMES + (starRandom() % lifespanRange);
+
+    // Random brightness (grey value)
+    int brightnessRange = StarConfig::MAX_BRIGHTNESS - StarConfig::MIN_BRIGHTNESS;
+    uint8_t brightness = StarConfig::MIN_BRIGHTNESS + (starRandom() % brightnessRange);
+
+    // Random size (1-3 pixels)
+    uint8_t size = StarConfig::MIN_SIZE + (starRandom() % (StarConfig::MAX_SIZE - StarConfig::MIN_SIZE + 1));
+
+    // Add as particle with IS_STAR flag
+    if (particleSystem.addParticle(pos, vel, lifespan, ParticleFlags::IS_STAR))
+    {
+        // Set star-specific fields on the newly added particle
+        Particle& p = particleSystem.getParticle(particleSystem.getParticleCount() - 1);
+        p.initialLifespan = lifespan;
+        p.starSize = size;
+        p.starBrightness = brightness;
+    }
+}
+
+// Update star spawning and removal
+void updateStars(const Vec3& playerPos, const Vec3& playerVel, int32_t playerAltitude)
+{
+    // Calculate target star count based on altitude
+    // No stars below MIN_ALTITUDE, linear ramp to MAX_STARS at MAX_ALTITUDE
+    int targetStars = 0;
+
+    if (playerAltitude >= StarConfig::MIN_ALTITUDE)
+    {
+        if (playerAltitude >= StarConfig::MAX_ALTITUDE)
+        {
+            // At or above max altitude: full star count
+            targetStars = StarConfig::MAX_STARS;
+        }
+        else
+        {
+            // Between min and max: linear interpolation
+            int32_t range = StarConfig::MAX_ALTITUDE - StarConfig::MIN_ALTITUDE;
+            int32_t above = playerAltitude - StarConfig::MIN_ALTITUDE;
+            // Use 64-bit to avoid overflow
+            targetStars = (int)((int64_t)above * StarConfig::MAX_STARS / range);
+        }
+    }
+
+    // Count current stars
+    int currentStars = getStarCount();
+
+    // Spawn stars to reach target count
+    int spawnCount = (targetStars - currentStars);
+    if (spawnCount > 5) spawnCount = 5;  // Limit spawns per frame
+    if (spawnCount < 0) spawnCount = 0;  // Don't spawn if above target
+
+    for (int i = 0; i < spawnCount; i++)
+    {
+        spawnStar(playerPos, playerVel);
+    }
+}
+
+// Get count of active star particles
+int getStarCount()
+{
+    int count = 0;
+    for (int i = 0; i < particleSystem.getParticleCount(); i++)
+    {
+        if (particleSystem.getParticle(i).isStar())
+        {
+            count++;
+        }
+    }
+    return count;
+}
+
+// Buffer stars for depth-sorted rendering
+void bufferStars(const Camera& camera)
+{
+    using namespace GameConstants;
+
+    // Get camera tile position for row calculation
+    int camTileZ = camera.getZTile().toInt();
+
+    for (int i = 0; i < particleSystem.getParticleCount(); i++)
+    {
+        const Particle& p = particleSystem.getParticle(i);
+
+        if (!p.isStar())
+        {
+            continue;
+        }
+
+        // Transform to camera space
+        Vec3 camSpace = camera.worldToCamera(p.position);
+
+        // Skip if behind camera
+        if (camSpace.z.raw <= 0)
+        {
+            continue;
+        }
+
+        // Project to screen
+        ProjectedVertex proj = projectVertex(camSpace);
+        if (!proj.visible || !proj.onScreen)
+        {
+            continue;
+        }
+
+        // Calculate row for depth sorting (same as other particles)
+        constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10;
+        int particleTileZ = p.position.z.toInt() - SHIP_VISUAL_Z_OFFSET;
+        int row = camTileZ + TILES_Z - 1 - particleTileZ;
+
+        // Clamp row to valid range
+        if (row < 0) row = 0;
+        if (row >= TILES_Z) row = TILES_Z - 1;
+
+        // Calculate fade alpha based on lifespan
+        // Fade in at start, fade out at end
+        uint8_t alpha = 255;
+        int32_t age = p.initialLifespan - p.lifespan;  // How long star has existed
+
+        if (age < StarConfig::FADE_IN_FRAMES)
+        {
+            // Fade in: 0 -> 255 over FADE_IN_FRAMES
+            alpha = (uint8_t)((age * 255) / StarConfig::FADE_IN_FRAMES);
+        }
+        else if (p.lifespan < StarConfig::FADE_OUT_FRAMES)
+        {
+            // Fade out: 255 -> 0 over FADE_OUT_FRAMES
+            alpha = (uint8_t)((p.lifespan * 255) / StarConfig::FADE_OUT_FRAMES);
+        }
+
+        // Apply alpha to brightness (pre-multiply)
+        uint8_t grey = (uint8_t)((p.starBrightness * alpha) / 255);
+        Color color = {grey, grey, grey, 255};
+
+        // Size scales with display scale (1-3 base pixels -> 4-12 pixels at scale 4)
+        int width = p.starSize * DisplayConfig::scale;
+        int height = p.starSize * DisplayConfig::scale;
+
+        // Buffer as filled rectangle (filled = false for outline style, true for solid)
+        bufferRect(row, proj.screenX - width/2, proj.screenY - height/2,
+                   width, height, color, false);
+    }
 }

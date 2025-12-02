@@ -118,6 +118,9 @@ private:
     // Sound enabled toggle (on by default)
     bool soundEnabled = true;
 
+    // Stars enabled toggle (on by default)
+    bool starsEnabled = true;
+
     // Fullscreen toggle
     bool fullscreen = false;
 
@@ -149,6 +152,7 @@ bool Game::init() {
     ClippingConfig::enabled = settings.smoothClipping;
     soundEnabled = settings.soundEnabled;
     GameConstants::landscapeScale = settings.landscapeScale;
+    starsEnabled = settings.starsEnabled;
 
     // Initialize SDL
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -342,6 +346,10 @@ void Game::handleEvents() {
                     soundEnabled = !soundEnabled;
                     sound.setEnabled(soundEnabled);
                     saveCurrentSettings();
+                } else if (event.key.keysym.sym == SDLK_6) {
+                    // Toggle stars on/off
+                    starsEnabled = !starsEnabled;
+                    saveCurrentSettings();
                 }
                 break;
         }
@@ -433,6 +441,7 @@ void Game::saveCurrentSettings() {
     settings.smoothClipping = ClippingConfig::enabled;
     settings.soundEnabled = soundEnabled;
     settings.landscapeScale = GameConstants::landscapeScale;
+    settings.starsEnabled = starsEnabled;
     saveSettings(settings);
 }
 
@@ -500,6 +509,15 @@ void Game::maybeSpawnRock() {
 void Game::update(int mouseRelX, int mouseRelY, uint32_t mouseButtons) {
     // Update particles every frame (including during explosions)
     particleSystem.update();
+
+    // Update star particles if enabled
+    if (starsEnabled) {
+        Vec3 pos = player.getPosition();
+        Vec3 vel = player.getVelocity();
+        // Altitude is negative Y (higher = more negative)
+        int32_t altitude = -pos.y.raw;
+        updateStars(pos, vel, altitude);
+    }
 
     // Try to spawn falling rocks (score >= 800)
     maybeSpawnRock();
@@ -1054,6 +1072,11 @@ void Game::drawTestPattern() {
 
     // Buffer particles behind ship first (so they're drawn before ship)
     bufferParticlesBehind(camera, shipDepthZ);
+
+    // Buffer star particles if enabled (depth sorted with other particles)
+    if (starsEnabled) {
+        bufferStars(camera);
+    }
 
     // Buffer falling rocks (they're rendered as 3D objects, not sprites)
     bufferRocks(camera);

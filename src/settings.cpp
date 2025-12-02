@@ -33,6 +33,7 @@ bool saveSettings(const GameSettings& settings) {
     file << "smoothClipping=" << (settings.smoothClipping ? 1 : 0) << "\n";
     file << "soundEnabled=" << (settings.soundEnabled ? 1 : 0) << "\n";
     file << "landscapeScale=" << settings.landscapeScale << "\n";
+    file << "starsEnabled=" << (settings.starsEnabled ? 1 : 0) << "\n";
 
     file.close();
     return true;
@@ -91,6 +92,8 @@ GameSettings loadSettings() {
             if (v == 1 || v == 2 || v == 4 || v == 8) {
                 settings.landscapeScale = v;
             }
+        } else if (key == "starsEnabled") {
+            settings.starsEnabled = (std::atoi(value.c_str()) != 0);
         }
     }
 
