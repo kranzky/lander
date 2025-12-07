@@ -59,6 +59,11 @@ if(MSVC)
     )
 endif()
 
+if(MINGW)
+    # Static link libgcc and libstdc++ to avoid DLL dependencies
+    target_link_options(lander PRIVATE -static -static-libgcc -static-libstdc++)
+endif()
+
 # Copy sounds directory to build output
 add_custom_command(TARGET lander POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
