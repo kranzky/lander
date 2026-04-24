@@ -268,22 +268,6 @@ void ParticleSystem::update()
     }
 }
 
-// =============================================================================
-// Particle Rendering Implementation
-// =============================================================================
-//
-// Port of MoveAndDrawParticles (Parts 2-4) from Lander.arm.
-// This renders all active particles as small rectangles with shadows.
-//
-// Rendering process per particle:
-// 1. Transform position to camera-relative coordinates
-// 2. Project shadow position (at terrain height)
-// 3. Draw shadow as 3x1 black rectangle
-// 4. Project particle position
-// 5. Draw particle as 3x2 colored rectangle
-//
-// =============================================================================
-
 namespace
 {
     // Particle rendering constants
@@ -306,140 +290,6 @@ namespace
         if (DisplayConfig::scale == 4) return 6;    // 1280x1024
         if (DisplayConfig::scale == 2) return 3;    // 640x512
         return 2;                                    // 320x256
-    }
-
-    // Draw a filled rectangle at the given screen coordinates
-    void drawRect(ScreenBuffer &screen, int x, int y, int width, int height, Color color)
-    {
-        // Center the rectangle on the coordinate
-        int left = x - width / 2;
-        int top = y - height / 2;
-
-        // Clip to screen bounds
-        int right = left + width;
-        int bottom = top + height;
-
-        if (left < 0)
-            left = 0;
-        if (top < 0)
-            top = 0;
-        if (right > ScreenBuffer::PHYSICAL_WIDTH())
-            right = ScreenBuffer::PHYSICAL_WIDTH();
-        if (bottom > ScreenBuffer::PHYSICAL_HEIGHT())
-            bottom = ScreenBuffer::PHYSICAL_HEIGHT();
-
-        // Draw the rectangle
-        for (int py = top; py < bottom; py++)
-        {
-            for (int px = left; px < right; px++)
-            {
-                screen.plotPhysicalPixel(px, py, color);
-            }
-        }
-    }
-}
-
-void renderParticles(const Camera &camera, ScreenBuffer &screen)
-{
-    int count = particleSystem.getParticleCount();
-
-    for (int i = 0; i < count; i++)
-    {
-        const Particle &p = particleSystem.getParticle(i);
-
-        // Skip rocks - they're rendered as 3D objects (handled elsewhere)
-        if (p.isRock())
-        {
-            continue;
-        }
-
-        // Transform particle position to camera-relative coordinates
-        Vec3 cameraRelPos = camera.worldToCamera(p.position);
-
-        // Skip particles behind the camera
-        if (cameraRelPos.z.raw <= 0)
-        {
-            continue;
-        }
-
-        // Get terrain height for shadow
-        //
-        // Particles have a Z offset of 10 tiles to match the ship's visual position.
-        // For shadow rendering, we need to look up terrain at the player's actual
-        // world Z position (subtracting the offset), but project the shadow at the
-        // particle's visual Z position (with the offset) so it appears correctly.
-        //
-        // This matches how drawObjectShadow works for the ship: it uses worldPos
-        // (actual player position) for terrain lookup but cameraRelPos (visual
-        // position) for projection.
-        constexpr int32_t SHIP_VISUAL_Z_OFFSET = 10 * 0x01000000; // 10 tiles
-        Fixed terrainLookupZ = Fixed::fromRaw(p.position.z.raw - SHIP_VISUAL_Z_OFFSET);
-        Fixed terrainY = getLandscapeAltitude(p.position.x, terrainLookupZ);
-
-        // Shadow position: at particle's visual X/Z, but at terrain height
-        // looked up from the actual world Z position
-        Vec3 shadowWorldPos;
-        shadowWorldPos.x = p.position.x;
-        shadowWorldPos.y = terrainY;
-        shadowWorldPos.z = p.position.z; // Keep the visual Z offset for projection
-        Vec3 shadowRelPos = camera.worldToCamera(shadowWorldPos);
-
-        // Draw shadow first (so it appears under the particle)
-        if (shadowRelPos.z.raw > 0)
-        {
-            ProjectedVertex shadowProj = projectVertex(shadowRelPos);
-            if (shadowProj.visible && shadowProj.onScreen)
-            {
-                drawRect(screen, shadowProj.screenX, shadowProj.screenY,
-                         getShadowWidth(), getShadowHeight(), Color::black());
-            }
-        }
-
-        // Project and draw particle
-        ProjectedVertex proj = projectVertex(cameraRelPos);
-        if (proj.visible && proj.onScreen)
-        {
-            // Get particle color from palette (VIDC 256-color format)
-            uint8_t colorIndex = p.getColorIndex();
-            Color color = vidc256ToColor(colorIndex);
-
-            // If particle has fading flag, cycle through white -> yellow -> orange -> red
-            // Based on remaining lifespan (higher lifespan = newer = whiter)
-            if (p.hasFading())
-            {
-                // Scale lifespan to 0-255 range (BASE_LIFESPAN is ~16 frames)
-                int life = p.lifespan * 16; // 16 frames * 16 = 256
-                if (life > 255)
-                    life = 255;
-
-                // White (255,255,255) -> Yellow (255,255,0) -> Orange (255,128,0) -> Red (255,0,0)
-                // life 255-192: white to yellow (reduce blue)
-                // life 192-64:  yellow to orange (reduce green from 255 to 128)
-                // life 64-0:    orange to red (reduce green from 128 to 0)
-                color.r = 255;
-                if (life > 192)
-                {
-                    // White to yellow: blue fades out
-                    color.g = 255;
-                    color.b = static_cast<uint8_t>((life - 192) * 4); // 255 -> 0
-                }
-                else if (life > 64)
-                {
-                    // Yellow to orange: green fades from 255 to 128
-                    color.g = static_cast<uint8_t>(128 + (life - 64)); // 255 -> 128
-                    color.b = 0;
-                }
-                else
-                {
-                    // Orange to red: green fades from 128 to 0
-                    color.g = static_cast<uint8_t>(life * 2); // 128 -> 0
-                    color.b = 0;
-                }
-            }
-
-            drawRect(screen, proj.screenX, proj.screenY,
-                     getParticleWidth(), getParticleHeight(), color);
-        }
     }
 }
 
@@ -580,7 +430,7 @@ static void bufferParticlesFiltered(const Camera &camera, Fixed shipDepthZ, Dept
         // Calculate row for depth sorting
         int row = camTileZ + TILES_Z - 1 - particleTileZ;
 
-        // Get terrain height for shadow (same offset logic as renderParticles)
+        // Get terrain height for shadow (account for visual Z offset)
         constexpr int32_t SHIP_VISUAL_Z_OFFSET_RAW = 10 * 0x01000000;
         Fixed terrainLookupZ = Fixed::fromRaw(p.position.z.raw - SHIP_VISUAL_Z_OFFSET_RAW);
         Fixed terrainY = getLandscapeAltitude(p.position.x, terrainLookupZ);
@@ -1358,8 +1208,6 @@ bool checkRockPlayerCollision(const Vec3& playerPos, const Vec3& cameraPos)
         }
 
         // Collision detected!
-        particleEvents.rockHitPlayer++;
-        particleEvents.rockHitPlayerPos = p.position;
         return true;
     }
 

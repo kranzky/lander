@@ -150,7 +150,6 @@ struct ParticleEvents {
     int bulletHitGround;      // Bullet hit terrain (shoot_impact sound)
     int bulletHitWater;       // Bullet hit water (splash sound)
     int exhaustHitWater;      // Exhaust particle hit water (water sound)
-    int rockHitPlayer;        // Rock hit player (triggers crash)
     int rockExploded;         // Rock hit ground/water (boom sound)
 
     // Positions of most recent events (for spatial audio)
@@ -158,7 +157,6 @@ struct ParticleEvents {
     Vec3 bulletHitGroundPos;
     Vec3 bulletHitWaterPos;
     Vec3 exhaustHitWaterPos;
-    Vec3 rockHitPlayerPos;
     Vec3 rockExplodedPos;
 
     void reset() {
@@ -166,7 +164,6 @@ struct ParticleEvents {
         bulletHitGround = 0;
         bulletHitWater = 0;
         exhaustHitWater = 0;
-        rockHitPlayer = 0;
         rockExploded = 0;
     }
 };
@@ -196,10 +193,6 @@ ParticleEvents& getParticleEvents();
 // Forward declarations
 class ScreenBuffer;
 class Camera;
-
-// Render all particles (immediate mode - for debugging)
-// Requires camera for projection and terrain for shadow placement
-void renderParticles(const Camera& camera, ScreenBuffer& screen);
 
 // Buffer particles to the graphics buffer system for depth-sorted rendering
 // Particles are split into two passes for correct depth sorting with the ship:
@@ -355,7 +348,7 @@ void bufferRocks(const Camera& camera);
 // Check for rock-player collision
 // playerPos: player's world position
 // cameraPos: camera's world position (rocks are relative to camera)
-// Returns true if a rock hit the player (and sets rockHitPlayer event)
+// Returns true if a rock hit the player
 bool checkRockPlayerCollision(const Vec3& playerPos, const Vec3& cameraPos);
 
 // =============================================================================
