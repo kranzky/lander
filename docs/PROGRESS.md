@@ -68,7 +68,7 @@
 | - | Fullscreen toggle | 7d11eee |
 | - | Smooth edge clipping (key 4 toggle) | 17468a4 |
 | - | Save and load settings | dc1d239 |
-| - | Code audit: fix disappearing particles (row buffer cap, world-seam culling), high score reset, settings/sound robustness, original object layout, frame-rate-independent smoke; signed + notarised release scripts | (pending) |
+| - | Code audit: fix disappearing particles (row buffer cap, world-seam culling), high score reset, settings/sound robustness, original object layout, frame-rate-independent smoke; signed + notarised release scripts | b808ef0 |
 
 ## Summary
 
