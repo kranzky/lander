@@ -31,20 +31,27 @@ namespace MouseButton {
     constexpr uint8_t THRUST = 0x04;     // Left button - full thrust
 }
 
+// The RISC OS mouse pointer, which the original reads with OS_Mouse, in OS
+// units with y increasing upwards. Across, it stops at the sides of the mode 13
+// screen (0 to 1279). Up and down it keeps going: the original's y arithmetic
+// wraps every 1024 units, so moving the mouse down past full tilt carries the
+// ship over and back upright (and up past full tilt loops it backwards).
+namespace MousePointer {
+    constexpr int MAX_X = 1279;
+    constexpr int Y_PERIOD = 1024;
+
+    // ResetMousePosition puts the pointer here at the start of each life,
+    // (-1, +1) from the centre, so the ship swings round as it spawns
+    constexpr int START_X = 511;
+    constexpr int START_Y = 511;
+}
+
 // Input state captured each frame
 struct InputState {
-    // Mouse position relative to the centre, in the original's range of
-    // -512 to +511 (positive y is down)
-    static constexpr int MOUSE_MIN = -512;
-    static constexpr int MOUSE_MAX = 511;
-
-    // Where each life starts: the original resets the mouse to (511, 511),
-    // which is (-1, +1) from the centre, so the ship swings round to face
-    // about 135 degrees as it spawns
-    static constexpr int MOUSE_START_X = -1;
-    static constexpr int MOUSE_START_Y = 1;
-    int mouseRelX = 0;
-    int mouseRelY = 0;
+    // Mouse coordinates as the original derives them from the pointer: x from
+    // -512 to +511, y from -511 to +512 (positive y is down)
+    int mouseX = 0;
+    int mouseY = 0;
 
     // Mouse button state (bits as per MouseButton namespace)
     uint8_t buttons = 0;
@@ -73,8 +80,9 @@ public:
     // Initialize player at starting position (launchpad)
     void reset();
 
-    // Update input state from relative mouse coordinates (already in ±range format)
-    void updateInputRelative(int relX, int relY, uint32_t sdlButtonState);
+    // Update input state from the mouse pointer (see MousePointer) and SDL
+    // button state
+    void updateInput(int pointerX, int pointerY, uint32_t sdlButtonState);
 
     // Update ship orientation from current mouse input
     // Converts mouse position to polar coordinates, then smoothly interpolates

@@ -49,6 +49,19 @@ static double angleDifference(int32_t a, int32_t b) {
                      DEGREES_PER_UNIT);
 }
 
+// Point the emulated RISC OS pointer so the original's mouse coordinates are
+// (x, y), for x up to +511 (the pointer's dead zone lies beyond)
+static void setMouse(Player& player, int x, int y, uint32_t buttons = 0) {
+    player.updateInput(x + 512, 512 - y, buttons);
+}
+
+// Settle the ship's orientation on the current mouse position
+static void settle(Player& player) {
+    for (int step = 0; step < 60 * STEPS_PER_FRAME; step++) {
+        player.updateOrientation();
+    }
+}
+
 // Start a ship high above the landscape, well clear of the terrain
 static Player makeFloatingShip() {
     Player player;
@@ -72,7 +85,7 @@ TEST(steering_tracks_original_frame_by_frame) {
     double worstPitch = 0.0;
 
     for (const auto& target : targets) {
-        player.updateInputRelative(target[0], target[1], 0);
+        setMouse(player, target[0], target[1], 0);
 
         int32_t scaledX = static_cast<int32_t>(static_cast<uint32_t>(target[0]) << 22);
         int32_t scaledY = static_cast<int32_t>(static_cast<uint32_t>(target[1]) << 22);
@@ -98,7 +111,7 @@ TEST(steering_tracks_original_frame_by_frame) {
 
 TEST(steering_settles_on_target) {
     Player player = makeFloatingShip();
-    player.updateInputRelative(-300, 250, 0);
+    setMouse(player, -300, 250, 0);
 
     for (int step = 0; step < 120 * STEPS_PER_FRAME; step++) {
         player.updateOrientation();
@@ -113,16 +126,65 @@ TEST(steering_settles_on_target) {
 
 TEST(full_pitch_at_edge_of_mouse_range) {
     // Pushing the mouse to the edge (in either direction) gives full pitch
-    const int edges[][2] = {{511, 0}, {-512, 0}, {0, 511}, {0, -512}};
+    const int edges[][2] = {{511, 0}, {-512, 0}, {0, 511}, {0, -511}};
     for (const auto& edge : edges) {
         Player player = makeFloatingShip();
-        player.updateInputRelative(edge[0], edge[1], 0);
+        setMouse(player, edge[0], edge[1], 0);
         for (int step = 0; step < 60 * STEPS_PER_FRAME; step++) {
             player.updateOrientation();
         }
         double pitch = player.getShipPitch() / 2147483647.0;
         ASSERT(pitch > 0.99);
     }
+}
+
+TEST(moving_down_loops_the_ship_back_upright) {
+    // Keep moving the mouse down: the ship pitches forwards, turns upside
+    // down, and carries on round the loop until it's upright again, one full
+    // turn per 1024 units of pointer travel. It must never jump.
+    Player player = makeFloatingShip();
+    player.updateInput(512, 512, 0);
+    settle(player);
+    double startRoofY = player.getRotationMatrix().roof().y.toDouble();
+
+    double lowestRoofY = startRoofY;
+    double biggestJump = 0.0;
+    Vec3 previousRoof = player.getRotationMatrix().roof();
+
+    for (int travelled = 4; travelled <= 1024; travelled += 4) {
+        player.updateInput(512, 512 - travelled, 0);  // Pointer y goes below zero
+        for (int step = 0; step < STEPS_PER_FRAME; step++) {
+            player.updateOrientation();
+        }
+        Vec3 roof = player.getRotationMatrix().roof();
+        double jump = std::hypot(std::hypot((roof.x - previousRoof.x).toDouble(),
+                                            (roof.y - previousRoof.y).toDouble()),
+                                 (roof.z - previousRoof.z).toDouble());
+        biggestJump = std::max(biggestJump, jump);
+        lowestRoofY = std::min(lowestRoofY, roof.y.toDouble());
+        previousRoof = roof;
+    }
+    settle(player);
+    double endRoofY = player.getRotationMatrix().roof().y.toDouble();
+
+    printf("(roof y %.2f -> %.2f -> %.2f, biggest step %.3f) ",
+           startRoofY, lowestRoofY, endRoofY, biggestJump);
+    ASSERT(startRoofY > 0.99);                        // Upright
+    ASSERT(lowestRoofY < -0.99);                      // Upside down on the way round
+    ASSERT(std::fabs(endRoofY - startRoofY) < 0.01);  // Upright again
+    ASSERT(biggestJump < 0.2);                        // Smoothly, with no flips
+}
+
+TEST(right_of_screen_is_a_dead_zone) {
+    // The pointer can reach x = 1279, but the original caps it at 1023, so the
+    // last 256 units of travel to the right do nothing
+    Player player = makeFloatingShip();
+    player.updateInput(1023, 512, 0);
+    ASSERT(player.getInput().mouseX == 511);
+    player.updateInput(MousePointer::MAX_X, 512, 0);
+    ASSERT(player.getInput().mouseX == 511);
+    player.updateInput(0, 512, 0);
+    ASSERT(player.getInput().mouseX == -512);
 }
 
 // -----------------------------------------------------------------------------
@@ -151,7 +213,7 @@ TEST(thrust_and_gravity_match_original_trajectory) {
     // so it runs slightly ahead of our finer steps while speed builds up;
     // velocities match closely and positions to within a fraction of a tile.
     Player player = makeFloatingShip();
-    player.updateInputRelative(0, 0, SDL_BUTTON_LMASK);
+    setMouse(player, 0, 0, SDL_BUTTON_LMASK);
     for (int step = 0; step < 60 * STEPS_PER_FRAME; step++) {
         player.updateOrientation();  // Settle pitch at zero (level)
     }
@@ -193,7 +255,7 @@ TEST(terminal_velocity_matches_original) {
     // Under constant thrust, friction limits speed: the original settles where
     // velocity / 64 balances the thrust each frame
     Player player = makeFloatingShip();
-    player.updateInputRelative(0, 0, SDL_BUTTON_LMASK);
+    setMouse(player, 0, 0, SDL_BUTTON_LMASK);
     for (int step = 0; step < 60 * STEPS_PER_FRAME; step++) {
         player.updateOrientation();
     }
@@ -222,6 +284,8 @@ int main() {
     RUN_TEST(steering_tracks_original_frame_by_frame);
     RUN_TEST(steering_settles_on_target);
     RUN_TEST(full_pitch_at_edge_of_mouse_range);
+    RUN_TEST(moving_down_loops_the_ship_back_upright);
+    RUN_TEST(right_of_screen_is_a_dead_zone);
     RUN_TEST(friction_matches_original_per_second);
     RUN_TEST(thrust_and_gravity_match_original_trajectory);
     RUN_TEST(terminal_velocity_matches_original);

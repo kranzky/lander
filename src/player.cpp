@@ -52,9 +52,15 @@ void Player::reset() {
     input = InputState();
 }
 
-void Player::updateInputRelative(int relX, int relY, uint32_t sdlButtonState) {
-    input.mouseRelX = std::clamp(relX, InputState::MOUSE_MIN, InputState::MOUSE_MAX);
-    input.mouseRelY = std::clamp(relY, InputState::MOUSE_MIN, InputState::MOUSE_MAX);
+void Player::updateInput(int pointerX, int pointerY, uint32_t sdlButtonState) {
+    // As MoveAndDrawPlayer (Lander.arm lines 1768-1781): cap x at 1023 (so the
+    // right-hand 256 units of pointer travel do nothing) and centre it, then
+    // flip y so positive is down. y isn't capped: once shifted up by 22 bits
+    // it wraps every 1024 units, so past +512 it reads as -511 and the heading
+    // target flips while the pitch falls again, continuing the ship's rotation
+    // round the loop, just as in the original.
+    input.mouseX = std::min(pointerX, 1023) - 512;
+    input.mouseY = 512 - pointerY;
 
     // Convert SDL button state to original Lander format
     input.buttons = 0;
@@ -130,9 +136,10 @@ namespace {
 
 void Player::updateOrientation() {
     // Scale the mouse coordinates up as far as possible (-512 << 22 is
-    // 0x80000000), as the original does before the polar conversion
-    int32_t scaledX = static_cast<int32_t>(static_cast<uint32_t>(input.mouseRelX) << 22);
-    int32_t scaledY = static_cast<int32_t>(static_cast<uint32_t>(input.mouseRelY) << 22);
+    // 0x80000000, as is +512 << 22), as the original does before the polar
+    // conversion
+    int32_t scaledX = static_cast<int32_t>(static_cast<uint32_t>(input.mouseX) << 22);
+    int32_t scaledY = static_cast<int32_t>(static_cast<uint32_t>(input.mouseY) << 22);
 
     PolarCoordinates polar = getMouseInPolarCoordinates(scaledX, scaledY);
 

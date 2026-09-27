@@ -78,15 +78,15 @@ private:
     int fpsFrameCount = 0;
     int fpsDisplay = 0;
 
-    // The original reads an absolute mouse position; we build one from relative
-    // movement, in the original's range of -512 to +511 from the centre.
-    // MOUSE_SENSITIVITY maps host mouse movement onto that range.
+    // The original reads the RISC OS mouse pointer; we emulate it from relative
+    // movement, confined to the same bounding box (see MousePointer).
+    // MOUSE_SENSITIVITY is OS units per unit of host mouse movement.
     static constexpr int MOUSE_SENSITIVITY = 2;
-    int accumulatedMouseX = InputState::MOUSE_START_X;
-    int accumulatedMouseY = InputState::MOUSE_START_Y;
+    int pointerX = MousePointer::START_X;
+    int pointerY = MousePointer::START_Y;
     void resetMouse() {
-        accumulatedMouseX = InputState::MOUSE_START_X;
-        accumulatedMouseY = InputState::MOUSE_START_Y;
+        pointerX = MousePointer::START_X;
+        pointerY = MousePointer::START_Y;
     }
 
     // Landing state (start as LANDED on launchpad)
@@ -653,13 +653,13 @@ void Game::update(int mouseRelX, int mouseRelY, uint32_t mouseButtons) {
         player.setPosition(pos);
     }
 
-    // Accumulate the mouse position, which stays put until the player moves the
-    // mouse (like the original), capped to the original's range
-    accumulatedMouseX = std::clamp(accumulatedMouseX + mouseRelX * MOUSE_SENSITIVITY,
-                                   InputState::MOUSE_MIN, InputState::MOUSE_MAX);
-    accumulatedMouseY = std::clamp(accumulatedMouseY + mouseRelY * MOUSE_SENSITIVITY,
-                                   InputState::MOUSE_MIN, InputState::MOUSE_MAX);
-    player.updateInputRelative(accumulatedMouseX, accumulatedMouseY, mouseButtons);
+    // Move the emulated pointer, which stays put until the player moves the
+    // mouse. It stops at the sides of the screen but wraps vertically (see
+    // MousePointer); keeping y within one period is equivalent and can't
+    // overflow. SDL's y is down, RISC OS's up.
+    pointerX = std::clamp(pointerX + mouseRelX * MOUSE_SENSITIVITY, 0, MousePointer::MAX_X);
+    pointerY = (pointerY - mouseRelY * MOUSE_SENSITIVITY) & (MousePointer::Y_PERIOD - 1);
+    player.updateInput(pointerX, pointerY, mouseButtons);
 
     // Update ship orientation based on mouse position
     player.updateOrientation();
