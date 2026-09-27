@@ -185,12 +185,11 @@ TEST(arctan_table_mathematical_accuracy) {
     }
 }
 
-TEST(getArctan_clamping) {
-    // Test boundary clamping
-    ASSERT_EQ(getArctan(-10), arctanTable[0]);
+TEST(getArctan_bounds) {
+    // Indices are word indices (0-127); out-of-range indices assert rather
+    // than clamp, since clamping hid a byte-offset indexing bug
     ASSERT_EQ(getArctan(0), arctanTable[0]);
     ASSERT_EQ(getArctan(127), arctanTable[127]);
-    ASSERT_EQ(getArctan(200), arctanTable[127]);
 }
 
 // =============================================================================
@@ -235,12 +234,10 @@ TEST(sqrt_table_mathematical_accuracy) {
     }
 }
 
-TEST(getSqrt_clamping) {
-    // Test boundary clamping
-    ASSERT_EQ(getSqrt(-10), squareRootTable[0]);
+TEST(getSqrt_bounds) {
+    // Indices are word indices (0-1023); out-of-range indices assert
     ASSERT_EQ(getSqrt(0), squareRootTable[0]);
     ASSERT_EQ(getSqrt(1023), squareRootTable[1023]);
-    ASSERT_EQ(getSqrt(2000), squareRootTable[1023]);
 }
 
 // =============================================================================
@@ -294,14 +291,14 @@ int main() {
     RUN_TEST(arctan_table_key_values);
     RUN_TEST(arctan_table_monotonic);
     RUN_TEST(arctan_table_mathematical_accuracy);
-    RUN_TEST(getArctan_clamping);
+    RUN_TEST(getArctan_bounds);
 
     std::printf("\nSquare root table tests:\n");
     RUN_TEST(sqrt_table_size);
     RUN_TEST(sqrt_table_key_values);
     RUN_TEST(sqrt_table_monotonic);
     RUN_TEST(sqrt_table_mathematical_accuracy);
-    RUN_TEST(getSqrt_clamping);
+    RUN_TEST(getSqrt_bounds);
 
     std::printf("\nOriginal value verification:\n");
     RUN_TEST(original_sin_values);

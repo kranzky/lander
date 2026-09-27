@@ -78,10 +78,16 @@ private:
     int fpsFrameCount = 0;
     int fpsDisplay = 0;
 
-    // Accumulated mouse position (simulates absolute positioning from relative movement)
-    // Decays toward center each frame for spring-like return behavior
-    int accumulatedMouseX = 0;
-    int accumulatedMouseY = 0;
+    // The original reads an absolute mouse position; we build one from relative
+    // movement, in the original's range of -512 to +511 from the centre.
+    // MOUSE_SENSITIVITY maps host mouse movement onto that range.
+    static constexpr int MOUSE_SENSITIVITY = 2;
+    int accumulatedMouseX = InputState::MOUSE_START_X;
+    int accumulatedMouseY = InputState::MOUSE_START_Y;
+    void resetMouse() {
+        accumulatedMouseX = InputState::MOUSE_START_X;
+        accumulatedMouseY = InputState::MOUSE_START_Y;
+    }
 
     // Landing state (start as LANDED on launchpad)
     LandingState landingState = LandingState::LANDED;
@@ -400,9 +406,8 @@ void Game::respawnPlayer() {
     landingState = LandingState::LANDED;
     crashRecoveryTimer = 0;
 
-    // Reset mouse accumulation so ship starts level
-    accumulatedMouseX = 0;
-    accumulatedMouseY = 0;
+    // Reset the mouse to where the original starts each life
+    resetMouse();
 
     // Back to playing
     gameState = GameState::PLAYING;
@@ -415,8 +420,7 @@ void Game::resetGame() {
     player.reset();
     landingState = LandingState::LANDED;  // Start on launchpad
     crashRecoveryTimer = 0;
-    accumulatedMouseX = 0;
-    accumulatedMouseY = 0;
+    resetMouse();
     gameState = GameState::PLAYING;
     stateTimer = 0;
 
@@ -649,17 +653,12 @@ void Game::update(int mouseRelX, int mouseRelY, uint32_t mouseButtons) {
         player.setPosition(pos);
     }
 
-    // Accumulate mouse position with scaling for sensitivity
-    // No decay - ship maintains orientation until player moves mouse (like original)
-    accumulatedMouseX += mouseRelX * 2;
-    accumulatedMouseY += mouseRelY * 2;
-
-    // Clamp to the range the polar conversion accepts
-    accumulatedMouseX = std::clamp(accumulatedMouseX, -InputState::MOUSE_RANGE, InputState::MOUSE_RANGE);
-    accumulatedMouseY = std::clamp(accumulatedMouseY, -InputState::MOUSE_RANGE, InputState::MOUSE_RANGE);
-
-    // Pass accumulated position directly as relative coordinates
-    // The values represent offset from center in the range that polar coords expect
+    // Accumulate the mouse position, which stays put until the player moves the
+    // mouse (like the original), capped to the original's range
+    accumulatedMouseX = std::clamp(accumulatedMouseX + mouseRelX * MOUSE_SENSITIVITY,
+                                   InputState::MOUSE_MIN, InputState::MOUSE_MAX);
+    accumulatedMouseY = std::clamp(accumulatedMouseY + mouseRelY * MOUSE_SENSITIVITY,
+                                   InputState::MOUSE_MIN, InputState::MOUSE_MAX);
     player.updateInputRelative(accumulatedMouseX, accumulatedMouseY, mouseButtons);
 
     // Update ship orientation based on mouse position

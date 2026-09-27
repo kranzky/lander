@@ -107,6 +107,7 @@ set(TESTS
     test_particles
     test_object_map
     test_graphics_buffer
+    test_player
 )
 
 foreach(name ${TESTS})

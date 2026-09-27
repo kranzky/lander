@@ -3,6 +3,7 @@
 #include "object3d.h"
 #include <SDL.h>
 #include <algorithm>
+#include <cmath>
 
 // =============================================================================
 // Player Implementation
@@ -41,9 +42,9 @@ void Player::reset() {
     // Reset fuel
     fuelLevel = PlayerConstants::INITIAL_FUEL;
 
-    // Reset orientation: flat (pitch=0), direction matches centered mouse (0,0)
-    // When mouse is centered, polar conversion gives angle=0, so ship should start there
-    shipPitch = 0;
+    // As in the original: facing right, very slightly pitched up for take-off,
+    // then turned by the mouse from the first frame
+    shipPitch = 1;
     shipDirection = 0;
     rotationMatrix = calculateRotationMatrix(shipPitch, shipDirection);
 
@@ -52,8 +53,8 @@ void Player::reset() {
 }
 
 void Player::updateInputRelative(int relX, int relY, uint32_t sdlButtonState) {
-    input.mouseRelX = std::clamp(relX, -InputState::MOUSE_RANGE, InputState::MOUSE_RANGE);
-    input.mouseRelY = std::clamp(relY, -InputState::MOUSE_RANGE, InputState::MOUSE_RANGE);
+    input.mouseRelX = std::clamp(relX, InputState::MOUSE_MIN, InputState::MOUSE_MAX);
+    input.mouseRelY = std::clamp(relY, InputState::MOUSE_MIN, InputState::MOUSE_MAX);
 
     // Convert SDL button state to original Lander format
     input.buttons = 0;
@@ -79,75 +80,69 @@ void Player::burnFuel(int amount) {
 // Ship Orientation Update
 // =============================================================================
 //
-// This is a direct port of the ship orientation code from MoveAndDrawPlayer
-// (Lander.arm lines 1805-1867). The algorithm:
+// Port of the ship orientation code from MoveAndDrawPlayer (Lander.arm lines
+// 1768-1867):
 //
-// 1. Convert mouse (x, y) to polar coordinates (angle, distance)
-// 2. Smooth the transition from current angles to target angles:
-//    - delta = current - target
-//    - Cap delta to ±0x30000000 to prevent jerky movements
-//    - new = current - delta/2 (halving gives smooth interpolation)
-// 3. Calculate the rotation matrix from the smoothed angles
-//
-// The polar distance is scaled up (LSL #1) to range 0 to 0x7FFFFFFE
-// so that moving the mouse to the edge produces full pitch.
+// 1. Convert the mouse (x, y) to polar coordinates: the angle sets the ship's
+//    direction and the distance its pitch (full pitch at 512 from the centre)
+// 2. Move the direction and pitch towards those targets, damping the controls
+// 3. Calculate the rotation matrix from the new angles
 //
 // =============================================================================
 
+namespace {
+    // The original's orientation damping, once per 15fps frame: move half the
+    // gap to the target, with the gap capped at &30000000. That's a constant
+    // &18000000 per frame for big gaps, then halving once within the cap.
+    constexpr double GAP_CAP = 0x30000000;
+
+    // To apply that 1/8 of a frame at a time, measure a gap on a scale where
+    // each original frame adds exactly 1: halvings count up from the cap, and
+    // each capped &18000000 move beyond it counts as one more
+    double framesFromCap(double gap)
+    {
+        double linearFrames = std::max(std::ceil((gap - GAP_CAP) / (GAP_CAP / 2)), 0.0);
+        return std::log2(GAP_CAP / (gap - linearFrames * GAP_CAP / 2)) - linearFrames;
+    }
+
+    double gapAtFramesFromCap(double frames)
+    {
+        double linearFrames = std::max(std::ceil(-frames), 0.0);
+        return GAP_CAP * std::exp2(-(frames + linearFrames)) + linearFrames * GAP_CAP / 2;
+    }
+
+    // Move an angle 1/8 of an original frame towards its target, so 8 physics
+    // steps land exactly where one original frame would. The gap wraps, so
+    // directions turn the short way round.
+    int32_t approach(int32_t current, int32_t target)
+    {
+        int32_t gap = static_cast<int32_t>(static_cast<uint32_t>(current) - static_cast<uint32_t>(target));
+        if (gap == 0) {
+            return target;
+        }
+
+        double size = std::fabs(static_cast<double>(gap));
+        double remaining = gapAtFramesFromCap(framesFromCap(size) + 1.0 / 8);
+        int32_t newGap = static_cast<int32_t>(std::copysign(std::trunc(remaining), gap));
+        return static_cast<int32_t>(static_cast<uint32_t>(target) + static_cast<uint32_t>(newGap));
+    }
+}
+
 void Player::updateOrientation() {
-    // Convert mouse position to polar coordinates
-    // The polar conversion expects input shifted << 22, so scale our ±512 range
-    int32_t scaledX = input.mouseRelX << 22;
-    int32_t scaledY = input.mouseRelY << 22;
+    // Scale the mouse coordinates up as far as possible (-512 << 22 is
+    // 0x80000000), as the original does before the polar conversion
+    int32_t scaledX = static_cast<int32_t>(static_cast<uint32_t>(input.mouseRelX) << 22);
+    int32_t scaledY = static_cast<int32_t>(static_cast<uint32_t>(input.mouseRelY) << 22);
 
     PolarCoordinates polar = getMouseInPolarCoordinates(scaledX, scaledY);
 
-    // Extract target angle and distance
-    int32_t targetAngle = polar.angle;
-    int32_t targetDistance = polar.distance;
+    // Cap the distance at &3FFFFFFF (reached 512 from the centre), then double
+    // it, so pitch runs from 0 to &7FFFFFFE
+    int32_t targetPitch = std::min(polar.distance, 0x3FFFFFFF) * 2;
 
-    // Scale distance to range 0 to 0x7FFFFFFE as in original (lines 1800-1803)
-    // The original clamps distance to 0x40000000 then shifts left by 1
-    if (static_cast<uint32_t>(targetDistance) >= 0x40000000u) {
-        targetDistance = 0x40000000 - 1;
-    }
-    targetDistance <<= 1;
+    shipDirection = approach(shipDirection, polar.angle);
+    shipPitch = approach(shipPitch, targetPitch);
 
-    // Calculate delta from current direction to target angle (lines 1809-1824)
-    int32_t deltaDirection = shipDirection - targetAngle;
-
-    // Cap deltaDirection to ±0x30000000 to prevent jerky movement
-    if (deltaDirection >= 0) {
-        if (deltaDirection > 0x30000000) {
-            deltaDirection = 0x30000000;
-        }
-    } else {
-        if (deltaDirection < -0x30000000) {
-            deltaDirection = -0x30000000;
-        }
-    }
-
-    // Calculate delta from current pitch to target distance (lines 1828-1843)
-    int32_t deltaPitch = shipPitch - targetDistance;
-
-    // Cap deltaPitch to ±0x30000000
-    if (deltaPitch > 0) {
-        if (deltaPitch > 0x30000000) {
-            deltaPitch = 0x30000000;
-        }
-    } else {
-        if (deltaPitch < -0x30000000) {
-            deltaPitch = -0x30000000;
-        }
-    }
-
-    // Update angles by dividing delta (smooth interpolation) (lines 1855-1865)
-    // Original used >> 1 at 15fps. At 120fps (8x faster), use >> 4 for similar feel.
-    // This makes the ship take more frames to reach target orientation.
-    shipPitch = shipPitch - (deltaPitch >> 4);
-    shipDirection = shipDirection - (deltaDirection >> 4);
-
-    // Calculate the rotation matrix from the updated angles (line 1867)
     // Note: CalculateRotationMatrix takes (angleA=pitch, angleB=direction)
     rotationMatrix = calculateRotationMatrix(shipPitch, shipDirection);
 }
@@ -158,8 +153,8 @@ void Player::updateOrientation() {
 //
 // Port of the physics code from MoveAndDrawPlayer Part 2 (Lander.arm lines 1930-2048)
 //
-// Physics simulation:
-// 1. Apply friction to velocity (multiply by 63/64)
+// Physics simulation (per 120Hz step; see the constants in player.h):
+// 1. Apply friction to velocity
 // 2. Apply thrust from engines (based on button state)
 // 3. Apply velocity to position
 // 4. Apply hover thrust (with slight delay for inertia feel)
@@ -198,7 +193,7 @@ bool Player::updatePhysics() {
         hover = false;
     }
 
-    // Apply friction: velocity *= 63/64 (subtract velocity >> 6)
+    // Apply friction (63/64 per original frame)
     velocity.x = Fixed::fromRaw(velocity.x.raw - (velocity.x.raw >> PlayerConstants::FRICTION_SHIFT));
     velocity.y = Fixed::fromRaw(velocity.y.raw - (velocity.y.raw >> PlayerConstants::FRICTION_SHIFT));
     velocity.z = Fixed::fromRaw(velocity.z.raw - (velocity.z.raw >> PlayerConstants::FRICTION_SHIFT));

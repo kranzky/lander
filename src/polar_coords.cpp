@@ -8,167 +8,102 @@
 // Polar Coordinate Conversion
 // =============================================================================
 //
-// This is a direct port of GetMouseInPolarCoordinates from Lander.arm
-// (lines 6568-6882). The algorithm:
+// A direct port of GetMouseInPolarCoordinates from Lander.arm (lines
+// 6568-6882), reproducing its fixed-point arithmetic bit for bit, including
+// the carries its shift loops depend on.
 //
 // Part 1 - Calculate angle:
-// 1. Take absolute values of x and y
-// 2. Track signs in a flags variable for quadrant correction
-// 3. Divide smaller by larger using shift-and-subtract division
-// 4. Look up arctan in table
-// 5. Adjust angle based on quadrant
+// 1. Take absolute values of x and y, tracking the quadrant in flags
+// 2. Divide the smaller by the larger with 8-step shift-and-subtract division
+// 3. Look up the arctan of that ratio, then move it into the right quadrant
 //
 // Part 2 - Calculate distance:
-// 1. Square both x and y using shift-and-add multiplication
-// 2. Add the squares
-// 3. Look up square root in table
+// 1. Square both coordinates with 8-step shift-and-add multiplication
+// 2. Look up the square root of the sum
 //
 // =============================================================================
 
+namespace {
+    // 256 * numerator / denominator (numerator <= denominator) in the top byte,
+    // as the original's shift-and-subtract division (pole1/pole3). The
+    // remainder is 64-bit so a bit shifted out of the top still counts, as the
+    // original's carry flag does.
+    uint32_t divideToTopByte(uint32_t numerator, uint32_t denominator) {
+        uint64_t remainder = numerator;
+        uint32_t quotient = 0;
+        for (uint32_t bit = 0x80; bit != 0; bit >>= 1) {
+            remainder <<= 1;
+            if (remainder >= denominator) {
+                remainder -= denominator;
+                quotient |= bit;
+            }
+        }
+        return quotient << 24;
+    }
+
+    // value^2 / 2^32 as the original's shift-and-add multiplication
+    // (pole5/pole6), which uses only the top byte of value as the multiplier:
+    // the first add uses bit 31 (the carry from doubling value) with value / 2,
+    // and so on down to bit 24 with value / 256
+    uint32_t square(uint32_t value) {
+        uint32_t result = 0;
+        for (int k = 1; k <= 8; k++) {
+            if (value & (0x80000000u >> (k - 1))) {
+                result += value >> k;
+            }
+        }
+        return result;
+    }
+}
+
 PolarCoordinates getMouseInPolarCoordinates(int32_t x, int32_t y) {
-    PolarCoordinates result;
-
-    // Track quadrant information in flags
-    // Bit 0: set if we swapped x/y in division
-    // Bit 1: set based on sign of x
-    // Bit 2: set based on sign of y
-    int32_t flags = 0;
-
-    // Take absolute values and track signs
-    int32_t absX = x;
-    int32_t absY = y;
-
-    if (x < 0) {
-        flags ^= 0x03;  // Flip bits 0 and 1
-        absX = -x;
-    }
-
-    if (y < 0) {
-        flags ^= 0x07;  // Flip bits 0, 1, and 2
-        absY = -y;
-    }
-
-    // Store absolute values for distance calculation later
-    uint32_t savedAbsX = static_cast<uint32_t>(absX);
-    uint32_t savedAbsY = static_cast<uint32_t>(absY);
-
     // =========================================================================
     // Part 1: Calculate the angle using arctan
     // =========================================================================
 
-    // Divide smaller by larger to get ratio in [0, 1]
-    // Result is in range 0 to 2^24
-    uint32_t ratio;
+    // Take unsigned magnitudes (so 0x80000000 is 2^31) and track the quadrant:
+    // bits 0 and 1 flip for negative x, bits 0-2 for negative y
+    uint32_t flags = 0;
+    uint32_t absX = static_cast<uint32_t>(x);
+    uint32_t absY = static_cast<uint32_t>(y);
 
-    if (static_cast<uint32_t>(absX) < static_cast<uint32_t>(absY)) {
-        // |x| < |y|, so calculate x/y
-        flags ^= 0x01;  // Flip bit 0 to track swap
-
-        // Shift-and-subtract division: ratio = (absX * 256) / absY
-        // Using 8 iterations to get 8 bits of precision
-        uint32_t numerator = static_cast<uint32_t>(absX);
-        uint32_t denominator = static_cast<uint32_t>(absY);
-        ratio = 0;
-        uint32_t bit = 0x80;  // Start with bit 7
-
-        for (int i = 0; i < 8; i++) {
-            numerator <<= 1;
-            if (numerator >= denominator) {
-                numerator -= denominator;
-                ratio |= bit;
-            }
-            bit >>= 1;
-        }
-
-        // Scale up result: ratio = 2^24 * (absX / absY)
-        ratio <<= 24;
-    } else {
-        // |x| >= |y|, so calculate y/x
-        uint32_t numerator = static_cast<uint32_t>(absY);
-        uint32_t denominator = static_cast<uint32_t>(absX);
-
-        // Handle division by zero case
-        if (denominator == 0) {
-            result.angle = 0;
-            result.distance = 0;
-            return result;
-        }
-
-        ratio = 0;
-        uint32_t bit = 0x80;
-
-        for (int i = 0; i < 8; i++) {
-            numerator <<= 1;
-            if (numerator >= denominator) {
-                numerator -= denominator;
-                ratio |= bit;
-            }
-            bit >>= 1;
-        }
-
-        // Scale up result: ratio = 2^24 * (absY / absX)
-        ratio <<= 24;
+    if (x < 0) {
+        flags ^= 0x03;
+        absX = 0u - absX;
+    }
+    if (y < 0) {
+        flags ^= 0x07;
+        absY = 0u - absY;
     }
 
-    // Look up arctan in table
-    // Clear bits 23-24 for word alignment, then shift right by 23
-    // This gives us an index in range 0-127 (128 entries in table)
-    uint32_t index = (ratio & ~0x01800000u) >> 23;
-    int32_t angle = getArctan(static_cast<int>(index));
-
-    // Adjust angle based on quadrant
-    // The original uses clever bit manipulation based on flags
-    if ((flags & 0x01) == 0) {
-        // Bit 0 is clear: R1 = R1 + R3 << 29
-        angle = angle + (flags << 29);
+    // Divide the smaller magnitude by the larger, flipping bit 0 if |x| < |y|
+    uint32_t ratio;
+    if (absX < absY) {
+        flags ^= 0x01;
+        ratio = divideToTopByte(absX, absY);
     } else {
-        // Bit 0 is set: R1 = (R3 + 1) << 29 - R1
+        ratio = divideToTopByte(absY, absX);
+    }
+
+    // The table has 128 words indexed by the top 7 bits of the ratio (the
+    // original clears bits 23-24 and uses ratio >> 23 as a byte offset)
+    uint32_t angle = static_cast<uint32_t>(getArctan(static_cast<int>(ratio >> 25)));
+
+    // Move the angle into the right octant (each is 2^29, or 45 degrees)
+    if ((flags & 0x01) == 0) {
+        angle += flags << 29;
+    } else {
         angle = ((flags + 1) << 29) - angle;
     }
-
-    result.angle = angle;
 
     // =========================================================================
     // Part 2: Calculate the distance using Pythagoras
     // =========================================================================
 
-    // Calculate x² using shift-and-add multiplication
-    // The original multiplies by 2*absX and masks to top byte
-    uint32_t xSquared = 0;
-    uint32_t multiplicand = savedAbsX;
-    uint32_t multiplier = (savedAbsX << 1) & 0xFE000000u;
-    multiplier |= 0x01000000u;  // Ensure at least bit 24 is set
+    // The table has 1024 words indexed by the top 10 bits of the sum (the
+    // original clears bits 20-21 and uses sum >> 20 as a byte offset)
+    uint32_t sumSquares = square(absX) + square(absY);
+    int32_t distance = getSqrt(static_cast<int>(sumSquares >> 22));
 
-    while (multiplier != 0) {
-        multiplicand >>= 1;
-        if (multiplier & 0x80000000u) {
-            xSquared += multiplicand;
-        }
-        multiplier <<= 1;
-    }
-
-    // Calculate y² using shift-and-add multiplication
-    uint32_t ySquared = 0;
-    multiplicand = savedAbsY;
-    multiplier = (savedAbsY << 1) & 0xFE000000u;
-    multiplier |= 0x01000000u;
-
-    while (multiplier != 0) {
-        multiplicand >>= 1;
-        if (multiplier & 0x80000000u) {
-            ySquared += multiplicand;
-        }
-        multiplier <<= 1;
-    }
-
-    // Sum of squares
-    uint32_t sumSquares = xSquared + ySquared;
-
-    // Look up square root
-    // Clear bits 20-21 for word alignment, then shift right by 20
-    // This gives us an index in range 0-1023 (1024 entries in table)
-    index = (sumSquares & ~0x00300000u) >> 20;
-    result.distance = getSqrt(static_cast<int>(index));
-
-    return result;
+    return {static_cast<int32_t>(angle), distance};
 }
