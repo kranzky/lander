@@ -48,15 +48,10 @@ void Camera::setPosition(Fixed x, Fixed y, Fixed z) {
 }
 
 void Camera::updateTilePositions() {
-    // Snap to tile boundary by masking off lower 24 bits
-    // This keeps only the integer part (upper 8 bits of 8.24 format)
-    // From original Lander.arm lines 786-816
-
-    constexpr int32_t TILE_MASK = 0xFF000000;
-
-    xTile = Fixed::fromRaw(position.x.raw & TILE_MASK);
-    yTile = Fixed::fromRaw(position.y.raw & TILE_MASK);
-    zTile = Fixed::fromRaw(position.z.raw & TILE_MASK);
+    // Snap to tile boundaries (from original Lander.arm lines 786-816)
+    xTile = position.x.floor();
+    yTile = position.y.floor();
+    zTile = position.z.floor();
 }
 
 Vec3 Camera::worldToCamera(const Vec3& worldPos) const {

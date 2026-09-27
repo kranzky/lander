@@ -1,9 +1,18 @@
 #include "screen.h"
 #include <algorithm>
 
-// Include stb_image_write implementation in this compilation unit
+// Include stb_image_write implementation in this compilation unit (third-party
+// code, so its warnings are silenced)
 #define STB_IMAGE_WRITE_IMPLEMENTATION
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
 #include "stb_image_write.h"
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 
 // Define the runtime scale variable
 namespace DisplayConfig {

@@ -67,21 +67,21 @@ void test_center_projection() {
     PASS();
 }
 
+// Expected physical screen offset from the centre for a point at (a, z) tiles
+static int expectedOffset(double a, double z) {
+    int logical = static_cast<int>(a * ProjectionConstants::FOCAL_LENGTH / z);
+    return logical * ProjectionConstants::SCALE();
+}
+
 void test_right_offset() {
     TEST("Point to the right projects right of center");
 
-    // Point at x=1, z=1 should project to center + 1 logical pixel = center + 4 physical
-    Fixed x = Fixed::fromInt(1);
-    Fixed y = Fixed::fromInt(0);
-    Fixed z = Fixed::fromInt(1);
-
-    ProjectedVertex result = projectVertex(x, y, z);
+    // x=1, z=16 tiles: 256/16 = 16 logical pixels right of center
+    ProjectedVertex result = projectVertex(Fixed::fromInt(1), Fixed::fromInt(0), Fixed::fromInt(16));
 
     ASSERT(result.visible, "Should be visible");
-    // x/z = 1/1 = 1, so offset is 1 * 4 = 4 physical pixels
-    int expectedX = ProjectionConstants::CENTER_X() + 4;
-    ASSERT(result.screenX == expectedX,
-           "X should be center + 4 physical pixels");
+    ASSERT(result.screenX == ProjectionConstants::CENTER_X() + expectedOffset(1, 16),
+           "X should be 16 logical pixels right of center");
 
     PASS();
 }
@@ -89,17 +89,11 @@ void test_right_offset() {
 void test_left_offset() {
     TEST("Point to the left projects left of center");
 
-    // Point at x=-1, z=1 should project to center - 4 physical pixels
-    Fixed x = Fixed::fromInt(-1);
-    Fixed y = Fixed::fromInt(0);
-    Fixed z = Fixed::fromInt(1);
-
-    ProjectedVertex result = projectVertex(x, y, z);
+    ProjectedVertex result = projectVertex(Fixed::fromInt(-1), Fixed::fromInt(0), Fixed::fromInt(16));
 
     ASSERT(result.visible, "Should be visible");
-    int expectedX = ProjectionConstants::CENTER_X() - 4;
-    ASSERT(result.screenX == expectedX,
-           "X should be center - 4 physical pixels");
+    ASSERT(result.screenX == ProjectionConstants::CENTER_X() - expectedOffset(1, 16),
+           "X should be 16 logical pixels left of center");
 
     PASS();
 }
@@ -107,17 +101,12 @@ void test_left_offset() {
 void test_down_offset() {
     TEST("Point below projects below center");
 
-    // Point at y=1, z=1 (positive Y = down in original coords)
-    Fixed x = Fixed::fromInt(0);
-    Fixed y = Fixed::fromInt(1);
-    Fixed z = Fixed::fromInt(1);
-
-    ProjectedVertex result = projectVertex(x, y, z);
+    // Positive Y = down in original coords
+    ProjectedVertex result = projectVertex(Fixed::fromInt(0), Fixed::fromInt(1), Fixed::fromInt(16));
 
     ASSERT(result.visible, "Should be visible");
-    int expectedY = ProjectionConstants::CENTER_Y() + 4;
-    ASSERT(result.screenY == expectedY,
-           "Y should be center + 4 physical pixels");
+    ASSERT(result.screenY == ProjectionConstants::CENTER_Y() + expectedOffset(1, 16),
+           "Y should be 16 logical pixels below center");
 
     PASS();
 }
@@ -125,23 +114,20 @@ void test_down_offset() {
 void test_perspective_scaling() {
     TEST("Points further away appear smaller (perspective)");
 
-    // Point at x=2, z=1 vs x=2, z=2
-    // At z=1: offset = 2/1 = 2 -> 8 physical pixels
-    // At z=2: offset = 2/2 = 1 -> 4 physical pixels
     Fixed x = Fixed::fromInt(2);
     Fixed y = Fixed::fromInt(0);
 
-    ProjectedVertex near = projectVertex(x, y, Fixed::fromInt(1));
-    ProjectedVertex far = projectVertex(x, y, Fixed::fromInt(2));
+    ProjectedVertex near = projectVertex(x, y, Fixed::fromInt(16));
+    ProjectedVertex far = projectVertex(x, y, Fixed::fromInt(32));
 
     ASSERT(near.visible && far.visible, "Both should be visible");
 
     int nearOffset = near.screenX - ProjectionConstants::CENTER_X();
     int farOffset = far.screenX - ProjectionConstants::CENTER_X();
 
-    ASSERT(nearOffset == 8, "Near point should have offset 8");
-    ASSERT(farOffset == 4, "Far point should have offset 4");
-    ASSERT(nearOffset > farOffset, "Near point should have larger offset");
+    ASSERT(nearOffset == expectedOffset(2, 16), "Near point offset");
+    ASSERT(farOffset == expectedOffset(2, 32), "Far point offset");
+    ASSERT(nearOffset == 2 * farOffset, "Twice as far should be half the offset");
 
     PASS();
 }
@@ -210,67 +196,28 @@ void test_on_screen_center() {
 }
 
 void test_max_left_offset() {
-    TEST("Maximum left offset within 8.24 range");
+    TEST("Points beyond the left edge are off screen");
 
-    // In 8.24 format, max integer part is ±127
-    // Use x=-50 at z=0.5 gives x/z = -100
-    // screen_x = 640 + (-100 * 4) = 640 - 400 = 240 (still on screen!)
-    // Need larger ratio: x=-60 at z=0.5 gives x/z = -120
-    // screen_x = 640 + (-120 * 4) = 640 - 480 = 160 (still on screen)
-    // Try: x=-80 at z=0.5 gives x/z = -160 (max in 8.24 before overflow issues)
-    // screen_x = 640 + (-160 * 4) = 640 - 640 = 0 (just on screen)
-    // For truly off-screen: x=-85 at z=0.5 gives x/z = -170 -> but this overflows!
-    //
-    // Real solution: Use realistic game coordinates where objects off-screen
-    // are legitimately beyond the ~160 pixel range from center
-    // At z=1.0, x=-170 gives x/z = -170 -> screen = 640 - 680 = -40 (off screen)
-    // But -170 overflows 8-bit...
-    //
-    // Actually we need x = -170 which DOES fit (range is -128 to +127 for INTEGER)
-    // Wait, -170 << 24 = ? Let's check...
-    // -128 << 24 = -2147483648 = INT32_MIN, so -170 would overflow!
-    //
-    // The test should use values within the valid 8.24 range.
-    // Maximum magnitude for integer part: 127
-    // So: x=-127 at z=1 gives x/z = -127 -> screen = 640 - 508 = 132 (on screen)
-    //
-    // For off-screen left: screen_x < 0 means offset < -160
-    // But max offset we can represent is ~127, so we CAN'T create truly off-screen
-    // left with valid 8.24 coordinates!
-    //
-    // Solution: This is actually correct behavior - in the real game, the camera
-    // is positioned such that visible coordinates never exceed the 8.24 range.
-    // Let's test with the maximum valid offset instead.
-    Fixed x = Fixed::fromInt(-127);  // Maximum negative in 8.24
-    Fixed y = Fixed::fromInt(0);
-    Fixed z = Fixed::fromInt(1);
+    // x=-8, z=8: 256 logical pixels left of center, beyond the 160 available
+    ProjectedVertex result = projectVertex(Fixed::fromInt(-8), Fixed::fromInt(0), Fixed::fromInt(8));
 
-    ProjectedVertex result = projectVertex(x, y, z);
-
-    // x/z = -127 -> screen_x = 640 - 508 = 132 (still on screen, but far left)
     ASSERT(result.visible, "Should be visible");
-    // With max valid coordinates, we're still on screen - this is expected!
-    // The game's coordinate system is designed so valid objects are on screen.
-    ASSERT(result.onScreen, "Max valid offset is still on screen");
-    ASSERT(result.screenX == 640 - 127*4, "Should be at expected position");
+    ASSERT(!result.onScreen, "Should be off screen");
+    ASSERT(result.screenX == ProjectionConstants::CENTER_X() - expectedOffset(8, 8),
+           "Should be at expected position");
 
     PASS();
 }
 
 void test_max_right_offset() {
-    TEST("Maximum right offset within 8.24 range");
+    TEST("Points beyond the right edge are off screen");
 
-    // Same analysis as above - max positive offset is +127
-    Fixed x = Fixed::fromInt(127);  // Maximum positive in 8.24
-    Fixed y = Fixed::fromInt(0);
-    Fixed z = Fixed::fromInt(1);
+    ProjectedVertex result = projectVertex(Fixed::fromInt(8), Fixed::fromInt(0), Fixed::fromInt(8));
 
-    ProjectedVertex result = projectVertex(x, y, z);
-
-    // x/z = 127 -> screen_x = 640 + 508 = 1148 (still on screen)
     ASSERT(result.visible, "Should be visible");
-    ASSERT(result.onScreen, "Max valid offset is still on screen");
-    ASSERT(result.screenX == 640 + 127*4, "Should be at expected position");
+    ASSERT(!result.onScreen, "Should be off screen");
+    ASSERT(result.screenX == ProjectionConstants::CENTER_X() + expectedOffset(8, 8),
+           "Should be at expected position");
 
     PASS();
 }
@@ -282,19 +229,13 @@ void test_max_right_offset() {
 void test_fractional_coordinates() {
     TEST("Fractional coordinates work correctly");
 
-    // Point at x=0.5, z=1.0 should give offset of 0.5 * 4 = 2
+    // x=0.5, z=16: 8 logical pixels, so sub-tile offsets aren't lost
     Fixed x = Fixed::fromRaw(0x00800000);  // 0.5 in 8.24
-    Fixed y = Fixed::fromInt(0);
-    Fixed z = Fixed::fromInt(1);
-
-    ProjectedVertex result = projectVertex(x, y, z);
+    ProjectedVertex result = projectVertex(x, Fixed::fromInt(0), Fixed::fromInt(16));
 
     ASSERT(result.visible, "Should be visible");
-    // 0.5 / 1.0 = 0.5 -> toInt() = 0, so offset is 0
-    // But we want sub-pixel accuracy... let me reconsider
-    // Actually, the integer part of 0.5 is 0, so offset = 0 * 4 = 0
-    ASSERT(result.screenX == ProjectionConstants::CENTER_X(),
-           "Small fractional offset rounds to 0");
+    ASSERT(result.screenX == ProjectionConstants::CENTER_X() + expectedOffset(0.5, 16),
+           "Half-tile offset should give 8 logical pixels");
 
     PASS();
 }
@@ -302,18 +243,13 @@ void test_fractional_coordinates() {
 void test_tile_sized_offset() {
     TEST("TILE_SIZE unit gives correct projection");
 
-    // At z = 1 tile (0x01000000), x = 1 tile should give offset of 1
-    Fixed x = GameConstants::TILE_SIZE;
-    Fixed y = Fixed::fromInt(0);
-    Fixed z = GameConstants::TILE_SIZE;
-
-    ProjectedVertex result = projectVertex(x, y, z);
+    // x = 1/16 tile at z = 1 tile: 16 logical pixels
+    Fixed x = Fixed::fromRaw(GameConstants::TILE_SIZE.raw / 16);
+    ProjectedVertex result = projectVertex(x, Fixed::fromInt(0), GameConstants::TILE_SIZE);
 
     ASSERT(result.visible, "Should be visible");
-    // 1 tile / 1 tile = 1.0 -> offset = 1 * 4 = 4 physical pixels
-    int expectedX = ProjectionConstants::CENTER_X() + 4;
-    ASSERT(result.screenX == expectedX,
-           "Tile-sized offset should give 4 physical pixels");
+    ASSERT(result.screenX == ProjectionConstants::CENTER_X() + expectedOffset(1.0 / 16, 1),
+           "1/16 tile at 1 tile should give 16 logical pixels");
 
     PASS();
 }
@@ -321,21 +257,18 @@ void test_tile_sized_offset() {
 void test_game_coordinate_range() {
     TEST("Game coordinate ranges project correctly");
 
-    // Test with typical game coordinates:
-    // Player at center of landscape looking at a tile 5 tiles ahead
+    // A corner 2.5 tiles right and 1 tile down, 5 tiles ahead
     Fixed x = Fixed::fromRaw(0x02800000);  // 2.5 tiles
     Fixed y = Fixed::fromRaw(0x01000000);  // 1 tile (altitude)
     Fixed z = Fixed::fromRaw(0x05000000);  // 5 tiles
 
     ProjectedVertex result = projectVertex(x, y, z);
 
-    ASSERT(result.visible, "Should be visible");
-    // x/z = 2.5/5 = 0.5 -> offset = 0 (integer part)
-    // y/z = 1/5 = 0.2 -> offset = 0 (integer part)
-    ASSERT(result.screenX == ProjectionConstants::CENTER_X(),
-           "X at small angle should be at center");
-    ASSERT(result.screenY == ProjectionConstants::CENTER_Y(),
-           "Y at small angle should be at center");
+    ASSERT(result.visible && result.onScreen, "Should be visible and on screen");
+    ASSERT(result.screenX == ProjectionConstants::CENTER_X() + expectedOffset(2.5, 5),
+           "X should be 128 logical pixels right of center");
+    ASSERT(result.screenY == ProjectionConstants::CENTER_Y() + expectedOffset(1, 5),
+           "Y should be 51 logical pixels below center");
 
     PASS();
 }

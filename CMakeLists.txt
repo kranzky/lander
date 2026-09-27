@@ -1,16 +1,33 @@
 cmake_minimum_required(VERSION 3.16)
-project(lander VERSION 1.0 LANGUAGES CXX)
+project(lander VERSION 1.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Find SDL2
+# Default to an optimized build; the game is unplayably slow without one
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
+if(MSVC)
+    add_compile_options(/W4)
+else()
+    add_compile_options(-Wall -Wextra)
+    # World coordinates are 8.24 fixed point that wrap every 256 tiles, relying
+    # on 32-bit two's complement overflow exactly as the original ARM code did.
+    # Make that overflow well-defined rather than undefined behaviour.
+    add_compile_options(-fwrapv)
+endif()
+
 find_package(SDL2 REQUIRED)
 
-# Source files
-set(SOURCES
-    src/main.cpp
+# =============================================================================
+# Game
+# =============================================================================
+
+# Everything except main(), shared by the game and the tests
+add_library(lander_core STATIC
     src/screen.cpp
     src/palette.cpp
     src/projection.cpp
@@ -31,23 +48,22 @@ set(SOURCES
     src/clipping.cpp
     src/settings.cpp
 )
+target_include_directories(lander_core PUBLIC src ${SDL2_INCLUDE_DIRS})
+target_link_libraries(lander_core PUBLIC ${SDL2_LIBRARIES})
 
-# Create executable
-add_executable(lander ${SOURCES})
+add_executable(lander src/main.cpp)
+target_link_libraries(lander PRIVATE lander_core)
 
-# Include directories
-target_include_directories(lander PRIVATE
-    ${SDL2_INCLUDE_DIRS}
-    src
-)
-
-# Link libraries
-target_link_libraries(lander PRIVATE ${SDL2_LIBRARIES})
-
-# Platform-specific settings
 if(APPLE)
-    # macOS: SDL2 from Homebrew or Framework
     target_link_libraries(lander PRIVATE "-framework Cocoa")
+endif()
+
+if(WIN32)
+    # Version information shown in Explorer and by code signing tools
+    enable_language(RC)
+    configure_file(${CMAKE_SOURCE_DIR}/windows/lander.rc.in
+                   ${CMAKE_BINARY_DIR}/generated/lander.rc @ONLY)
+    target_sources(lander PRIVATE ${CMAKE_BINARY_DIR}/generated/lander.rc)
 endif()
 
 if(MSVC)
@@ -75,146 +91,28 @@ add_custom_command(TARGET lander POST_BUILD
 # Tests
 # =============================================================================
 
-# Test for fixed-point math
-add_executable(test_fixed test/test_fixed.cpp src/scale.cpp)
-target_include_directories(test_fixed PRIVATE src)
-
-# Test for lookup tables
-add_executable(test_lookup_tables
-    test/test_lookup_tables.cpp
-    src/lookup_tables.cpp
-)
-target_include_directories(test_lookup_tables PRIVATE src)
-
-# Test for 3D math (vectors and matrices)
-add_executable(test_math3d
-    test/test_math3d.cpp
-    src/math3d.cpp
-    src/lookup_tables.cpp
-)
-target_include_directories(test_math3d PRIVATE src)
-
-# Test for screen buffer
-add_executable(test_screen
-    test/test_screen.cpp
-    src/screen.cpp
-)
-target_include_directories(test_screen PRIVATE src)
-
-# Test for color palette
-add_executable(test_palette
-    test/test_palette.cpp
-    src/palette.cpp
-    src/scale.cpp
-)
-target_include_directories(test_palette PRIVATE src)
-
-# Test for 3D projection
-add_executable(test_projection
-    test/test_projection.cpp
-    src/projection.cpp
-    src/math3d.cpp
-    src/lookup_tables.cpp
-    src/screen.cpp
-    src/camera.cpp
-    src/scale.cpp
-)
-target_include_directories(test_projection PRIVATE src)
-
-# Test for landscape altitude generation
-add_executable(test_landscape
-    test/test_landscape.cpp
-    src/landscape.cpp
-    src/lookup_tables.cpp
-    src/scale.cpp
-)
-target_include_directories(test_landscape PRIVATE src)
-
-# Test for polar coordinate conversion
-add_executable(test_polar_coords
-    test/test_polar_coords.cpp
-    src/polar_coords.cpp
-    src/lookup_tables.cpp
-)
-target_include_directories(test_polar_coords PRIVATE src)
-
-# Test for 3D object data
-add_executable(test_object3d
-    test/test_object3d.cpp
-    src/object3d.cpp
-    src/object_map.cpp
-    src/landscape.cpp
-    src/lookup_tables.cpp
-    src/scale.cpp
-)
-target_include_directories(test_object3d PRIVATE src)
-
-# Test for object rendering
-add_executable(test_object_renderer
-    test/test_object_renderer.cpp
-    src/object_renderer.cpp
-    src/object3d.cpp
-    src/math3d.cpp
-    src/lookup_tables.cpp
-    src/screen.cpp
-    src/projection.cpp
-    src/camera.cpp
-    src/landscape.cpp
-    src/graphics_buffer.cpp
-    src/scale.cpp
-)
-target_include_directories(test_object_renderer PRIVATE src)
-
-# Test for particle system
-add_executable(test_particles
-    test/test_particles.cpp
-    src/particles.cpp
-    src/landscape.cpp
-    src/lookup_tables.cpp
-    src/screen.cpp
-    src/camera.cpp
-    src/projection.cpp
-    src/palette.cpp
-    src/math3d.cpp
-    src/graphics_buffer.cpp
-    src/object_map.cpp
-    src/scale.cpp
-    src/object3d.cpp
-    src/object_renderer.cpp
-)
-target_include_directories(test_particles PRIVATE src)
-
-# Enable testing
 enable_testing()
-add_test(NAME test_fixed COMMAND test_fixed)
-add_test(NAME test_lookup_tables COMMAND test_lookup_tables)
-add_test(NAME test_math3d COMMAND test_math3d)
-add_test(NAME test_screen COMMAND test_screen)
-add_test(NAME test_palette COMMAND test_palette)
-add_test(NAME test_projection COMMAND test_projection)
-add_test(NAME test_landscape COMMAND test_landscape)
-add_test(NAME test_polar_coords COMMAND test_polar_coords)
-add_test(NAME test_object3d COMMAND test_object3d)
-add_test(NAME test_object_renderer COMMAND test_object_renderer)
-add_test(NAME test_particles COMMAND test_particles)
 
-# Test for object map
-add_executable(test_object_map
-    test/test_object_map.cpp
-    src/object_map.cpp
-    src/landscape.cpp
-    src/lookup_tables.cpp
-    src/scale.cpp
+set(TESTS
+    test_fixed
+    test_lookup_tables
+    test_math3d
+    test_screen
+    test_palette
+    test_projection
+    test_landscape
+    test_polar_coords
+    test_object3d
+    test_object_renderer
+    test_particles
+    test_object_map
+    test_graphics_buffer
 )
-target_include_directories(test_object_map PRIVATE src)
-add_test(NAME test_object_map COMMAND test_object_map)
 
-# Test for graphics buffer
-add_executable(test_graphics_buffer
-    test/test_graphics_buffer.cpp
-    src/graphics_buffer.cpp
-    src/screen.cpp
-    src/scale.cpp
-)
-target_include_directories(test_graphics_buffer PRIVATE src)
-add_test(NAME test_graphics_buffer COMMAND test_graphics_buffer)
+foreach(name ${TESTS})
+    add_executable(${name} test/${name}.cpp)
+    target_link_libraries(${name} PRIVATE lander_core)
+    # Tests use assert(), so keep it enabled in optimized builds
+    target_compile_options(${name} PRIVATE -UNDEBUG)
+    add_test(NAME ${name} COMMAND ${name})
+endforeach()

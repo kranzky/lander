@@ -79,59 +79,9 @@ bool ObjectMap::isDestroyedType(uint8_t objectType) {
     return objectType >= 12 && objectType != ObjectType::NONE;
 }
 
-uint8_t ObjectMap::getOriginalType(uint8_t objectType) {
-    // Reverse mapping from destroyed type back to original
-    // Some destroyed types are shared by multiple originals,
-    // so we pick a representative original type
-    switch (objectType) {
-        case ObjectType::SMOKING_REMAINS_R:   // 13 - from tall leafy trees
-            return ObjectType::TALL_LEAFY_TREE;
-        case ObjectType::SMOKING_REMAINS_L:   // 14 - from small leafy trees
-            return ObjectType::SMALL_LEAFY_TREE;
-        case ObjectType::SMOKING_REMAINS_L2:  // 15
-        case ObjectType::SMOKING_REMAINS_L3:  // 16
-        case ObjectType::SMOKING_REMAINS_L4:  // 22
-        case ObjectType::SMOKING_REMAINS_L5:  // 23
-            return ObjectType::SMALL_LEAFY_TREE;
-        case ObjectType::SMOKING_GAZEBO:      // 17
-            return ObjectType::GAZEBO;
-        case ObjectType::SMOKING_REMAINS_R2:  // 18 - from fir tree
-            return ObjectType::FIR_TREE;
-        case ObjectType::SMOKING_REMAINS_R3:  // 19
-            return ObjectType::TALL_LEAFY_TREE;
-        case ObjectType::SMOKING_BUILDING:    // 20
-            return ObjectType::BUILDING;
-        case ObjectType::SMOKING_REMAINS_R4:  // 21 - from rockets
-            return ObjectType::ROCKET;
-        case ObjectType::SMOKING_ROCKET:      // 12
-            return ObjectType::ROCKET;
-        default:
-            // Not a destroyed type, return as-is
-            return objectType;
-    }
-}
-
-void ObjectMap::restoreDestroyedObjects() {
-    // Iterate through the entire map and restore any destroyed objects
-    for (int z = 0; z < ObjectMapConstants::MAP_SIZE; z++) {
-        for (int x = 0; x < ObjectMapConstants::MAP_SIZE; x++) {
-            uint8_t objectType = map[z][x];
-            if (isDestroyedType(objectType)) {
-                map[z][x] = getOriginalType(objectType);
-            }
-        }
-    }
-}
-
 // =============================================================================
 // Random Number Generator Implementation
 // =============================================================================
-
-RandomNumberGenerator::RandomNumberGenerator() {
-    // Default seeds - can be changed with seed()
-    seed1 = 0x12345678;
-    seed2 = 0x87654321;
-}
 
 void RandomNumberGenerator::seed(uint32_t s1, uint32_t s2) {
     seed1 = s1;
@@ -185,12 +135,6 @@ void RandomNumberGenerator::getRandomNumbers(uint32_t& r0, uint32_t& r1) {
     r1 = s2;
 }
 
-uint32_t RandomNumberGenerator::getNext() {
-    uint32_t r0, r1;
-    getRandomNumbers(r0, r1);
-    return r0;
-}
-
 // =============================================================================
 // Object Placement Implementation
 // =============================================================================
@@ -202,7 +146,7 @@ void placeObjectsOnMap() {
     // Clear the map first (set all to 0xFF = no object)
     objectMap.clear();
 
-    // Place 2048 random objects
+    // Place random objects (see OBJECT_COUNT)
     for (int i = 0; i < OBJECT_COUNT; i++) {
         uint32_t r0, r1;
         gameRng.getRandomNumbers(r0, r1);

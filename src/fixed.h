@@ -137,6 +137,11 @@ public:
         return *this;
     }
 
+    // Round down to a whole number (the tile corner, for world coordinates)
+    constexpr Fixed floor() const {
+        return Fixed(raw & ~(ONE - 1));
+    }
+
     // Absolute value
     constexpr Fixed abs() const {
         return Fixed(raw >= 0 ? raw : -raw);
@@ -186,72 +191,18 @@ namespace GameConstants {
     constexpr Fixed UNDERCARRIAGE_Y = Fixed::fromRaw(0x00640000);     // 0.390625
     constexpr Fixed SMOKE_RISING_SPEED = Fixed::fromRaw(0x00080000);  // 0.03125
 
-    // Particles
-    constexpr int MAX_PARTICLES = 484;
-
     // Calculated constants (scale-independent)
     constexpr Fixed LAUNCHPAD_Y = Fixed::fromRaw(
         LAUNCHPAD_ALTITUDE.raw - UNDERCARRIAGE_Y.raw);
     constexpr Fixed LAUNCHPAD_SIZE = Fixed::fromRaw(TILE_SIZE.raw * 8);
     constexpr Fixed SPLASH_HEIGHT = Fixed::fromRaw(TILE_SIZE.raw / 16);
-    constexpr Fixed CRASH_CLOUD_Y = Fixed::fromRaw(TILE_SIZE.raw * 5 / 16);
     constexpr Fixed SMOKE_HEIGHT = Fixed::fromRaw(TILE_SIZE.raw * 3 / 4);
     constexpr Fixed SAFE_HEIGHT = Fixed::fromRaw(TILE_SIZE.raw * 3 / 2);
     constexpr Fixed LAND_MID_HEIGHT = Fixed::fromRaw(TILE_SIZE.raw * 5);
-    constexpr Fixed ROCK_HEIGHT = Fixed::fromRaw(TILE_SIZE.raw * 32);
 
-    // Camera and landscape offsets (calculated at runtime based on scale)
-    // Camera stays 5 tiles from player regardless of scale
-    inline Fixed getCameraPlayerZ() {
-        return Fixed::fromRaw(5 * TILE_SIZE.raw);
-    }
-
-    inline Fixed getLandscapeZDepth() {
-        return Fixed::fromRaw((getTilesZ() - 1) * TILE_SIZE.raw);
-    }
-
-    inline Fixed getLandscapeXWidth() {
-        return Fixed::fromRaw((getTilesX() - 2) * TILE_SIZE.raw);
-    }
-
-    inline Fixed getLandscapeX() {
-        return Fixed::fromRaw(getLandscapeXWidth().raw / 2);
-    }
-
-    constexpr Fixed LANDSCAPE_Y = Fixed::fromRaw(0);
-
-    inline Fixed getLandscapeZ() {
-        return Fixed::fromRaw(getLandscapeZDepth().raw + (10 * TILE_SIZE.raw));
-    }
-
-    inline int getHalfTilesX() {
-        return getTilesX() / 2;
-    }
-
-    inline Fixed getLandscapeXHalf() {
-        return Fixed::fromRaw(getHalfTilesX() * TILE_SIZE.raw);
-    }
-
-    inline Fixed getLandscapeZBeyond() {
-        return Fixed::fromRaw(getLandscapeZDepth().raw + TILE_SIZE.raw);
-    }
-
-    inline Fixed getLandscapeZFront() {
-        return Fixed::fromRaw(getLandscapeZ().raw - getLandscapeZDepth().raw);
-    }
-
-    inline Fixed getLandscapeZMid() {
-        return Fixed::fromRaw(getLandscapeZ().raw - getCameraPlayerZ().raw);
-    }
-
-    inline Fixed getPlayerFrontZ() {
-        return Fixed::fromRaw(6 * TILE_SIZE.raw);
-    }
-
-    // Legacy constants for backward compatibility (use runtime functions where needed)
-    // These are kept for code that doesn't need scale-dependent values
+    // Camera sits 5 tiles behind the player; the landscape starts 10 tiles
+    // in front of the camera (both independent of landscape scale)
     constexpr Fixed CAMERA_PLAYER_Z = Fixed::fromRaw(5 * TILE_SIZE.raw);
-    constexpr Fixed PLAYER_FRONT_Z = Fixed::fromRaw(6 * TILE_SIZE.raw);
     constexpr Fixed LANDSCAPE_Z_FRONT = Fixed::fromRaw(10 * TILE_SIZE.raw);
 }
 

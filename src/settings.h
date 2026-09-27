@@ -4,6 +4,7 @@
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
+#include "constants.h"
 #include <string>
 
 // Settings structure containing all persistent game options
@@ -20,7 +21,7 @@ struct GameSettings {
     // Default values
     GameSettings()
         : scale(4)
-        , fpsIndex(3)        // 60fps
+        , fpsIndex(DEFAULT_FPS_INDEX)
         , fullscreen(false)
         , smoothClipping(true)
         , soundEnabled(true)
@@ -36,7 +37,7 @@ struct GameSettings {
 // On Linux: ~/.config/Lander/settings.cfg
 std::string getSettingsPath();
 
-// Save settings to file
+// Save settings to file (atomically, via a temporary file)
 // Returns true on success
 bool saveSettings(const GameSettings& settings);
 

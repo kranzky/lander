@@ -125,11 +125,12 @@ lander/
 ├── src/              # Source files
 ├── test/             # Test files
 ├── sounds/           # Sound effect WAV files
-├── docs/             # Design documents
+├── docs/             # Design documents (TASKS.md, PROGRESS.md, ...)
 ├── scripts/          # Build and release scripts
-├── CMakeLists.txt
-├── TASKS.md          # Task breakdown
-├── PROGRESS.md       # Implementation progress
+├── macos/            # App bundle Info.plist
+├── windows/          # Version resource for lander.exe
+├── tools/            # Icon generator
+├── CMakeLists.txt    # Project version lives here
 └── README.md
 ```
 
@@ -138,6 +139,27 @@ lander/
 ```bash
 ctest --output-on-failure
 ```
+
+## Releasing
+
+The version comes from `project(lander VERSION ...)` in `CMakeLists.txt`; the
+release scripts stamp it into the app bundle and `lander.exe`.
+
+**macOS** (`scripts/build_release.sh`): builds `dist/Lander.app`, signs it with
+the Developer ID certificate (hardened runtime, timestamped), notarises it with
+the `lineage-notary` notarytool profile, staples the ticket and zips it to
+`dist/Lander-macOS.zip`. Override with `SIGN_IDENTITY` / `NOTARY_PROFILE`, or
+use `SKIP_NOTARIZE=1` for a quick signed-only build. Without the certificate
+it produces an ad-hoc signed `Lander-macOS-unsigned.zip`.
+
+**Windows** (`scripts/build_windows.ps1`): builds with MinGW, signs
+`lander.exe` with SSL.com eSigner (CodeSignTool, needs Java 17+) when the
+`ES_USERNAME`, `ES_PASSWORD`, `ES_CREDENTIAL_ID` and `ES_TOTP_SECRET`
+environment variables are set, verifies the signature and zips it to
+`dist/Lander-Windows.zip`. Without them it produces
+`Lander-Windows-unsigned.zip`.
+
+Both scripts print the `butler push` command for itch.io.
 
 ## Credits
 

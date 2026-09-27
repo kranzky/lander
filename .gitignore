@@ -4,3 +4,8 @@ dist
 Lander.arm
 .claude
 .DS_Store
+
+# Signing credentials, never committed
+signing/
+.env
+.env.*

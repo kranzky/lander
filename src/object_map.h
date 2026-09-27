@@ -71,7 +71,10 @@ namespace ObjectType {
 
 namespace ObjectMapConstants {
     constexpr int MAP_SIZE = 256;  // 256x256 grid
-    constexpr int OBJECT_COUNT = 2048;  // Number of random objects to place
+    // Random objects to try placing. The original's loop (SUBS/BPL on a
+    // counter starting at 2048) runs 2049 times, and matching it exactly keeps
+    // the random sequence, and so the map, identical to the original.
+    constexpr int OBJECT_COUNT = 2049;
 }
 
 // Object map class
@@ -99,13 +102,6 @@ public:
     // Check if object type is a destroyed/smoking variant
     static bool isDestroyedType(uint8_t objectType);
 
-    // Get original (non-destroyed) type from a destroyed type
-    // Returns the input if it's not a destroyed type
-    static uint8_t getOriginalType(uint8_t objectType);
-
-    // Restore all destroyed objects to their original types
-    void restoreDestroyedObjects();
-
 private:
     uint8_t map[ObjectMapConstants::MAP_SIZE][ObjectMapConstants::MAP_SIZE];
 };
@@ -126,7 +122,13 @@ extern ObjectMap objectMap;
 
 class RandomNumberGenerator {
 public:
-    RandomNumberGenerator();
+    // The original's seeds (randomSeed1/randomSeed2, Lander.arm lines 7780 and
+    // 7793). Nothing draws random numbers before the objects are placed, so
+    // these reproduce the original's object map.
+    static constexpr uint32_t ORIGINAL_SEED1 = 0x4F9C3490;
+    static constexpr uint32_t ORIGINAL_SEED2 = 0xDA0383CF;
+
+    RandomNumberGenerator() = default;
 
     // Seed the generator
     void seed(uint32_t seed1, uint32_t seed2);
@@ -134,12 +136,9 @@ public:
     // Get next random numbers (returns two values like original)
     void getRandomNumbers(uint32_t& r0, uint32_t& r1);
 
-    // Convenience: get a single random number
-    uint32_t getNext();
-
 private:
-    uint32_t seed1;
-    uint32_t seed2;
+    uint32_t seed1 = ORIGINAL_SEED1;
+    uint32_t seed2 = ORIGINAL_SEED2;
 };
 
 // Global RNG instance

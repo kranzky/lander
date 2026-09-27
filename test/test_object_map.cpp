@@ -2,6 +2,7 @@
 // Tests for object map system
 
 #include <cstdio>
+#include <vector>
 #include <cstdlib>
 #include "object_map.h"
 
@@ -249,7 +250,7 @@ void testMapSize() {
     printf("\nTesting map size...\n");
 
     test(ObjectMapConstants::MAP_SIZE == 256, "Map size is 256");
-    test(ObjectMapConstants::OBJECT_COUNT == 2048, "Object count is 2048");
+    test(ObjectMapConstants::OBJECT_COUNT == 2049, "Object count matches the original's 2049 iterations");
 
     // Verify the map can hold the expected number of entries
     // 256 * 256 = 65536 entries
@@ -309,6 +310,56 @@ void testRNG() {
 // =============================================================================
 // Test: Object placement
 // =============================================================================
+void testOriginalSeeds() {
+    printf("\nTesting original seeds...\n");
+
+    // A fresh generator starts from the original's seeds, which is what makes
+    // the object map match the original game
+    RandomNumberGenerator fresh;
+    RandomNumberGenerator seeded;
+    seeded.seed(0x4F9C3490, 0xDA0383CF);
+
+    bool same = true;
+    for (int i = 0; i < 100; i++) {
+        uint32_t a0, a1, b0, b1;
+        fresh.getRandomNumbers(a0, a1);
+        seeded.getRandomNumbers(b0, b1);
+        same = same && a0 == b0 && a1 == b1;
+    }
+    test(same, "Default seeds are the original's &4F9C3490 and &DA0383CF");
+}
+
+// Copy of the whole object map, for comparing layouts
+static std::vector<uint8_t> snapshotMap() {
+    std::vector<uint8_t> tiles;
+    for (int z = 0; z < 256; z++) {
+        for (int x = 0; x < 256; x++) {
+            tiles.push_back(objectMap.getObjectAt(x, z));
+        }
+    }
+    return tiles;
+}
+
+void testNewGameLayout() {
+    printf("\nTesting new game layouts...\n");
+
+    // Each new game places objects again from the continuing random sequence,
+    // as the original does, so the second game has a different map...
+    gameRng.seed(RandomNumberGenerator::ORIGINAL_SEED1, RandomNumberGenerator::ORIGINAL_SEED2);
+    placeObjectsOnMap();
+    std::vector<uint8_t> firstGame = snapshotMap();
+    placeObjectsOnMap();
+    std::vector<uint8_t> secondGame = snapshotMap();
+    test(firstGame != secondGame, "Second game has a different layout");
+
+    // ...but the sequence of layouts is the same every time the game runs
+    gameRng.seed(RandomNumberGenerator::ORIGINAL_SEED1, RandomNumberGenerator::ORIGINAL_SEED2);
+    placeObjectsOnMap();
+    test(snapshotMap() == firstGame, "First game layout is reproducible");
+    placeObjectsOnMap();
+    test(snapshotMap() == secondGame, "Second game layout is reproducible");
+}
+
 void testObjectPlacement() {
     printf("\nTesting object placement...\n");
 
@@ -388,6 +439,8 @@ int main() {
     testEdgeCases();
     testMapSize();
     testRNG();
+    testOriginalSeeds();
+    testNewGameLayout();
     testObjectPlacement();
 
     // Summary

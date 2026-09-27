@@ -175,8 +175,4 @@ Color smokeGrey(int level) {
     return vidc256ToColor(buildVidcColor(level, level, level));
 }
 
-Color fromVidc(uint8_t vidc) {
-    return vidc256ToColor(vidc);
-}
-
 } // namespace GameColors

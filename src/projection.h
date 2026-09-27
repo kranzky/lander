@@ -46,7 +46,11 @@ namespace ProjectionConstants {
     inline int CENTER_X() { return ORIGINAL_CENTER_X * ScreenBuffer::PIXEL_SCALE(); }
     inline int CENTER_Y() { return ORIGINAL_CENTER_Y * ScreenBuffer::PIXEL_SCALE(); }
 
-    // Scale factor for projection (matches original's effective focal length)
+    // Focal length in logical pixels: at z = 1 tile, x = 1 tile maps to 256
+    // logical pixels from the centre, which gives the original field of view
+    constexpr int FOCAL_LENGTH = 256;
+
+    // Resolution scale applied to the projected logical offset
     inline int SCALE() { return ScreenBuffer::PIXEL_SCALE(); }
 
     // Screen bounds for on-screen check (physical pixels)
