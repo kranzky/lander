@@ -31,14 +31,27 @@ namespace MouseButton {
     constexpr uint8_t THRUST = 0x04;     // Left button - full thrust
 }
 
+// The RISC OS mouse pointer, which the original reads with OS_Mouse, in OS
+// units with y increasing upwards. Across, it stops at the sides of the mode 13
+// screen (0 to 1279). Up and down it keeps going: the original's y arithmetic
+// wraps every 1024 units, so moving the mouse down past full tilt carries the
+// ship over and back upright (and up past full tilt loops it backwards).
+namespace MousePointer {
+    constexpr int MAX_X = 1279;
+    constexpr int Y_PERIOD = 1024;
+
+    // ResetMousePosition puts the pointer here at the start of each life,
+    // (-1, +1) from the centre, so the ship swings round as it spawns
+    constexpr int START_X = 511;
+    constexpr int START_Y = 511;
+}
+
 // Input state captured each frame
 struct InputState {
-    // Mouse position relative to center (matching original Lander's coordinate
-    // system). Limited to ±511 because the polar conversion shifts it left by
-    // 22 bits, and 512 << 22 overflows to INT_MIN, flipping the ship around.
-    static constexpr int MOUSE_RANGE = 511;
-    int mouseRelX = 0;
-    int mouseRelY = 0;
+    // Mouse coordinates as the original derives them from the pointer: x from
+    // -512 to +511, y from -511 to +512 (positive y is down)
+    int mouseX = 0;
+    int mouseY = 0;
 
     // Mouse button state (bits as per MouseButton namespace)
     uint8_t buttons = 0;
@@ -67,8 +80,9 @@ public:
     // Initialize player at starting position (launchpad)
     void reset();
 
-    // Update input state from relative mouse coordinates (already in ±range format)
-    void updateInputRelative(int relX, int relY, uint32_t sdlButtonState);
+    // Update input state from the mouse pointer (see MousePointer) and SDL
+    // button state
+    void updateInput(int pointerX, int pointerY, uint32_t sdlButtonState);
 
     // Update ship orientation from current mouse input
     // Converts mouse position to polar coordinates, then smoothly interpolates
@@ -115,6 +129,8 @@ public:
 
     // Ship rotation matrix (computed from direction and pitch)
     const Mat3x3& getRotationMatrix() const { return rotationMatrix; }
+    int32_t getShipDirection() const { return shipDirection; }
+    int32_t getShipPitch() const { return shipPitch; }
 
     // Input state
     const InputState& getInput() const { return input; }
@@ -174,30 +190,29 @@ namespace PlayerConstants {
     constexpr int INITIAL_FUEL = 0xD55;
 
     // ==========================================================================
-    // Physics Constants (from original Lander.arm)
+    // Physics Constants (from original Lander.arm lines 1930-2048)
     // ==========================================================================
-    // Original ran at ~15fps; we run at ~120fps (8x faster)
-    // All per-frame values are scaled down by 8 (>> 3) to compensate
+    // The original updates once per frame at 15fps; we take 8 physics steps
+    // per original frame (120 per second, at every display frame rate). Each
+    // step moves 1/8 as far, so velocities are 1/8 of the original's, and
+    // anything added to velocity each frame is 1/64 per step (1/8 as often, in
+    // 1/8-size units). Anything that scales velocity each frame is applied as
+    // its 8th root per step.
     // ==========================================================================
 
-    // Gravity: Original 0x30000 per frame at 15fps
-    // At 120fps with discrete physics, cumulative fall is 68x more (120*119/2 vs 15*14/2)
-    // To match original fall distance: 0x30000 / 68 ≈ 0xC00
-    constexpr int32_t GRAVITY = 0xC00;
+    // Gravity: original &30000 per frame, / 64 per step
+    constexpr int32_t GRAVITY = 0x30000 / 64;
 
-    // Friction: Original velocity *= 63/64 per frame (subtract velocity >> 6)
-    // At 120fps, cumulative effects are 8x stronger, so add 3 bits: 6 + 3 + 3 = 12
-    constexpr int FRICTION_SHIFT = 12;  // Divide by 4096
+    // Friction: original velocity -= velocity >> 6 per frame (x 63/64). Per step
+    // that's the 8th root, 1 - 1/512 to within 0.01%, so shift 6 + 3 = 9.
+    constexpr int FRICTION_SHIFT = 9;
 
-    // Thrust: Original exhaust >> 11 at 15fps
-    // Format adjustment (31-bit to 8.24): -7 bits
-    // Frame rate (8x): +3 bits
-    // Cumulative effect (8x): +3 bits
-    // Net: 11 - 7 + 3 + 3 = 10
-    constexpr int FULL_THRUST_SHIFT = 10;  // Divide by 1024
+    // Thrust: original velocity -= exhaust >> 11 per frame. Our rotation matrix
+    // is 8.24 rather than the original's 1.31 (7 bits smaller), and / 64 per
+    // step is 6 bits: 11 - 7 + 6 = 10.
+    constexpr int FULL_THRUST_SHIFT = 10;
 
-    // Hover: Original exhaust >> 13 at 15fps
-    // Net: 13 - 7 + 3 + 3 = 12
+    // Hover: original exhaust >> 13 per frame: 13 - 7 + 6 = 12
     constexpr int HOVER_THRUST_SHIFT = 12;  // Divide by 4096
 
     // Sea level: Y position floor (landscape water level)

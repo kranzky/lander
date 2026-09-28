@@ -1,6 +1,7 @@
 #ifndef LANDER_LOOKUP_TABLES_H
 #define LANDER_LOOKUP_TABLES_H
 
+#include <cassert>
 #include <cstdint>
 
 // =============================================================================
@@ -51,15 +52,13 @@ inline int32_t getCos(int angle) {
 // Get arctan value for index 0-127
 // The original uses this with the ratio of mouse coordinates
 inline int32_t getArctan(int index) {
-    if (index < 0) index = 0;
-    if (index >= ARCTAN_TABLE_SIZE) index = ARCTAN_TABLE_SIZE - 1;
+    assert(index >= 0 && index < ARCTAN_TABLE_SIZE);
     return arctanTable[index];
 }
 
 // Get square root value for index 0-1023
 inline int32_t getSqrt(int index) {
-    if (index < 0) index = 0;
-    if (index >= SQRT_TABLE_SIZE) index = SQRT_TABLE_SIZE - 1;
+    assert(index >= 0 && index < SQRT_TABLE_SIZE);
     return squareRootTable[index];
 }
 

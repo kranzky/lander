@@ -42,7 +42,8 @@ struct PolarCoordinates {
 };
 
 // Convert mouse coordinates to polar coordinates
-// Input: x, y are mouse coordinates scaled to ±512 range (already shifted << 22)
+// Input: mouse coordinates in the range -512 to +511, shifted left by 22 bits
+// (so -512 becomes 0x80000000, whose magnitude is treated as unsigned 2^31)
 // Output: PolarCoordinates with angle and distance
 //
 // The angle uses the same format as the original:
@@ -51,8 +52,10 @@ struct PolarCoordinates {
 //   - 0x80000000 = 180 degrees (pointing left/negative X)
 //   - 0xC0000000 = 270 degrees (pointing down/negative Y)
 //
-// The distance is scaled to use full 32-bit range, where 0x7FFFFFFF
-// represents the maximum possible distance (diagonal of input range).
+// The distance is sqrt(x^2 + y^2) / 2^32 with 0x7FFFFFFF = 1.0, so a point
+// 512 units from the centre gives 0.5 (0x40000000), which is where the
+// caller's full pitch is reached. At the centre the angle is the original's
+// arctan(255/256), about 45 degrees, with a distance of zero.
 PolarCoordinates getMouseInPolarCoordinates(int32_t x, int32_t y);
 
 #endif // LANDER_POLAR_COORDS_H
