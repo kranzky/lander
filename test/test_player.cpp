@@ -6,6 +6,8 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+// Only for the mouse button masks: keep SDL from taking over main() on Windows
+#define SDL_MAIN_HANDLED
 #include <SDL.h>
 #include "player.h"
 

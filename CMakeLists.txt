@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(lander VERSION 1.1.0 LANGUAGES CXX)
+project(lander VERSION 1.2.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -11,7 +11,9 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 if(MSVC)
-    add_compile_options(/W4)
+    add_compile_options(/W3)
+    # M_PI in <cmath>, and portable C stdio without "unsafe" warnings
+    add_compile_definitions(_USE_MATH_DEFINES _CRT_SECURE_NO_WARNINGS)
 else()
     add_compile_options(-Wall -Wextra)
     # World coordinates are 8.24 fixed point that wrap every 256 tiles, relying
@@ -59,6 +61,9 @@ if(APPLE)
 endif()
 
 if(WIN32)
+    # A windowed app, with no console (SDL2main provides WinMain)
+    set_target_properties(lander PROPERTIES WIN32_EXECUTABLE TRUE)
+
     # Version information shown in Explorer and by code signing tools
     enable_language(RC)
     configure_file(${CMAKE_SOURCE_DIR}/windows/lander.rc.in

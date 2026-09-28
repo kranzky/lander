@@ -1,0 +1,276 @@
+# Lander CI, shaped after Augmentinel and blast_radius.
+#
+# Every PR builds and tests on Windows and macOS, runs a smoke test, and
+# uploads the game as a downloadable artifact (Lander-windows, Lander-macos).
+# Tag pushes (v*) do the same, sign the Windows exe when the eSigner secrets
+# exist, and publish it to itch.io. macOS signing, notarisation and publishing
+# run locally (scripts/build_release.sh). See the Releasing section of README.md.
+
+name: CI
+
+on:
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: "OS legs to build/test"
+        type: choice
+        default: all
+        options: [all, macos, windows]
+      sign:
+        description: "Sign the Windows exe with eSigner (uses signing quota; needs the ES_* secrets)"
+        type: boolean
+        default: false
+  pull_request:
+    branches: [main]
+  push:
+    tags: ["v*"]
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SDL2_VERSION: 2.32.10
+
+jobs:
+  # Emit the build matrix from the dispatch input.
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+      sign: ${{ steps.m.outputs.sign }}
+    steps:
+      - id: m
+        shell: bash
+        run: |
+          sel="all"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then sel="${{ inputs.platforms }}"; fi
+          case "$sel" in
+            macos)   m='["macos-14"]' ;;
+            windows) m='["windows-latest"]' ;;
+            *)       m='["macos-14","windows-latest"]' ;;
+          esac
+          echo "matrix={\"os\":$m}" >> "$GITHUB_OUTPUT"
+          # Windows signing runs on release tags, or on dispatch when asked. PRs
+          # never sign, so they cannot spend the eSigner quota.
+          sign=false
+          if [ "${{ github.event_name }}" = "push" ]; then sign=true; fi
+          if [ "${{ inputs.sign }}" = "true" ]; then sign=true; fi
+          echo "sign=$sign" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: setup
+    name: build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    env:
+      # "true" only when this run should sign (tag or dispatch) AND the eSigner
+      # secrets exist. ES_USERNAME is the gate: while it is empty every signing
+      # step skips and the build ships unsigned.
+      WIN_SIGN: ${{ needs.setup.outputs.sign == 'true' && secrets.ES_USERNAME != '' }}
+      # The runners have no sound card.
+      SDL_AUDIODRIVER: dummy
+    steps:
+      - uses: actions/checkout@v5
+
+      # The official SDL2 development package for MSVC (x64), with its CMake
+      # config; SDL2.dll ships beside lander.exe.
+      - name: Install SDL2 (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $zip = Join-Path $env:RUNNER_TEMP "SDL2.zip"
+          Invoke-WebRequest "https://github.com/libsdl-org/SDL/releases/download/release-$env:SDL2_VERSION/SDL2-devel-$env:SDL2_VERSION-VC.zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP -Force
+          "CMAKE_PREFIX_PATH=$env:RUNNER_TEMP\SDL2-$env:SDL2_VERSION" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Install SDL2 (macOS)
+        if: runner.os == 'macOS'
+        run: brew install sdl2
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release -j
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      # Render a frame in screenshot mode, from a scratch copy of the build.
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $smoke = Join-Path $env:RUNNER_TEMP "smoke"
+          Copy-Item build\Release $smoke -Recurse
+          $p = Start-Process "$smoke\lander.exe" -Wait -PassThru -WorkingDirectory $smoke `
+            -ArgumentList "--screenshot", "$smoke\smoke.png"
+          if ($p.ExitCode -ne 0 -or !(Test-Path "$smoke\smoke.png")) { Write-Error "Smoke test failed (exit $($p.ExitCode))"; exit 1 }
+
+      - name: Smoke test (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p "$RUNNER_TEMP/smoke"
+          build/lander --screenshot "$RUNNER_TEMP/smoke/smoke.png"
+          test -f "$RUNNER_TEMP/smoke/smoke.png"
+
+      - name: Upload smoke screenshot
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: smoke-${{ matrix.os }}
+          path: ${{ runner.temp }}/smoke/smoke.png
+          if-no-files-found: ignore
+
+      # The .rc embeds the version block; fail if it is missing.
+      - name: Check version resource (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $v = (Get-Item build\Release\lander.exe).VersionInfo
+          Write-Host "ProductName=$($v.ProductName) ProductVersion=$($v.ProductVersion) FileDescription=$($v.FileDescription)"
+          if ($v.ProductName -ne 'Lander') { Write-Error 'Version resource missing from lander.exe'; exit 1 }
+
+      - name: Signing skipped (Windows)
+        if: runner.os == 'Windows' && needs.setup.outputs.sign == 'true' && env.WIN_SIGN != 'true'
+        shell: bash
+        run: echo "::warning::Windows signing requested but ES_USERNAME is not set; lander.exe ships unsigned."
+
+      # SSL.com eSigner cloud signing, after the tests and smoke test so a
+      # broken build never spends a signing. CodeSignTool refuses output_path ==
+      # the input's directory, so sign into build\signed and copy the signed exe
+      # back over Release\ below. malware_block=false skips eSigner's slow scan.
+      - name: Prepare signing (Windows)
+        if: runner.os == 'Windows' && env.WIN_SIGN == 'true'
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force -Path build\signed | Out-Null
+
+      # SSL.com's CodeSignTool.bat always runs the Java 11.0.2 bundled in its zip,
+      # which does not trust the "SSL.com TLS RSA Root CA 2022" chain cs.ssl.com
+      # has used since 2026-09-22 ("PKIX path building failed"). So run the same
+      # tool's jar on the runner's JDK 17 instead.
+      - name: Sign lander.exe (Windows, eSigner)
+        if: runner.os == 'Windows' && env.WIN_SIGN == 'true'
+        shell: pwsh
+        env:
+          ES_USERNAME: ${{ secrets.ES_USERNAME }}
+          ES_PASSWORD: ${{ secrets.ES_PASSWORD }}
+          ES_CREDENTIAL_ID: ${{ secrets.ES_CREDENTIAL_ID }}
+          ES_TOTP_SECRET: ${{ secrets.ES_TOTP_SECRET }}
+          CODESIGNTOOL_VERSION: v1.3.2
+        run: |
+          $tool = Join-Path $env:RUNNER_TEMP "CodeSignTool"
+          $zip = "$tool.zip"
+          Invoke-WebRequest "https://github.com/SSLcom/CodeSignTool/releases/download/$env:CODESIGNTOOL_VERSION/CodeSignTool-$env:CODESIGNTOOL_VERSION-windows.zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath $tool -Force
+          $jar = Get-ChildItem "$tool\jar\code_sign_tool-*.jar" | Select-Object -First 1
+          if (!$jar) { Write-Error "CodeSignTool jar not found in $tool"; exit 1 }
+          $javaHome = if ($env:JAVA_HOME_17_X64) { $env:JAVA_HOME_17_X64 } else { $env:JAVA_HOME }
+          $java = Join-Path $javaHome "bin\java.exe"
+          & $java -version
+          $env:CODE_SIGN_TOOL_PATH = $tool
+          Push-Location $tool
+          & $java -jar $jar.FullName sign `
+            "-username=$env:ES_USERNAME" "-password=$env:ES_PASSWORD" `
+            "-credential_id=$env:ES_CREDENTIAL_ID" "-totp_secret=$env:ES_TOTP_SECRET" `
+            "-input_file_path=$env:GITHUB_WORKSPACE\build\Release\lander.exe" `
+            "-output_dir_path=$env:GITHUB_WORKSPACE\build\signed" `
+            "-override=true" "-malware_block=false"
+          $code = $LASTEXITCODE
+          Pop-Location
+          if ($code -ne 0) { Write-Error "CodeSignTool exited with $code"; exit 1 }
+
+      - name: Verify signature (Windows)
+        if: runner.os == 'Windows' && env.WIN_SIGN == 'true'
+        shell: pwsh
+        run: |
+          $signed = "build\signed\lander.exe"
+          if (!(Test-Path $signed)) { Write-Error "Signed exe not found at $signed"; exit 1 }
+          Copy-Item $signed "build\Release\lander.exe" -Force
+          $sig = Get-AuthenticodeSignature "build\Release\lander.exe"
+          Write-Host "Signature status: $($sig.Status); signer: $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne 'Valid') { Write-Error "lander.exe signature is not Valid: $($sig.Status)"; exit 1 }
+
+      # lander.exe needs SDL2.dll and the sounds beside it.
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $out = "dist\Lander-windows"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          foreach ($item in "lander.exe", "SDL2.dll", "sounds") {
+            Copy-Item "build\Release\$item" $out -Recurse
+          }
+          Get-ChildItem $out -Recurse -File | ForEach-Object { Write-Host $_.FullName.Substring((Resolve-Path $out).Path.Length + 1) }
+
+      - name: Upload (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v6
+        with:
+          name: Lander-windows
+          path: dist/Lander-windows/
+          if-no-files-found: error
+
+  # Publish the signed Windows build to itch.io on release tags, gated on the
+  # BUTLER_API_KEY secret (butler reads it from the environment). The mac
+  # channel is pushed from the Mac after local signing and notarisation.
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    env:
+      ITCH_TARGET: kranzky/lander
+      BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+
+      # The itch.io user version comes from the tag, which must match the
+      # version the build was made with.
+      - name: Tag matches CMake version
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          ver="$(sed -nE 's/^project\(lander VERSION ([0-9.]+).*/\1/p' CMakeLists.txt)"
+          echo "tag=$tag cmake=$ver"
+          [ "$tag" = "$ver" ] || { echo "::error::Tag $GITHUB_REF_NAME does not match project(VERSION $ver) in CMakeLists.txt"; exit 1; }
+          echo "USERVERSION=$tag" >> "$GITHUB_ENV"
+
+      - name: Skip without BUTLER_API_KEY
+        if: env.BUTLER_API_KEY == ''
+        shell: bash
+        run: echo "::warning::BUTLER_API_KEY is not set; nothing was pushed to itch.io."
+
+      - name: Download Windows build
+        if: env.BUTLER_API_KEY != ''
+        uses: actions/download-artifact@v7
+        with:
+          name: Lander-windows
+          path: dist/windows
+
+      # Never publish an unsigned exe.
+      - name: Require a valid signature
+        if: env.BUTLER_API_KEY != ''
+        shell: pwsh
+        run: |
+          $sig = Get-AuthenticodeSignature dist\windows\lander.exe
+          Write-Host "Signature status: $($sig.Status); signer: $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne 'Valid') { Write-Error "lander.exe is not validly signed ($($sig.Status)); not publishing"; exit 1 }
+
+      - name: Install butler
+        if: env.BUTLER_API_KEY != ''
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://broth.itch.zone/butler/windows-amd64/LATEST/archive/default -OutFile butler.zip
+          Expand-Archive butler.zip -DestinationPath butler
+          .\butler\butler.exe -V
+
+      - name: Push windows channel
+        if: env.BUTLER_API_KEY != ''
+        shell: bash
+        run: |
+          ./butler/butler.exe push dist/windows "$ITCH_TARGET:windows" --userversion "$USERVERSION"
+          ./butler/butler.exe status "$ITCH_TARGET:windows"

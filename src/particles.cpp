@@ -413,7 +413,7 @@ namespace
                             int32_t baseLifespan, uint32_t flags)
     {
         // Random velocity variation of +/- VEL_RANDOM_RANGE / 2 (~0.03 tiles/frame)
-        constexpr int32_t VEL_RANDOM_RANGE = 0x80000;
+        static constexpr int32_t VEL_RANDOM_RANGE = 0x80000;
         auto jitter = [] {
             return Fixed::fromRaw(((particleRandom() >> 8) % VEL_RANDOM_RANGE) - VEL_RANDOM_RANGE / 2);
         };

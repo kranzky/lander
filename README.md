@@ -152,14 +152,19 @@ the `lineage-notary` notarytool profile, staples the ticket and zips it to
 use `SKIP_NOTARIZE=1` for a quick signed-only build. Without the certificate
 it produces an ad-hoc signed `Lander-macOS-unsigned.zip`.
 
-**Windows** (`scripts/build_windows.ps1`): builds with MinGW, signs
-`lander.exe` with SSL.com eSigner (CodeSignTool, needs Java 17+) when the
-`ES_USERNAME`, `ES_PASSWORD`, `ES_CREDENTIAL_ID` and `ES_TOTP_SECRET`
-environment variables are set, verifies the signature and zips it to
-`dist/Lander-Windows.zip`. Without them it produces
-`Lander-Windows-unsigned.zip`.
+**Windows** (GitHub Actions, `.github/workflows/ci.yml`): every PR builds,
+tests and smoke-tests on Windows and macOS. Pushing a `vX.Y.Z` tag (matching
+the CMake version) also signs `lander.exe` with SSL.com eSigner, using the
+`ES_USERNAME`, `ES_PASSWORD`, `ES_CREDENTIAL_ID` and `ES_TOTP_SECRET` repository
+secrets, and publishes it to the itch.io `windows` channel with the
+`BUTLER_API_KEY` secret, refusing to publish anything unsigned.
+`scripts/build_windows.ps1` does the same build and signing on a local
+Windows machine (with the `ES_*` values as environment variables).
 
-Both scripts print the `butler push` command for itch.io.
+To release: bump `project(lander VERSION ...)`, merge to `main`, tag it
+(`git tag v1.2.0 && git push origin v1.2.0`) for Windows, then run
+`scripts/build_release.sh` on the Mac and push the printed zip to the `mac`
+channel with `butler push`.
 
 ## Credits
 
