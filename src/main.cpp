@@ -191,12 +191,13 @@ bool Game::init() {
         return false;
     }
 
-    // Create renderer
-    renderer = SDL_CreateRenderer(
-        window,
-        -1,
-        SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC
-    );
+    // Create renderer, falling back to software rendering where there's no
+    // accelerated one (virtual machines, CI runners)
+    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    if (!renderer) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "No accelerated renderer (%s); using software", SDL_GetError());
+        renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
+    }
 
     if (!renderer) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_CreateRenderer failed: %s", SDL_GetError());
