@@ -1,5 +1,17 @@
 cmake_minimum_required(VERSION 3.16)
-project(lander VERSION 1.2.0 LANGUAGES CXX)
+
+# Release builds build SDL2 from source and link it statically, so the game
+# needs nothing installed: a single exe on Windows, a self-contained app on
+# macOS. Development builds can use an installed SDL2 (e.g. Homebrew's).
+option(LANDER_VENDOR_SDL2 "Build SDL2 from source and link it statically" OFF)
+
+# Self-contained macOS builds run on macOS 11 and later (this must be set
+# before project() to take effect)
+if(APPLE AND LANDER_VENDOR_SDL2 AND NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
+endif()
+
+project(lander VERSION 1.2.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -8,6 +20,29 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Default to an optimized build; the game is unplayably slow without one
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
+# Link the C/C++ runtime statically, so players don't need the Visual C++
+# redistributable
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+if(LANDER_VENDOR_SDL2)
+    include(FetchContent)
+    set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+    set(SDL_STATIC ON CACHE BOOL "" FORCE)
+    set(SDL_TEST OFF CACHE BOOL "" FORCE)
+    set(SDL_FORCE_STATIC_VCRT ON CACHE BOOL "" FORCE)
+    set(SDL2_DISABLE_INSTALL ON CACHE BOOL "" FORCE)
+    FetchContent_Declare(SDL2
+        URL https://github.com/libsdl-org/SDL/releases/download/release-2.32.10/SDL2-2.32.10.tar.gz
+        URL_HASH SHA256=5f5993c530f084535c65a6879e9b26ad441169b3e25d789d83287040a9ca5165
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+    # Before our warning flags, which are for our own code
+    FetchContent_MakeAvailable(SDL2)
+    set(LANDER_SDL2_LIBRARIES SDL2::SDL2main SDL2::SDL2)
+else()
+    find_package(SDL2 REQUIRED)
+    set(LANDER_SDL2_LIBRARIES ${SDL2_LIBRARIES})
 endif()
 
 if(MSVC)
@@ -21,8 +56,6 @@ else()
     # Make that overflow well-defined rather than undefined behaviour.
     add_compile_options(-fwrapv)
 endif()
-
-find_package(SDL2 REQUIRED)
 
 # =============================================================================
 # Game
@@ -51,7 +84,7 @@ add_library(lander_core STATIC
     src/settings.cpp
 )
 target_include_directories(lander_core PUBLIC src ${SDL2_INCLUDE_DIRS})
-target_link_libraries(lander_core PUBLIC ${SDL2_LIBRARIES})
+target_link_libraries(lander_core PUBLIC ${LANDER_SDL2_LIBRARIES})
 
 add_executable(lander src/main.cpp)
 target_link_libraries(lander PRIVATE lander_core)
@@ -71,8 +104,8 @@ if(WIN32)
     target_sources(lander PRIVATE ${CMAKE_BINARY_DIR}/generated/lander.rc)
 endif()
 
-if(MSVC)
-    # Windows: Copy SDL2.dll to output directory
+if(MSVC AND NOT LANDER_VENDOR_SDL2)
+    # Windows with an installed SDL2: copy SDL2.dll to the output directory
     add_custom_command(TARGET lander POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_FILE:SDL2::SDL2>

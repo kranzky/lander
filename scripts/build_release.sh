@@ -61,12 +61,24 @@ rm -rf "$ICONSET_DIR"
 
 echo "==> Build release binary (fresh configure, so a stale cache can't leak in)"
 rm -rf "$BUILD_DIR/CMakeCache.txt" "$BUILD_DIR/CMakeFiles"
-cmake -S "$PROJECT_DIR" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release
+# SDL2 is built from source and linked statically, as a universal binary for
+# Apple Silicon and Intel Macs running macOS 11 or later
+cmake -S "$PROJECT_DIR" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release \
+    -DLANDER_VENDOR_SDL2=ON "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"
 cmake --build "$BUILD_DIR" --target lander -j "$(sysctl -n hw.ncpu)"
+
+echo "==> Check the binary is self-contained"
+for arch in arm64 x86_64; do
+    lipo -archs "$BUILD_DIR/lander" | tr ' ' '\n' | grep -qx "$arch" \
+        || { echo "ERROR: lander is missing the $arch slice"; exit 1; }
+done
+NON_SYSTEM="$(otool -L -arch all "$BUILD_DIR/lander" | awk 'NR > 1 && !/architecture/ { print $1 }' \
+    | grep -vE '^(/System/|/usr/lib/)' || true)"
+[ -z "$NON_SYSTEM" ] || { echo "ERROR: lander links libraries players won't have:"; echo "$NON_SYSTEM"; exit 1; }
 
 echo "==> Assemble app bundle"
 rm -rf "$APP_BUNDLE"
-mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources" "$APP_BUNDLE/Contents/Frameworks"
+mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
 BINARY="$APP_BUNDLE/Contents/MacOS/lander"
 cp "$BUILD_DIR/lander" "$BINARY"
 cp "$DIST_DIR/lander.icns" "$APP_BUNDLE/Contents/Resources/"
@@ -74,7 +86,7 @@ cp -R "$PROJECT_DIR/sounds" "$APP_BUNDLE/Contents/Resources/"
 printf 'APPL????' > "$APP_BUNDLE/Contents/PkgInfo"
 
 # Info.plist takes its version from CMakeLists.txt, and its minimum macOS
-# version from the binary (Homebrew SDL2 targets the build machine's macOS)
+# version from the binary
 PLIST="$APP_BUNDLE/Contents/Info.plist"
 cp "$PROJECT_DIR/macos/Info.plist" "$PLIST"
 MIN_MACOS="$(otool -l "$BINARY" | awk '/minos/ { print $2; exit }')"
@@ -84,43 +96,13 @@ MIN_MACOS="$(otool -l "$BINARY" | awk '/minos/ { print $2; exit }')"
     -c "Set :LSMinimumSystemVersion $MIN_MACOS" \
     "$PLIST"
 
-echo "==> Bundle SDL2"
-SDL2_PATH="$(otool -L "$BINARY" | grep -o '/.*libSDL2.*\.dylib' | head -1)"
-if [ -z "$SDL2_PATH" ]; then
-    echo "ERROR: Could not find SDL2 library path"
-    exit 1
-fi
-SDL2_DYLIB="$APP_BUNDLE/Contents/Frameworks/$(basename "$SDL2_PATH")"
-cp "$SDL2_PATH" "$SDL2_DYLIB"
-chmod u+w "$SDL2_DYLIB"
-install_name_tool -change "$SDL2_PATH" "@executable_path/../Frameworks/$(basename "$SDL2_PATH")" "$BINARY"
-install_name_tool -id "@executable_path/../Frameworks/$(basename "$SDL2_PATH")" "$SDL2_DYLIB"
-
-# Homebrew's sdl2 is now sdl2-compat, which implements SDL2 on top of SDL3 and
-# loads SDL3 when it starts, looking first for libSDL3.dylib beside itself.
-# Without it the app shows an error dialog and never starts.
-SDL3_DYLIB=""
-if grep -qa "sdl2-compat" "$SDL2_DYLIB"; then
-    echo "==> Bundle SDL3 (SDL2 is sdl2-compat)"
-    SDL3_PATH="$(brew --prefix sdl3)/lib/libSDL3.0.dylib"
-    [ -f "$SDL3_PATH" ] || { echo "ERROR: sdl2-compat needs SDL3, not found at $SDL3_PATH"; exit 1; }
-    SDL3_DYLIB="$APP_BUNDLE/Contents/Frameworks/libSDL3.dylib"
-    cp "$SDL3_PATH" "$SDL3_DYLIB"
-    chmod u+w "$SDL3_DYLIB"
-    install_name_tool -id "@loader_path/libSDL3.dylib" "$SDL3_DYLIB"
-fi
-FRAMEWORK_DYLIBS=("$SDL2_DYLIB")
-[ -n "$SDL3_DYLIB" ] && FRAMEWORK_DYLIBS+=("$SDL3_DYLIB")
-
-# Inner code first, then the bundle. Hardened runtime and a secure timestamp
-# are required for notarisation; no entitlements are needed.
+# Hardened runtime and a secure timestamp are required for notarisation; no
+# entitlements are needed
 if [ "$UNSIGNED" = "1" ]; then
     echo "==> Codesign (ad-hoc, UNSIGNED build)"
-    codesign --force --sign - "${FRAMEWORK_DYLIBS[@]}"
     codesign --force --sign - "$APP_BUNDLE"
 else
     echo "==> Codesign ($SIGN_IDENTITY)"
-    codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "${FRAMEWORK_DYLIBS[@]}"
     codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
 fi
 codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
