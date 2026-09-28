@@ -49,6 +49,18 @@ public:
     Fixed getYFraction() const { return position.y - yTile; }
     Fixed getZFraction() const { return position.z - zTile; }
 
+    // Whole-tile offset from the camera's tile to a world coordinate. The
+    // subtraction wraps just like the world does, so this stays correct across
+    // the seam where raw tile indices jump from 127 to -128.
+    int tileOffsetX(Fixed worldX) const { return (worldX - xTile).toInt(); }
+    int tileOffsetZ(Fixed worldZ) const { return (worldZ - zTile).toInt(); }
+
+    // Graphics buffer row for a world Z coordinate (0 = back, TILES_Z-1 = front).
+    // Out of range when the position is outside the visible landscape.
+    int rowForZ(Fixed worldZ) const {
+        return GameConstants::getTilesZ() - 1 - tileOffsetZ(worldZ);
+    }
+
     // Transform world coordinates to camera-relative coordinates
     Vec3 worldToCamera(const Vec3& worldPos) const;
     void worldToCamera(Fixed worldX, Fixed worldY, Fixed worldZ,

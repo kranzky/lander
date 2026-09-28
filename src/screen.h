@@ -109,19 +109,9 @@ public:
         return MAX_PHYSICAL_WIDTH * MAX_PHYSICAL_HEIGHT * 4;
     }
 
-    // Current buffer size for current resolution
-    static size_t getCurrentBufferSize() {
-        return PHYSICAL_WIDTH() * PHYSICAL_HEIGHT() * 4;
-    }
-
     // Physical buffer pitch (bytes per row) - always max width for consistent layout
     static constexpr int getPitch() {
         return MAX_PHYSICAL_WIDTH * 4;
-    }
-
-    // Current pitch for current resolution
-    static int getCurrentPitch() {
-        return PHYSICAL_WIDTH() * 4;
     }
 
     // Save buffer to PNG file

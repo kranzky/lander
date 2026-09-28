@@ -1,4 +1,5 @@
 #include "projection.h"
+#include <algorithm>
 
 // =============================================================================
 // 3D Projection Implementation
@@ -18,11 +19,7 @@
 // =============================================================================
 
 ProjectedVertex projectVertex(Fixed x, Fixed y, Fixed z) {
-    ProjectedVertex result;
-    result.screenX = 0;
-    result.screenY = 0;
-    result.visible = false;
-    result.onScreen = false;
+    ProjectedVertex result{};
 
     // Check if vertex is behind camera or at camera (z <= 0)
     // The original checks if z + 0x80000000 produces a carry, which means
@@ -37,46 +34,17 @@ ProjectedVertex projectVertex(Fixed x, Fixed y, Fixed z) {
     // Vertex is in front of camera
     result.visible = true;
 
-    // Calculate perspective division: x/z and y/z
-    // The result is in 8.24 fixed-point format
-    //
-    // In the original Lander, the projection is: screen = center + (x/z) * scale
-    // where the scale factor relates world units to screen pixels.
-    //
-    // With TILE_SIZE = 0x01000000 (1.0 in 8.24), a typical scene has:
-    // - x offset of ~6 tiles from center (half of 12 tile width)
-    // - z distance of ~10 tiles
-    // - This gives x/z = 0.6 tiles
-    //
-    // To fill the screen (~160 pixels from center), we need:
-    // - 0.6 tiles -> ~100 pixels
-    // - So scale factor is about 160 pixels per tile
-    //
-    // In 8.24 format, division result for 6/10 = 0x00999999
-    // We want this to become ~100 pixels
-    // The integer part of 0x00999999 >> 24 = 0, so we need fractional scaling
-    //
-    // Solution: scale the numerator before dividing, or scale result after
-    // We'll use a focal length multiplier that effectively scales x and y
-    // before the division.
-    //
-    // Original uses approximately 256 (or 0x100) as focal length
-    // So: screen_x = center + (x * 256) / z = center + x/z * 256
-
-    // Focal length: how many pixels per unit distance at z=1
-    // A value of 256 means at z=1 tile, x=1 tile maps to 256 pixels
-    // This gives a reasonable field of view
-    constexpr int FOCAL_LENGTH = 256;
-
-    // Scale x and y by focal length before projection
-    // Use 64-bit to avoid overflow
+    // Perspective division, scaled by the focal length (64-bit to avoid overflow)
+    using ProjectionConstants::FOCAL_LENGTH;
     int64_t scaledX = static_cast<int64_t>(x.raw) * FOCAL_LENGTH;
     int64_t scaledY = static_cast<int64_t>(y.raw) * FOCAL_LENGTH;
 
-    // Divide by z (in raw format)
-    // Result is in pixels (no longer in 8.24 format)
-    int offsetX = static_cast<int>(scaledX / z.raw);
-    int offsetY = static_cast<int>(scaledY / z.raw);
+    // Divide by z (in raw format) to get logical pixels. Clamp so vertices very
+    // close to the camera can't overflow int once scaled; the rasterizer clips
+    // anything that far off screen anyway.
+    constexpr int64_t MAX_OFFSET = 1 << 20;
+    int offsetX = static_cast<int>(std::clamp<int64_t>(scaledX / z.raw, -MAX_OFFSET, MAX_OFFSET));
+    int offsetY = static_cast<int>(std::clamp<int64_t>(scaledY / z.raw, -MAX_OFFSET, MAX_OFFSET));
 
     // Apply resolution scale and center offset
     result.screenX = ProjectionConstants::CENTER_X() + (offsetX * ProjectionConstants::SCALE());

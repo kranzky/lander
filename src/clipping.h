@@ -49,18 +49,6 @@ struct ClippedPolygon3D {
 // Clipping Functions
 // =============================================================================
 
-// Clip a quad against the left clipping plane (x = clipX, keep x >= clipX)
-ClippedPolygon3D clipQuadLeft(const ClipVertex3D quad[4], Fixed clipX);
-
-// Clip a quad against the right clipping plane (x = clipX, keep x <= clipX)
-ClippedPolygon3D clipQuadRight(const ClipVertex3D quad[4], Fixed clipX);
-
-// Clip a quad against the near clipping plane (z = clipZ, keep z >= clipZ)
-ClippedPolygon3D clipQuadNear(const ClipVertex3D quad[4], Fixed clipZ);
-
-// Clip a quad against the far clipping plane (z = clipZ, keep z <= clipZ)
-ClippedPolygon3D clipQuadFar(const ClipVertex3D quad[4], Fixed clipZ);
-
 // Clip a polygon against the left clipping plane
 ClippedPolygon3D clipPolygonLeft(const ClippedPolygon3D& poly, Fixed clipX);
 

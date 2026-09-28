@@ -35,7 +35,6 @@ enum class GameState {
 namespace GameConfig {
     constexpr int INITIAL_LIVES = 3;
     constexpr int EXPLOSION_DURATION = 60;  // Frames for explosion animation (~0.5 sec at 120fps)
-    constexpr int GAME_OVER_DELAY = 180;    // Frames before game restarts (~1.5 sec at 120fps)
 }
 
 class Game {
@@ -57,7 +56,7 @@ private:
     void handleEvents();
     void update(int mouseRelX, int mouseRelY, uint32_t mouseButtons);
     void render();
-    void drawTestPattern();
+    void drawFrame();
     void bufferShip();
 
     SDL_Window* window = nullptr;
@@ -92,7 +91,7 @@ private:
     GameState gameState = GameState::PLAYING;
     int lives = GameConfig::INITIAL_LIVES;
     int stateTimer = 0;  // Timer for explosion animation
-    Vec3 explosionPos;   // Position where explosion occurred (for future particle effects)
+    Vec3 explosionPos;   // Where the ship exploded (the camera stays there)
     bool waitingForKeypress = false;  // True when showing "GAME OVER" message
 
     // Debug mode: keyboard controls, no physics
@@ -114,7 +113,12 @@ private:
     int score = 500;
 
     // Target FPS selection (index into FPS_OPTIONS array)
-    int fpsIndex = DEFAULT_FPS_INDEX;  // Default to 15fps
+    int fpsIndex = DEFAULT_FPS_INDEX;
+
+    // Physics steps since startup; the original ran at 15fps, so events that
+    // happened once per original frame happen every 8th step
+    uint32_t tick = 0;
+    bool everyOriginalFrame() const { return (tick & 7) == 0; }
 
     // Sound enabled toggle (on by default)
     bool soundEnabled = true;
@@ -134,14 +138,12 @@ private:
     void respawnPlayer();
     void resetGame();
     void updateResolution();  // Recreate texture for new resolution
+    void addScore(int points);
     void saveCurrentSettings();  // Save settings to file
 
     void drawFPS();
     void drawScoreBar();
     void drawGameOver();
-    void drawDigit(int x, int y, int digit, Color color);
-    void drawMinus(int x, int y, Color color);
-    int drawNumber(int x, int y, int value, Color color);
 
     // High score tracking (initial high score is 500 in original Lander)
     int highScore = 500;
@@ -418,8 +420,9 @@ void Game::resetGame() {
     gameState = GameState::PLAYING;
     stateTimer = 0;
 
-    // Restore all destroyed objects (in place, without re-rolling RNG)
-    objectMap.restoreDestroyedObjects();
+    // As in the original, where StartNewGame runs on into PlaceObjectsOnMap,
+    // each new game gets a fresh map from the continuing random sequence
+    placeObjectsOnMap();
 }
 
 void Game::updateResolution() {
@@ -454,7 +457,16 @@ void Game::saveCurrentSettings() {
     settings.soundEnabled = soundEnabled;
     settings.landscapeScale = GameConstants::landscapeScale;
     settings.starsEnabled = starsEnabled;
+    settings.highScore = highScore;
     saveSettings(settings);
+}
+
+void Game::addScore(int points) {
+    score = std::max(score + points, 0);
+    if (score > highScore) {
+        highScore = score;
+        saveCurrentSettings();
+    }
 }
 
 // =============================================================================
@@ -479,11 +491,8 @@ void Game::maybeSpawnRock() {
     // Only spawn during normal gameplay
     if (gameState != GameState::PLAYING) return;
 
-    // Frame rate scaling: original ran at 15fps, we run at 120fps
-    // Only check every 8th frame to match original spawn rate
-    static int frameCounter = 0;
-    frameCounter++;
-    if ((frameCounter & 7) != 0) return;
+    // Only check once per original frame to match the original spawn rate
+    if (!everyOriginalFrame()) return;
 
     // Random chance based on score
     // Original: random 0-16383, spawn if random < (score - 800)
@@ -519,8 +528,11 @@ void Game::maybeSpawnRock() {
 }
 
 void Game::update(int mouseRelX, int mouseRelY, uint32_t mouseButtons) {
+    tick++;
+
     // Update particles every frame (including during explosions)
     particleSystem.update();
+    spawnSmokeFromDestroyedObjects(camera, tick);
 
     // Update star particles if enabled
     if (starsEnabled) {
@@ -554,7 +566,7 @@ void Game::update(int mouseRelX, int mouseRelY, uint32_t mouseButtons) {
 
     if (events.objectDestroyed > 0) {
         // Each destroyed object adds 20 to score (matching original Lander)
-        score += events.objectDestroyed * 20;
+        addScore(events.objectDestroyed * 20);
         float vol = calcSpatialVolume(events.objectDestroyedPos);
         if (vol > 0.0f) sound.play(SoundId::BOOM, vol);
     }
@@ -583,7 +595,7 @@ void Game::update(int mouseRelX, int mouseRelY, uint32_t mouseButtons) {
 
     // Check rock-player collision (before game state changes)
     if (gameState == GameState::PLAYING && !debugMode) {
-        if (checkRockPlayerCollision(player.getPosition(), camera.getPosition())) {
+        if (checkRockPlayerCollision(player.getPosition())) {
             // Rock hit player - trigger crash
             triggerCrash();
             return;  // Skip rest of update
@@ -642,14 +654,12 @@ void Game::update(int mouseRelX, int mouseRelY, uint32_t mouseButtons) {
     accumulatedMouseX += mouseRelX * 2;
     accumulatedMouseY += mouseRelY * 2;
 
-    // Clamp to valid range (±512)
-    if (accumulatedMouseX < -512) accumulatedMouseX = -512;
-    if (accumulatedMouseX > 512) accumulatedMouseX = 512;
-    if (accumulatedMouseY < -512) accumulatedMouseY = -512;
-    if (accumulatedMouseY > 512) accumulatedMouseY = 512;
+    // Clamp to the range the polar conversion accepts
+    accumulatedMouseX = std::clamp(accumulatedMouseX, -InputState::MOUSE_RANGE, InputState::MOUSE_RANGE);
+    accumulatedMouseY = std::clamp(accumulatedMouseY, -InputState::MOUSE_RANGE, InputState::MOUSE_RANGE);
 
     // Pass accumulated position directly as relative coordinates
-    // The values represent offset from center in the ±512 range that polar coords expect
+    // The values represent offset from center in the range that polar coords expect
     player.updateInputRelative(accumulatedMouseX, accumulatedMouseY, mouseButtons);
 
     // Update ship orientation based on mouse position
@@ -703,11 +713,8 @@ void Game::update(int mouseRelX, int mouseRelY, uint32_t mouseButtons) {
     if (engineActive) {
         // Burn fuel based on thrust level (bit 0 = fire, bit 1 = hover, bit 2 = full thrust)
         // Only bits 1 and 2 burn fuel (firing doesn't use fuel)
-        // Original burns fuelBurnRate per frame at 15fps
-        // At 120fps, we burn every 8th frame to match original rate
-        static int fuelBurnCounter = 0;
-        fuelBurnCounter++;
-        if ((fuelBurnCounter & 7) == 0) {
+        // Original burns fuelBurnRate once per frame at 15fps
+        if (everyOriginalFrame()) {
             int burnRate = input.getFuelBurnRate();  // Returns buttons & 0x06
             player.burnFuel(burnRate);
         }
@@ -750,17 +757,15 @@ void Game::update(int mouseRelX, int mouseRelY, uint32_t mouseButtons) {
         thrustHeldFrames = 0;
     }
 
-    // Spawn bullet particle when firing (right button)
-    // Fire every 8th frame to match original 15fps rate (120/8 = 15 bullets/sec)
-    static int bulletFrameCounter = 0;
-    bulletFrameCounter++;
-    if (input.isFiring() && (bulletFrameCounter & 7) == 0) {
+    // Spawn bullet particle when firing (right button), once per original
+    // frame (15 bullets/sec)
+    if (input.isFiring() && everyOriginalFrame()) {
         // Gun direction is the nose vector from the rotation matrix
         Vec3 gunDir = player.getRotationMatrix().nose();
         // Spawn from nose (midpoint of vertices 0 and 1)
         spawnBulletParticle(player.getBulletSpawnPoint(), player.getVelocity(), gunDir);
         // Firing a bullet costs 1 point (matching original Lander)
-        if (score > 0) score--;
+        addScore(-1);
         // Play shoot sound (reduced volume to match spatial sounds)
         sound.play(SoundId::SHOOT, 0.5f);
     }
@@ -809,88 +814,6 @@ void Game::update(int mouseRelX, int mouseRelY, uint32_t mouseButtons) {
 
     // Update camera to follow player (no height clamping for debugging)
     camera.followTarget(player.getPosition(), false);
-}
-
-// Simple 3x5 pixel font for digits 0-9
-static const uint8_t DIGIT_FONT[10][5] = {
-    {0b111, 0b101, 0b101, 0b101, 0b111},  // 0
-    {0b010, 0b110, 0b010, 0b010, 0b111},  // 1
-    {0b111, 0b001, 0b111, 0b100, 0b111},  // 2
-    {0b111, 0b001, 0b111, 0b001, 0b111},  // 3
-    {0b101, 0b101, 0b111, 0b001, 0b001},  // 4
-    {0b111, 0b100, 0b111, 0b001, 0b111},  // 5
-    {0b111, 0b100, 0b111, 0b101, 0b111},  // 6
-    {0b111, 0b001, 0b001, 0b001, 0b001},  // 7
-    {0b111, 0b101, 0b111, 0b101, 0b111},  // 8
-    {0b111, 0b101, 0b111, 0b001, 0b111},  // 9
-};
-
-void Game::drawDigit(int x, int y, int digit, Color color) {
-    if (digit < 0 || digit > 9) return;
-    const int scale = 2;  // 2x scale for visibility
-    for (int row = 0; row < 5; row++) {
-        for (int col = 0; col < 3; col++) {
-            if (DIGIT_FONT[digit][row] & (0b100 >> col)) {
-                // Draw scaled pixel
-                for (int sy = 0; sy < scale; sy++) {
-                    for (int sx = 0; sx < scale; sx++) {
-                        screen.plotPhysicalPixel(x + col * scale + sx, y + row * scale + sy, color);
-                    }
-                }
-            }
-        }
-    }
-}
-
-// Draw a minus sign
-void Game::drawMinus(int x, int y, Color color) {
-    const int scale = 2;
-    for (int sx = 0; sx < 3 * scale; sx++) {
-        for (int sy = 0; sy < scale; sy++) {
-            screen.plotPhysicalPixel(x + sx, y + 4 + sy, color);
-        }
-    }
-}
-
-// Draw a signed integer, returns x position after last digit
-int Game::drawNumber(int x, int y, int value, Color color) {
-    int digitWidth = 8;
-
-    if (value < 0) {
-        drawMinus(x, y, color);
-        x += digitWidth;
-        value = -value;
-    }
-
-    // Handle zero specially
-    if (value == 0) {
-        drawDigit(x, y, 0, color);
-        return x + digitWidth;
-    }
-
-    // Count digits and draw from left to right
-    int temp = value;
-    int numDigits = 0;
-    while (temp > 0) {
-        numDigits++;
-        temp /= 10;
-    }
-
-    // Calculate divisor for leftmost digit
-    int divisor = 1;
-    for (int i = 1; i < numDigits; i++) {
-        divisor *= 10;
-    }
-
-    // Draw each digit
-    while (divisor > 0) {
-        int digit = (value / divisor) % 10;
-        drawDigit(x, y, digit, color);
-        x += digitWidth;
-        divisor /= 10;
-    }
-
-    return x;
 }
 
 void Game::drawFPS() {
@@ -959,22 +882,6 @@ void Game::drawScoreBar() {
     // Characters are 8 pixels wide at scale 1
 
     Color white = Color::white();
-
-    // Update high score if current score exceeds it
-    if (score > highScore) {
-        highScore = score;
-        // Save high score immediately
-        GameSettings settings;
-        settings.scale = DisplayConfig::scale;
-        settings.fpsIndex = fpsIndex;
-        settings.fullscreen = fullscreen;
-        settings.smoothClipping = ClippingConfig::enabled;
-        settings.soundEnabled = soundEnabled;
-        settings.landscapeScale = GameConstants::landscapeScale;
-        settings.starsEnabled = starsEnabled;
-        settings.highScore = highScore;
-        saveSettings(settings);
-    }
 
     constexpr int CHAR_WIDTH = 8;  // 8 pixels per character at scale 1
 
@@ -1080,35 +987,23 @@ void Game::bufferShip() {
     // LANDSCAPE_Z_MID = LANDSCAPE_Z - CAMERA_PLAYER_Z = 20 - 5 = 15 tiles
     shipScreenPos.z = Fixed::fromInt(15);
 
-    // Calculate which row the ship belongs to for depth sorting
     // The ship's world Z determines its row in the landscape grid
-    // Row mapping: row = camTileZ + TILES_Z - 1 - worldZInt
-    int camTileZ = camera.getZTile().toInt();
-    int playerTileZ = player.getZ().toInt();
-    int row = camTileZ + TILES_Z - 1 - playerTileZ;
-
-    // Clamp to valid row range
-    if (row < 0) row = 0;
-    if (row >= TILES_Z) row = TILES_Z - 1;
+    int row = std::clamp(camera.rowForZ(player.getZ()), 0, TILES_Z - 1);
 
     // Buffer the ship's shadow first (so it appears under the ship)
-    Vec3 cameraWorldPos;
-    cameraWorldPos.x = camera.getX();
-    cameraWorldPos.y = camera.getY();
-    cameraWorldPos.z = camera.getZ();
     bufferObjectShadow(shipBlueprint, shipScreenPos, player.getRotationMatrix(),
-                       player.getPosition(), cameraWorldPos, row);
+                       player.getPosition(), camera.getPosition(), row);
 
     // Buffer the ship using the object renderer
     bufferObject(shipBlueprint, shipScreenPos, player.getRotationMatrix(), row);
 }
 
-void Game::drawTestPattern() {
+void Game::drawFrame() {
     // Clear to black
     screen.clear(Color::black());
 
     // Buffer objects first (they get drawn during landscape rendering for proper depth sorting)
-    landscapeRenderer.renderObjects(screen, camera);
+    landscapeRenderer.bufferObjects(camera);
 
     // Ship's visual depth (15 tiles from camera, matching bufferShip)
     Fixed shipDepthZ = Fixed::fromInt(15);
@@ -1149,8 +1044,7 @@ void Game::drawTestPattern() {
 }
 
 void Game::render() {
-    // Draw test pattern (will be replaced with actual game rendering)
-    drawTestPattern();
+    drawFrame();
 
     // Update texture with screen buffer contents
     // Use max pitch since buffer stride is always max width
@@ -1165,7 +1059,7 @@ void Game::render() {
 void Game::run() {
     // Screenshot mode: render one frame and exit
     if (screenshotMode) {
-        drawTestPattern();
+        drawFrame();
         if (screen.savePNG(screenshotFilename)) {
             SDL_Log("Screenshot saved to: %s", screenshotFilename);
         } else {

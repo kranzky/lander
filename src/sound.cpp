@@ -3,18 +3,34 @@
 #include <cmath>
 #include <algorithm>
 
-#ifdef __APPLE__
-#include <mach-o/dyld.h>
-#include <libgen.h>
-#include <unistd.h>
-#endif
-
 // =============================================================================
 // SoundSystem Implementation
 // =============================================================================
 
-SoundSystem::SoundSystem() {
-    std::memset(&audioSpec, 0, sizeof(audioSpec));
+namespace {
+    // Holds the audio device lock for the lifetime of the object
+    class AudioLock {
+    public:
+        explicit AudioLock(SDL_AudioDeviceID device) : device(device) { SDL_LockAudioDevice(device); }
+        ~AudioLock() { SDL_UnlockAudioDevice(device); }
+        AudioLock(const AudioLock&) = delete;
+        AudioLock& operator=(const AudioLock&) = delete;
+    private:
+        SDL_AudioDeviceID device;
+    };
+
+    // Directory holding the sounds folder: next to the executable, or in
+    // Contents/Resources inside a macOS app bundle (SDL_GetBasePath handles
+    // both). Falls back to the working directory.
+    std::string resourcePath() {
+        char* base = SDL_GetBasePath();
+        if (!base) {
+            return "";
+        }
+        std::string path = base;
+        SDL_free(base);
+        return path;
+    }
 }
 
 SoundSystem::~SoundSystem() {
@@ -24,15 +40,12 @@ SoundSystem::~SoundSystem() {
 bool SoundSystem::init() {
     if (initialized) return true;
 
-    // Initialize SDL audio subsystem
     if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
         SDL_LogError(SDL_LOG_CATEGORY_AUDIO, "SDL_InitSubSystem(AUDIO) failed: %s", SDL_GetError());
         return false;
     }
 
-    // Set up desired audio format
-    SDL_AudioSpec desired;
-    std::memset(&desired, 0, sizeof(desired));
+    SDL_AudioSpec desired{};
     desired.freq = 22050;           // Match original Amiga sample rate
     desired.format = AUDIO_S16SYS;  // 16-bit signed, system byte order
     desired.channels = 1;           // Mono
@@ -40,52 +53,33 @@ bool SoundSystem::init() {
     desired.callback = audioCallback;
     desired.userdata = this;
 
-    // Open audio device
     audioDevice = SDL_OpenAudioDevice(nullptr, 0, &desired, &audioSpec, 0);
     if (audioDevice == 0) {
         SDL_LogError(SDL_LOG_CATEGORY_AUDIO, "SDL_OpenAudioDevice failed: %s", SDL_GetError());
+        SDL_QuitSubSystem(SDL_INIT_AUDIO);
         return false;
     }
 
-    // Determine base path for resources
-    // On macOS app bundle: executable is in .app/Contents/MacOS/, resources in .app/Contents/Resources/
-    // In development: sounds are in ./sounds/ relative to working directory
-    std::string basePath = "";
-#ifdef __APPLE__
-    char exePath[1024];
-    uint32_t size = sizeof(exePath);
-    if (_NSGetExecutablePath(exePath, &size) == 0) {
-        char* dir = dirname(exePath);  // .app/Contents/MacOS
-        std::string resourcePath = std::string(dir) + "/../Resources/sounds/boom.wav";
-        // Check if we're in an app bundle by testing if Resources/sounds exists
-        if (SDL_LoadWAV(resourcePath.c_str(), nullptr, nullptr, nullptr) != nullptr ||
-            access((std::string(dir) + "/../Resources/sounds").c_str(), F_OK) == 0) {
-            basePath = std::string(dir) + "/../Resources/";
-        }
-    }
-#endif
+    std::string soundDir = resourcePath() + "sounds/";
+    auto load = [&](const char* file, SoundId id) {
+        return loadWav(soundDir + file, sounds[static_cast<int>(id)]);
+    };
 
-    // Load all sound effects
     bool allLoaded = true;
-    allLoaded &= loadWav(basePath + "sounds/boom.wav", sounds[static_cast<int>(SoundId::BOOM)]);
-    allLoaded &= loadWav(basePath + "sounds/dead.wav", sounds[static_cast<int>(SoundId::DEAD)]);
-    allLoaded &= loadWav(basePath + "sounds/shoot.wav", sounds[static_cast<int>(SoundId::SHOOT)]);
-    allLoaded &= loadWav(basePath + "sounds/splash.wav", sounds[static_cast<int>(SoundId::SPLASH)]);
-    allLoaded &= loadWav(basePath + "sounds/thrust.wav", sounds[static_cast<int>(SoundId::THRUST)]);
-    allLoaded &= loadWav(basePath + "sounds/water.wav", sounds[static_cast<int>(SoundId::WATER)]);
+    allLoaded &= load("boom.wav", SoundId::BOOM);
+    allLoaded &= load("dead.wav", SoundId::DEAD);
+    allLoaded &= load("shoot.wav", SoundId::SHOOT);
+    allLoaded &= load("splash.wav", SoundId::SPLASH);
+    allLoaded &= load("thrust.wav", SoundId::THRUST);
+    allLoaded &= load("water.wav", SoundId::WATER);
 
-    // Create pitched variants
-    if (sounds[static_cast<int>(SoundId::SHOOT)].loaded) {
-        // Pitched down shoot for bullet ground impact (lower pitch = 0.4)
-        createPitchedVersion(sounds[static_cast<int>(SoundId::SHOOT)],
-                            sounds[static_cast<int>(SoundId::SHOOT_IMPACT)], 0.4f);
-    }
+    // Pitched down shoot for bullet ground impact
+    createPitchedVersion(sounds[static_cast<int>(SoundId::SHOOT)],
+                         sounds[static_cast<int>(SoundId::SHOOT_IMPACT)], 0.4f);
 
-    if (sounds[static_cast<int>(SoundId::THRUST)].loaded) {
-        // Pitched down thrust for hover
-        createPitchedVersion(sounds[static_cast<int>(SoundId::THRUST)],
-                            sounds[static_cast<int>(SoundId::HOVER)], 0.7f);
-    }
+    // Pitched down thrust for hover
+    createPitchedVersion(sounds[static_cast<int>(SoundId::THRUST)],
+                         sounds[static_cast<int>(SoundId::HOVER)], 0.7f);
 
     if (!allLoaded) {
         SDL_LogWarn(SDL_LOG_CATEGORY_AUDIO, "Some sound files failed to load");
@@ -104,15 +98,14 @@ bool SoundSystem::init() {
 void SoundSystem::shutdown() {
     if (!initialized) return;
 
-    if (audioDevice != 0) {
-        SDL_CloseAudioDevice(audioDevice);
-        audioDevice = 0;
-    }
+    SDL_CloseAudioDevice(audioDevice);
+    audioDevice = 0;
 
-    // Free sound data
-    for (int i = 0; i < static_cast<int>(SoundId::COUNT); i++) {
-        sounds[i].samples.clear();
-        sounds[i].loaded = false;
+    for (SoundData& sound : sounds) {
+        sound = SoundData{};
+    }
+    for (AudioChannel& channel : channels) {
+        channel = AudioChannel{};
     }
 
     SDL_QuitSubSystem(SDL_INIT_AUDIO);
@@ -141,31 +134,31 @@ bool SoundSystem::loadWav(const std::string& path, SoundData& sound) {
         return false;
     }
 
+    // Copy whole 16-bit samples out of a byte buffer
+    auto copySamples = [&sound](const Uint8* bytes, size_t length) {
+        sound.samples.resize(length / sizeof(int16_t));
+        std::memcpy(sound.samples.data(), bytes, sound.samples.size() * sizeof(int16_t));
+    };
+
     if (result == 0) {
         // No conversion needed
-        sound.samples.resize(wavLength / sizeof(int16_t));
-        std::memcpy(sound.samples.data(), wavBuffer, wavLength);
+        copySamples(wavBuffer, wavLength);
     } else {
-        // Conversion needed
-        cvt.len = wavLength;
-        cvt.buf = new Uint8[wavLength * cvt.len_mult];
-        std::memcpy(cvt.buf, wavBuffer, wavLength);
+        std::vector<Uint8> buffer(static_cast<size_t>(wavLength) * cvt.len_mult);
+        std::memcpy(buffer.data(), wavBuffer, wavLength);
+        cvt.len = static_cast<int>(wavLength);
+        cvt.buf = buffer.data();
 
         if (SDL_ConvertAudio(&cvt) < 0) {
             SDL_LogError(SDL_LOG_CATEGORY_AUDIO, "Failed to convert audio: %s", SDL_GetError());
-            delete[] cvt.buf;
             SDL_FreeWAV(wavBuffer);
             return false;
         }
 
-        sound.samples.resize(cvt.len_cvt / sizeof(int16_t));
-        std::memcpy(sound.samples.data(), cvt.buf, cvt.len_cvt);
-        delete[] cvt.buf;
+        copySamples(buffer.data(), cvt.len_cvt);
     }
 
     SDL_FreeWAV(wavBuffer);
-
-    sound.sampleRate = audioSpec.freq;
     sound.loaded = true;
 
     SDL_Log("Loaded %s: %zu samples", path.c_str(), sound.samples.size());
@@ -190,146 +183,85 @@ void SoundSystem::createPitchedVersion(const SoundData& source, SoundData& dest,
             source.samples[idx0] * (1.0f - frac) + source.samples[idx1] * frac);
     }
 
-    dest.sampleRate = source.sampleRate;
     dest.loaded = true;
 }
 
-int SoundSystem::play(SoundId id, float volume) {
-    if (!enabled || !initialized) return -1;
+void SoundSystem::startChannel(SoundId id, float volume, bool looping) {
+    const SoundData& sound = sounds[static_cast<int>(id)];
+    if (!enabled || !initialized || !sound.loaded) return;
 
-    int idx = static_cast<int>(id);
-    if (idx < 0 || idx >= static_cast<int>(SoundId::COUNT)) return -1;
-    if (!sounds[idx].loaded) return -1;
+    AudioLock lock(audioDevice);
 
-    // Find a free channel
-    SDL_LockAudioDevice(audioDevice);
+    auto isFree = [](const AudioChannel& channel) { return channel.data == nullptr; };
+    auto free = std::find_if(std::begin(channels), std::end(channels), isFree);
+    if (free == std::end(channels)) return;
 
-    int channel = -1;
-    for (int i = 0; i < MAX_CHANNELS; i++) {
-        if (channels[i].data == nullptr) {
-            channel = i;
-            break;
-        }
-    }
-
-    if (channel >= 0) {
-        channels[channel].data = sounds[idx].samples.data();
-        channels[channel].length = static_cast<uint32_t>(sounds[idx].samples.size());
-        channels[channel].position = 0.0f;
-        channels[channel].volume = volume;
-        channels[channel].pitch = 1.0f;
-        channels[channel].looping = false;
-        channels[channel].soundId = id;
-        channels[channel].filterCutoff = 1.0f;  // No filter by default
-        channels[channel].filterState = 0.0f;   // Reset filter state
-    }
-
-    SDL_UnlockAudioDevice(audioDevice);
-    return channel;
+    *free = AudioChannel{};
+    free->data = sound.samples.data();
+    free->length = static_cast<uint32_t>(sound.samples.size());
+    free->volume = volume;
+    free->looping = looping;
+    free->soundId = id;
 }
 
-int SoundSystem::playLoop(SoundId id, float volume) {
-    if (!enabled || !initialized) return -1;
-
-    // Don't start a new loop if already playing
-    if (isPlaying(id)) return -1;
-
-    int idx = static_cast<int>(id);
-    if (idx < 0 || idx >= static_cast<int>(SoundId::COUNT)) return -1;
-    if (!sounds[idx].loaded) return -1;
-
-    // Find a free channel
-    SDL_LockAudioDevice(audioDevice);
-
-    int channel = -1;
-    for (int i = 0; i < MAX_CHANNELS; i++) {
-        if (channels[i].data == nullptr) {
-            channel = i;
-            break;
-        }
-    }
-
-    if (channel >= 0) {
-        channels[channel].data = sounds[idx].samples.data();
-        channels[channel].length = static_cast<uint32_t>(sounds[idx].samples.size());
-        channels[channel].position = 0.0f;
-        channels[channel].volume = volume;
-        channels[channel].pitch = 1.0f;
-        channels[channel].looping = true;
-        channels[channel].soundId = id;
-        channels[channel].filterCutoff = 1.0f;  // No filter by default
-        channels[channel].filterState = 0.0f;   // Reset filter state
-    }
-
-    SDL_UnlockAudioDevice(audioDevice);
-    return channel;
+void SoundSystem::play(SoundId id, float volume) {
+    startChannel(id, volume, false);
 }
 
-void SoundSystem::stopChannel(int channel) {
-    if (channel < 0 || channel >= MAX_CHANNELS) return;
-
-    SDL_LockAudioDevice(audioDevice);
-    channels[channel].data = nullptr;
-    SDL_UnlockAudioDevice(audioDevice);
+void SoundSystem::playLoop(SoundId id, float volume) {
+    if (!isPlaying(id)) {
+        startChannel(id, volume, true);
+    }
 }
 
 void SoundSystem::stopSound(SoundId id) {
-    SDL_LockAudioDevice(audioDevice);
+    AudioLock lock(audioDevice);
 
-    for (int i = 0; i < MAX_CHANNELS; i++) {
-        if (channels[i].data != nullptr && channels[i].soundId == id) {
-            channels[i].data = nullptr;
+    for (AudioChannel& channel : channels) {
+        if (channel.soundId == id) {
+            channel.data = nullptr;
         }
     }
-
-    SDL_UnlockAudioDevice(audioDevice);
 }
 
 bool SoundSystem::isPlaying(SoundId id) const {
-    for (int i = 0; i < MAX_CHANNELS; i++) {
-        if (channels[i].data != nullptr && channels[i].soundId == id) {
-            return true;
-        }
-    }
-    return false;
+    AudioLock lock(audioDevice);
+
+    return std::any_of(std::begin(channels), std::end(channels), [id](const AudioChannel& channel) {
+        return channel.data != nullptr && channel.soundId == id;
+    });
 }
 
-void SoundSystem::setLoopVolume(SoundId id, float volume) {
-    SDL_LockAudioDevice(audioDevice);
+template <typename Fn>
+void SoundSystem::forEachLoop(SoundId id, Fn fn) {
+    AudioLock lock(audioDevice);
 
-    for (int i = 0; i < MAX_CHANNELS; i++) {
-        if (channels[i].data != nullptr && channels[i].soundId == id && channels[i].looping) {
-            channels[i].volume = volume;
+    for (AudioChannel& channel : channels) {
+        if (channel.data != nullptr && channel.soundId == id && channel.looping) {
+            fn(channel);
         }
     }
-
-    SDL_UnlockAudioDevice(audioDevice);
 }
 
 void SoundSystem::setLoopFilter(SoundId id, float cutoff) {
-    SDL_LockAudioDevice(audioDevice);
-
-    for (int i = 0; i < MAX_CHANNELS; i++) {
-        if (channels[i].data != nullptr && channels[i].soundId == id && channels[i].looping) {
-            // Clamp cutoff to valid range
-            channels[i].filterCutoff = (cutoff < 0.0f) ? 0.0f : (cutoff > 1.0f) ? 1.0f : cutoff;
-        }
-    }
-
-    SDL_UnlockAudioDevice(audioDevice);
+    cutoff = std::clamp(cutoff, 0.0f, 1.0f);
+    forEachLoop(id, [cutoff](AudioChannel& channel) { channel.filterCutoff = cutoff; });
 }
 
 void SoundSystem::setLoopPitch(SoundId id, float pitch) {
-    SDL_LockAudioDevice(audioDevice);
+    pitch = std::clamp(pitch, 0.5f, 2.0f);
+    forEachLoop(id, [pitch](AudioChannel& channel) { channel.pitch = pitch; });
+}
 
-    for (int i = 0; i < MAX_CHANNELS; i++) {
-        if (channels[i].data != nullptr && channels[i].soundId == id && channels[i].looping) {
-            // Clamp pitch to reasonable range
-            channels[i].pitch = (pitch < 0.5f) ? 0.5f : (pitch > 2.0f) ? 2.0f : pitch;
+void SoundSystem::setEnabled(bool enable) {
+    AudioLock lock(audioDevice);
+
+    enabled = enable;
+    if (!enabled) {
+        for (AudioChannel& channel : channels) {
+            channel.data = nullptr;
         }
     }
-
-    SDL_UnlockAudioDevice(audioDevice);
 }
 
 void SoundSystem::audioCallback(void* userdata, Uint8* stream, int len) {
@@ -348,7 +280,7 @@ void SoundSystem::mixAudio(int16_t* stream, int samples) {
         AudioChannel& channel = channels[ch];
         if (channel.data == nullptr) continue;
 
-        float vol = channel.volume * masterVolume;
+        float vol = channel.volume;
 
         // Calculate filter coefficient from cutoff
         // cutoff=1.0 means no filtering (alpha=1.0, output=input)
@@ -359,7 +291,8 @@ void SoundSystem::mixAudio(int16_t* stream, int samples) {
         for (int i = 0; i < samples; i++) {
             if (channel.position >= channel.length) {
                 if (channel.looping) {
-                    channel.position = 0.0f;
+                    // Keep the fractional overshoot so pitched loops stay seamless
+                    channel.position -= channel.length;
                 } else {
                     channel.data = nullptr;
                     break;

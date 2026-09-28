@@ -1,7 +1,7 @@
 #ifndef LANDER_SOUND_H
 #define LANDER_SOUND_H
 
-#include <SDL2/SDL.h>
+#include <SDL.h>
 #include <string>
 #include <vector>
 
@@ -13,6 +13,9 @@
 // - Pitch shifting (for variants like hover thrust, bullet impact)
 // - Looping (for continuous sounds like engine thrust)
 // - Volume control (for spatial audio based on distance)
+//
+// Channels are mixed on SDL's audio thread, so every access to them (and to
+// `enabled`, which the mixer reads) happens with the audio device locked.
 //
 // =============================================================================
 
@@ -46,15 +49,18 @@ struct AudioChannel {
 
 // Loaded sound effect data
 struct SoundData {
-    std::vector<int16_t> samples;   // Audio samples (mono, 16-bit)
-    int sampleRate = 0;             // Original sample rate
+    std::vector<int16_t> samples;   // Audio samples (mono, 16-bit, at the device rate)
     bool loaded = false;
 };
 
 class SoundSystem {
 public:
-    SoundSystem();
+    SoundSystem() = default;
     ~SoundSystem();
+
+    // The audio callback holds a pointer to this instance
+    SoundSystem(const SoundSystem&) = delete;
+    SoundSystem& operator=(const SoundSystem&) = delete;
 
     // Initialize SDL audio and load all sounds
     bool init();
@@ -62,25 +68,18 @@ public:
     // Shutdown and free resources
     void shutdown();
 
-    // Play a sound effect
+    // Play a sound effect once
     // volume: 0.0 to 1.0
-    // Returns channel index or -1 if no channel available
-    int play(SoundId id, float volume = 1.0f);
+    void play(SoundId id, float volume = 1.0f);
 
-    // Play a looping sound (returns channel for later stop)
-    int playLoop(SoundId id, float volume = 1.0f);
-
-    // Stop a specific channel
-    void stopChannel(int channel);
+    // Play a looping sound (does nothing if it is already playing)
+    void playLoop(SoundId id, float volume = 1.0f);
 
     // Stop all instances of a specific sound
     void stopSound(SoundId id);
 
     // Check if a sound is currently playing
     bool isPlaying(SoundId id) const;
-
-    // Update loop volumes (for thrust over water, etc.)
-    void setLoopVolume(SoundId id, float volume);
 
     // Set low-pass filter cutoff for a looping sound
     // cutoff: 1.0 = no filter (bright), 0.0 = fully filtered (muffled)
@@ -90,13 +89,8 @@ public:
     // pitch: 1.0 = normal, <1.0 = lower, >1.0 = higher
     void setLoopPitch(SoundId id, float pitch);
 
-    // Master volume control
-    void setMasterVolume(float volume) { masterVolume = volume; }
-    float getMasterVolume() const { return masterVolume; }
-
-    // Enable/disable all sound
-    void setEnabled(bool enabled) { this->enabled = enabled; }
-    bool isEnabled() const { return enabled; }
+    // Enable/disable all sound (disabling also stops anything playing)
+    void setEnabled(bool enable);
 
 private:
     // Load a WAV file into a SoundData structure
@@ -105,13 +99,20 @@ private:
     // Create a pitched version of a sound
     void createPitchedVersion(const SoundData& source, SoundData& dest, float pitchFactor);
 
+    // Start a sound on a free channel (if there is one)
+    void startChannel(SoundId id, float volume, bool looping);
+
+    // Apply fn to every playing loop of a sound, with the device locked
+    template <typename Fn>
+    void forEachLoop(SoundId id, Fn fn);
+
     // SDL audio callback (static, calls instance method)
     static void audioCallback(void* userdata, Uint8* stream, int len);
     void mixAudio(int16_t* stream, int samples);
 
     // Audio device
     SDL_AudioDeviceID audioDevice = 0;
-    SDL_AudioSpec audioSpec;
+    SDL_AudioSpec audioSpec{};
 
     // Sound data for each sound ID
     SoundData sounds[static_cast<int>(SoundId::COUNT)];
@@ -120,8 +121,6 @@ private:
     static constexpr int MAX_CHANNELS = 16;
     AudioChannel channels[MAX_CHANNELS];
 
-    // Settings
-    float masterVolume = 1.0f;
     bool enabled = true;
     bool initialized = false;
 };

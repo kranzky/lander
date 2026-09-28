@@ -2,52 +2,90 @@
 // Save and load game settings
 
 #include "settings.h"
-#include <fstream>
+#include "constants.h"
+#include <cerrno>
+#include <climits>
+#include <cstdio>
 #include <cstdlib>
+#include <fstream>
 #include <sys/stat.h>
-
-#ifdef __APPLE__
-#include <pwd.h>
-#include <unistd.h>
-#endif
 
 #ifdef _WIN32
 #include <shlobj.h>
 #include <direct.h>
+#else
+#include <pwd.h>
+#include <unistd.h>
 #endif
 
 // =============================================================================
 // Settings path - use platform-appropriate location
 // =============================================================================
 
-std::string getSettingsPath() {
+namespace {
+    // Settings directory, created if necessary, or "" to use the working directory
+    std::string settingsDirectory() {
 #ifdef _WIN32
-    // Windows: %APPDATA%\Lander\settings.cfg
-    char appDataPath[MAX_PATH];
-    if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, appDataPath))) {
-        std::string dir = std::string(appDataPath) + "\\Lander";
-        // Create directory if it doesn't exist
-        _mkdir(dir.c_str());
-        return dir + "\\settings.cfg";
-    }
-#elif defined(__APPLE__)
-    // macOS: ~/Library/Application Support/Lander/settings.cfg
-    const char* home = getenv("HOME");
-    if (!home) {
-        struct passwd* pw = getpwuid(getuid());
-        if (pw) {
-            home = pw->pw_dir;
+        // %APPDATA%\Lander
+        char appDataPath[MAX_PATH];
+        if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, appDataPath))) {
+            std::string dir = std::string(appDataPath) + "\\Lander";
+            _mkdir(dir.c_str());
+            return dir + "\\";
         }
-    }
-    if (home) {
-        std::string dir = std::string(home) + "/Library/Application Support/Lander";
-        // Create directory if it doesn't exist
-        mkdir(dir.c_str(), 0755);
-        return dir + "/settings.cfg";
-    }
+#else
+        const char* home = std::getenv("HOME");
+        if (!home) {
+            if (const passwd* pw = getpwuid(getuid())) {
+                home = pw->pw_dir;
+            }
+        }
+        if (home) {
+#ifdef __APPLE__
+            // ~/Library/Application Support/Lander
+            std::string dir = std::string(home) + "/Library/Application Support/Lander";
+#else
+            // $XDG_CONFIG_HOME/Lander, defaulting to ~/.config/Lander
+            const char* xdg = std::getenv("XDG_CONFIG_HOME");
+            std::string config = (xdg && *xdg) ? xdg : std::string(home) + "/.config";
+            mkdir(config.c_str(), 0755);
+            std::string dir = config + "/Lander";
 #endif
-    // Fallback to current directory
-    return "settings.cfg";
+            mkdir(dir.c_str(), 0755);
+            return dir + "/";
+        }
+#endif
+        return "";
+    }
+
+    // Parse a whole-string decimal integer
+    bool parseInt(const std::string& text, int& out) {
+        if (text.empty()) {
+            return false;
+        }
+        char* end = nullptr;
+        errno = 0;
+        long value = std::strtol(text.c_str(), &end, 10);
+        if (errno != 0 || *end != '\0' || value < INT_MIN || value > INT_MAX) {
+            return false;
+        }
+        out = static_cast<int>(value);
+        return true;
+    }
+
+    // Replace `to` with `from`, so a crash mid-save never leaves a partial file
+    bool replaceFile(const std::string& from, const std::string& to) {
+#ifdef _WIN32
+        return MoveFileExA(from.c_str(), to.c_str(), MOVEFILE_REPLACE_EXISTING) != 0;
+#else
+        return std::rename(from.c_str(), to.c_str()) == 0;
+#endif
+    }
+}
+
+std::string getSettingsPath() {
+    static const std::string path = settingsDirectory() + "settings.cfg";
+    return path;
 }
 
 // =============================================================================
@@ -55,26 +93,31 @@ std::string getSettingsPath() {
 // =============================================================================
 
 bool saveSettings(const GameSettings& settings) {
-    std::string path = getSettingsPath();
-    std::ofstream file(path);
+    const std::string path = getSettingsPath();
+    const std::string tempPath = path + ".tmp";
 
-    if (!file.is_open()) {
-        return false;
+    {
+        std::ofstream file(tempPath);
+
+        // Write settings in simple key=value format
+        file << "# Lander Settings\n";
+        file << "scale=" << settings.scale << "\n";
+        file << "fpsIndex=" << settings.fpsIndex << "\n";
+        file << "fullscreen=" << (settings.fullscreen ? 1 : 0) << "\n";
+        file << "smoothClipping=" << (settings.smoothClipping ? 1 : 0) << "\n";
+        file << "soundEnabled=" << (settings.soundEnabled ? 1 : 0) << "\n";
+        file << "landscapeScale=" << settings.landscapeScale << "\n";
+        file << "starsEnabled=" << (settings.starsEnabled ? 1 : 0) << "\n";
+        file << "highScore=" << settings.highScore << "\n";
+
+        file.close();
+        if (file.fail()) {
+            std::remove(tempPath.c_str());
+            return false;
+        }
     }
 
-    // Write settings in simple key=value format
-    file << "# Lander Settings\n";
-    file << "scale=" << settings.scale << "\n";
-    file << "fpsIndex=" << settings.fpsIndex << "\n";
-    file << "fullscreen=" << (settings.fullscreen ? 1 : 0) << "\n";
-    file << "smoothClipping=" << (settings.smoothClipping ? 1 : 0) << "\n";
-    file << "soundEnabled=" << (settings.soundEnabled ? 1 : 0) << "\n";
-    file << "landscapeScale=" << settings.landscapeScale << "\n";
-    file << "starsEnabled=" << (settings.starsEnabled ? 1 : 0) << "\n";
-    file << "highScore=" << settings.highScore << "\n";
-
-    file.close();
-    return true;
+    return replaceFile(tempPath, path);
 }
 
 // =============================================================================
@@ -84,13 +127,7 @@ bool saveSettings(const GameSettings& settings) {
 GameSettings loadSettings() {
     GameSettings settings;  // Start with defaults
 
-    std::string path = getSettingsPath();
-    std::ifstream file(path);
-
-    if (!file.is_open()) {
-        // File doesn't exist, return defaults
-        return settings;
-    }
+    std::ifstream file(getSettingsPath());
 
     std::string line;
     while (std::getline(file, line)) {
@@ -99,47 +136,41 @@ GameSettings loadSettings() {
             continue;
         }
 
-        // Parse key=value
+        // Parse key=value, ignoring anything malformed
         size_t pos = line.find('=');
-        if (pos == std::string::npos) {
+        int v = 0;
+        if (pos == std::string::npos || !parseInt(line.substr(pos + 1), v)) {
             continue;
         }
-
         std::string key = line.substr(0, pos);
-        std::string value = line.substr(pos + 1);
 
-        // Parse each setting
         if (key == "scale") {
-            int v = std::atoi(value.c_str());
             if (v == 1 || v == 2 || v == 4) {
                 settings.scale = v;
             }
         } else if (key == "fpsIndex") {
-            int v = std::atoi(value.c_str());
-            if (v >= 0 && v <= 4) {  // Valid FPS indices: 0-4
+            if (v >= 0 && v < FPS_OPTION_COUNT) {
                 settings.fpsIndex = v;
             }
         } else if (key == "fullscreen") {
-            settings.fullscreen = (std::atoi(value.c_str()) != 0);
+            settings.fullscreen = (v != 0);
         } else if (key == "smoothClipping") {
-            settings.smoothClipping = (std::atoi(value.c_str()) != 0);
+            settings.smoothClipping = (v != 0);
         } else if (key == "soundEnabled") {
-            settings.soundEnabled = (std::atoi(value.c_str()) != 0);
+            settings.soundEnabled = (v != 0);
         } else if (key == "landscapeScale") {
-            int v = std::atoi(value.c_str());
             if (v == 1 || v == 2 || v == 4 || v == 8) {
                 settings.landscapeScale = v;
             }
         } else if (key == "starsEnabled") {
-            settings.starsEnabled = (std::atoi(value.c_str()) != 0);
+            settings.starsEnabled = (v != 0);
         } else if (key == "highScore") {
-            int v = std::atoi(value.c_str());
-            if (v >= 500) {  // High score must be at least 500 (initial value)
+            // High score must be at least 500 (initial value)
+            if (v >= 500) {
                 settings.highScore = v;
             }
         }
     }
 
-    file.close();
     return settings;
 }

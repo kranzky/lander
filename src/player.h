@@ -33,14 +33,12 @@ namespace MouseButton {
 
 // Input state captured each frame
 struct InputState {
-    // Raw mouse position (screen coordinates)
-    int mouseX = 0;
-    int mouseY = 0;
-
-    // Mouse position relative to center, scaled to ±512 range
-    // (matching original Lander's coordinate system)
-    int mouseRelX = 0;     // -512 to +511
-    int mouseRelY = 0;     // -512 to +512
+    // Mouse position relative to center (matching original Lander's coordinate
+    // system). Limited to ±511 because the polar conversion shifts it left by
+    // 22 bits, and 512 << 22 overflows to INT_MIN, flipping the ship around.
+    static constexpr int MOUSE_RANGE = 511;
+    int mouseRelX = 0;
+    int mouseRelY = 0;
 
     // Mouse button state (bits as per MouseButton namespace)
     uint8_t buttons = 0;
@@ -69,15 +67,8 @@ public:
     // Initialize player at starting position (launchpad)
     void reset();
 
-    // Update input state from SDL (absolute screen coordinates)
-    void updateInput(int mouseX, int mouseY, uint32_t sdlButtonState);
-
     // Update input state from relative mouse coordinates (already in ±range format)
     void updateInputRelative(int relX, int relY, uint32_t sdlButtonState);
-
-    // Apply keyboard-based movement (for testing/debugging)
-    void applyDebugMovement(bool left, bool right, bool forward, bool back,
-                           bool up, bool down, Fixed speed);
 
     // Update ship orientation from current mouse input
     // Converts mouse position to polar coordinates, then smoothly interpolates
@@ -119,13 +110,8 @@ public:
 
     // Exhaust direction (points along exhaust plume)
     const Vec3& getExhaustDirection() const { return exhaustDirection; }
-    void setExhaustDirection(const Vec3& dir) { exhaustDirection = dir; }
 
     // Ship orientation angles (32-bit angle format: 0x80000000 = 180 degrees)
-    int32_t getShipDirection() const { return shipDirection; }
-    int32_t getShipPitch() const { return shipPitch; }
-    void setShipDirection(int32_t dir) { shipDirection = dir; }
-    void setShipPitch(int32_t pitch) { shipPitch = pitch; }
 
     // Ship rotation matrix (computed from direction and pitch)
     const Mat3x3& getRotationMatrix() const { return rotationMatrix; }
@@ -143,8 +129,6 @@ public:
 
     // Fuel management
     int getFuelLevel() const { return fuelLevel; }
-    void setFuelLevel(int level) { fuelLevel = level; }
-    bool hasFuel() const { return fuelLevel > 0; }
     void burnFuel(int amount);
 
 private:
@@ -171,6 +155,7 @@ private:
 
     // Fuel level (decreases when thrusting)
     int fuelLevel;
+    uint32_t refuelTicks = 0;  // Physics steps spent refuelling
 };
 
 // =============================================================================
@@ -187,9 +172,6 @@ namespace PlayerConstants {
 
     // Initial fuel level (0xD55 = 3413, about 2/3 of max 0x1400)
     constexpr int INITIAL_FUEL = 0xD55;
-
-    // Debug movement speed (tiles per frame)
-    constexpr Fixed DEBUG_MOVE_SPEED = Fixed::fromRaw(0x00199999);  // ~0.1 tiles
 
     // ==========================================================================
     // Physics Constants (from original Lander.arm)

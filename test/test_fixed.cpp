@@ -300,7 +300,6 @@ TEST(game_constants) {
     // Verify tile counts (configurable, check they're at least original size)
     ASSERT_EQ(TILES_X >= 13, true);  // At least original size
     ASSERT_EQ(TILES_Z >= 11, true);
-    ASSERT_EQ(MAX_PARTICLES, 484);
 }
 
 TEST(original_arithmetic_patterns) {

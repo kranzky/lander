@@ -82,12 +82,3 @@ Mat3x3 calculateRotationMatrix(int32_t angleA, int32_t angleB) {
         Vec3(xSideV, ySideV, zSideV)   // Side vector (column 2)
     );
 }
-
-// =============================================================================
-// Fixed-point multiplication utility
-// =============================================================================
-
-Fixed multiplyFixed(Fixed a, Fixed b) {
-    // This is already implemented in the Fixed class
-    return a * b;
-}

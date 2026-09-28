@@ -168,9 +168,4 @@ Mat3x3 calculateRotationMatrix(int32_t angleA, int32_t angleB);
 // Utility Functions
 // =============================================================================
 
-// Multiply two signed 32-bit values and return result
-// This matches the original shift-and-add multiplication
-// The result is scaled appropriately for the fixed-point format
-Fixed multiplyFixed(Fixed a, Fixed b);
-
 #endif // LANDER_MATH3D_H

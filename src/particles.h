@@ -40,13 +40,23 @@ namespace ParticleFlags {
 }
 
 namespace ParticleConstants {
-    constexpr int MAX_PARTICLES = 900;  // Increased from 484 to support stars
+    // Room for a full star field (StarConfig::MAX_STARS) plus a ship crash
+    // (200), several object/rock explosions (80 each), exhaust, bullets and
+    // smoke. addParticle drops new particles when the pool is full.
+    constexpr int MAX_PARTICLES = 1500;
 
     // Gravity for particles - same as player gravity so they fall together
     constexpr int32_t PARTICLE_GRAVITY = 0xC00;
 
     // Bounce damping (velocity multiplier after bounce, approximate)
     constexpr int BOUNCE_DAMPING_SHIFT = 1;  // Divide by 2 on bounce
+
+    // The ship is drawn 15 tiles in front of the camera for a consistent size,
+    // but the player is really only 5 tiles in front. Most particles are stored
+    // 10 tiles further out than their world position so they line up with the
+    // ship on screen; subtract this to get back to world coordinates. Rocks are
+    // the exception: they are stored in world coordinates.
+    constexpr Fixed VISUAL_Z_OFFSET = GameConstants::LANDSCAPE_Z_FRONT;
 }
 
 // =============================================================================
@@ -80,16 +90,8 @@ struct Particle {
     uint8_t starSize;         // Size in base pixels (1-3)
     uint8_t starBrightness;   // Grey value (160-255)
 
-    // Check if particle is active
-    bool isActive() const { return lifespan > 0; }
-
     // Get color index from flags
     uint8_t getColorIndex() const { return flags & ParticleFlags::COLOR_MASK; }
-
-    // Set color index in flags
-    void setColorIndex(uint8_t color) {
-        flags = (flags & ~ParticleFlags::COLOR_MASK) | color;
-    }
 
     // Check flag helpers
     bool hasGravity() const { return (flags & ParticleFlags::GRAVITY) != 0; }
@@ -111,8 +113,11 @@ public:
     // Clear all particles
     void clear();
 
-    // Add a new particle, returns true if successful (room available)
-    bool addParticle(const Vec3& pos, const Vec3& vel, int32_t lifespan, uint32_t flags);
+    // Add a new particle, returning it, or nullptr if the pool is full
+    Particle* addParticle(const Vec3& pos, const Vec3& vel, int32_t lifespan, uint32_t flags);
+
+    // Number of free slots in the pool
+    int getFreeCount() const { return ParticleConstants::MAX_PARTICLES - particleCount; }
 
     // Update all particles (apply velocity, gravity, lifespan countdown)
     // Call once per frame
@@ -150,7 +155,6 @@ struct ParticleEvents {
     int bulletHitGround;      // Bullet hit terrain (shoot_impact sound)
     int bulletHitWater;       // Bullet hit water (splash sound)
     int exhaustHitWater;      // Exhaust particle hit water (water sound)
-    int rockHitPlayer;        // Rock hit player (triggers crash)
     int rockExploded;         // Rock hit ground/water (boom sound)
 
     // Positions of most recent events (for spatial audio)
@@ -158,7 +162,6 @@ struct ParticleEvents {
     Vec3 bulletHitGroundPos;
     Vec3 bulletHitWaterPos;
     Vec3 exhaustHitWaterPos;
-    Vec3 rockHitPlayerPos;
     Vec3 rockExplodedPos;
 
     void reset() {
@@ -166,7 +169,6 @@ struct ParticleEvents {
         bulletHitGround = 0;
         bulletHitWater = 0;
         exhaustHitWater = 0;
-        rockHitPlayer = 0;
         rockExploded = 0;
     }
 };
@@ -193,13 +195,7 @@ ParticleEvents& getParticleEvents();
 //
 // =============================================================================
 
-// Forward declarations
-class ScreenBuffer;
 class Camera;
-
-// Render all particles (immediate mode - for debugging)
-// Requires camera for projection and terrain for shadow placement
-void renderParticles(const Camera& camera, ScreenBuffer& screen);
 
 // Buffer particles to the graphics buffer system for depth-sorted rendering
 // Particles are split into two passes for correct depth sorting with the ship:
@@ -259,8 +255,8 @@ void spawnBulletParticle(const Vec3& pos, const Vec3& vel, const Vec3& gunDir);
 // Port of SplashParticleIntoSea and AddSmallExplosionToBuffer from Lander.arm.
 //
 // When particles hit the sea:
-// - Create blue spray particles shooting upward
-// - Number of particles: 4 for small splash, 65 for big splash
+// - Create 1-4 blue spray particles shooting upward (the original's 4 or 65
+//   particles were too dense at 120fps)
 //
 // When bullets hit terrain (not sea):
 // - Create spark particles in random directions
@@ -271,8 +267,7 @@ void spawnBulletParticle(const Vec3& pos, const Vec3& vel, const Vec3& gunDir);
 // Spawn splash spray particles when something hits the sea
 // pos: impact position (at sea level)
 // impactVel: velocity of the impacting particle (used as bias for splash)
-// bigSplash: true = 65 particles, false = 4 particles
-void spawnSplashParticles(const Vec3& pos, const Vec3& impactVel, bool bigSplash);
+void spawnSplashParticles(const Vec3& pos, const Vec3& impactVel);
 
 // Spawn spark particles when a bullet hits terrain
 // pos: impact position (at terrain surface)
@@ -321,6 +316,11 @@ void spawnExplosionParticles(const Vec3& pos, int clusterCount);
 // pos: position to spawn smoke (should be SMOKE_HEIGHT above object base)
 void spawnSmokeParticle(const Vec3& pos);
 
+// Spawn smoke from destroyed objects in view (port of DrawObjects Part 3,
+// Lander.arm lines 4910-4947). Call once per physics step, so the smoke rate
+// doesn't depend on the frame rate; tick is the physics step count.
+void spawnSmokeFromDestroyedObjects(const Camera& camera, uint32_t tick);
+
 // =============================================================================
 // Falling Rock Spawning
 // =============================================================================
@@ -340,23 +340,12 @@ void spawnSmokeParticle(const Vec3& pos);
 // pos: world position to spawn rock (typically high above camera)
 void spawnRock(const Vec3& pos);
 
-// Check if any rocks are currently active
-int getRockCount();
-
-// Render all rock particles as 3D objects
-// Called during the rendering phase to draw rocks with proper depth sorting
-class Camera;
-class ScreenBuffer;
-void renderRocks(const Camera& camera, ScreenBuffer& screen);
-
 // Buffer rocks into graphics buffer system for depth-sorted rendering
 void bufferRocks(const Camera& camera);
 
-// Check for rock-player collision
-// playerPos: player's world position
-// cameraPos: camera's world position (rocks are relative to camera)
-// Returns true if a rock hit the player (and sets rockHitPlayer event)
-bool checkRockPlayerCollision(const Vec3& playerPos, const Vec3& cameraPos);
+// Check for rock-player collision (both in world coordinates)
+// Returns true if a rock hit the player
+bool checkRockPlayerCollision(const Vec3& playerPos);
 
 // =============================================================================
 // Star Particle System
@@ -377,7 +366,7 @@ void updateStars(const Vec3& playerPos, const Vec3& playerVel, int32_t playerAlt
 // Get current star count
 int getStarCount();
 
-// Render stars with proper depth sorting
+// Buffer stars for depth-sorted rendering
 // Stars are rendered as filled squares with fade effect
 void bufferStars(const Camera& camera);
 

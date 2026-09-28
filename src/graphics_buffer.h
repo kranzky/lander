@@ -32,21 +32,22 @@
 //
 // =============================================================================
 
-using namespace GameConstants;
-
 // Triangle data structure for buffered rendering
 struct BufferedTriangle {
-    int16_t x1, y1;
-    int16_t x2, y2;
-    int16_t x3, y3;
+    int x1, y1;
+    int x2, y2;
+    int x3, y3;
     Color color;
 };
 
 // Graphics buffer for a single tile row
+//
+// Unlike the original's fixed 4308-byte buffers, a row grows as needed: a
+// fixed cap silently dropped triangles once a row filled up (stars at high
+// altitude plus a large explosion), which made particles and even the ship
+// vanish. Capacity is retained across frames, so steady state never allocates.
 class RowBuffer {
 public:
-    RowBuffer();
-
     // Add a triangle to this buffer
     void addTriangle(int x1, int y1, int x2, int y2, int x3, int y3, Color color);
 
@@ -64,19 +65,11 @@ public:
 
 private:
     std::vector<BufferedTriangle> triangles;
-
-    // Maximum triangles per buffer
-    // Original: 4308 / 28 ≈ 153 triangles, but we have more particles and need headroom
-    // At 484 max particles * 4 triangles each = 1936 triangles if all in one row (worst case)
-    // Use 512 to provide comfortable headroom for typical cases
-    static constexpr size_t MAX_TRIANGLES = 512;
 };
 
 // Main graphics buffer system managing all tile row buffers
 class GraphicsBufferSystem {
 public:
-    GraphicsBufferSystem();
-
     // Add a triangle to the buffer for a specific tile row
     // Row 0 = furthest (back), Row TILES_Z-1 = nearest (front)
     void addTriangle(int row, int x1, int y1, int x2, int y2, int x3, int y3, Color color);
@@ -98,9 +91,9 @@ public:
 
 private:
     // One buffer per tile row for objects (sized for max scale)
-    RowBuffer buffers[MAX_TILES_Z];
+    RowBuffer buffers[GameConstants::MAX_TILES_Z];
     // Separate buffer per tile row for shadows (drawn before objects)
-    RowBuffer shadowBuffers[MAX_TILES_Z];
+    RowBuffer shadowBuffers[GameConstants::MAX_TILES_Z];
 };
 
 // Global graphics buffer system instance

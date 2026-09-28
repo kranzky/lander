@@ -39,10 +39,9 @@ public:
     // Takes a Camera object for camera position
     void render(ScreenBuffer& screen, const Camera& camera);
 
-    // Render all visible objects on the landscape
-    // Called separately from render() so it can be called after particles
-    // for proper depth layering
-    void renderObjects(ScreenBuffer& screen, const Camera& camera);
+    // Buffer all visible objects on the landscape into the graphics buffers,
+    // which render() flushes row by row for correct depth sorting
+    void bufferObjects(const Camera& camera);
 
 private:
 

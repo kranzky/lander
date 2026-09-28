@@ -82,8 +82,6 @@ namespace GameColors {
     Color white();        // &FF = white
     Color smokeGrey(int level);  // Grey gradient for smoke (0=dark, 15=light)
 
-    // Debug/test colors
-    Color fromVidc(uint8_t vidc);  // Direct VIDC to RGB
 }
 
 #endif // LANDER_PALETTE_H
