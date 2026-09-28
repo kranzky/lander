@@ -59,7 +59,8 @@ done
 iconutil -c icns "$ICONSET_DIR" -o "$DIST_DIR/lander.icns"
 rm -rf "$ICONSET_DIR"
 
-echo "==> Build release binary"
+echo "==> Build release binary (fresh configure, so a stale cache can't leak in)"
+rm -rf "$BUILD_DIR/CMakeCache.txt" "$BUILD_DIR/CMakeFiles"
 cmake -S "$PROJECT_DIR" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release
 cmake --build "$BUILD_DIR" --target lander -j "$(sysctl -n hw.ncpu)"
 
@@ -95,18 +96,55 @@ chmod u+w "$SDL2_DYLIB"
 install_name_tool -change "$SDL2_PATH" "@executable_path/../Frameworks/$(basename "$SDL2_PATH")" "$BINARY"
 install_name_tool -id "@executable_path/../Frameworks/$(basename "$SDL2_PATH")" "$SDL2_DYLIB"
 
+# Homebrew's sdl2 is now sdl2-compat, which implements SDL2 on top of SDL3 and
+# loads SDL3 when it starts, looking first for libSDL3.dylib beside itself.
+# Without it the app shows an error dialog and never starts.
+SDL3_DYLIB=""
+if grep -qa "sdl2-compat" "$SDL2_DYLIB"; then
+    echo "==> Bundle SDL3 (SDL2 is sdl2-compat)"
+    SDL3_PATH="$(brew --prefix sdl3)/lib/libSDL3.0.dylib"
+    [ -f "$SDL3_PATH" ] || { echo "ERROR: sdl2-compat needs SDL3, not found at $SDL3_PATH"; exit 1; }
+    SDL3_DYLIB="$APP_BUNDLE/Contents/Frameworks/libSDL3.dylib"
+    cp "$SDL3_PATH" "$SDL3_DYLIB"
+    chmod u+w "$SDL3_DYLIB"
+    install_name_tool -id "@loader_path/libSDL3.dylib" "$SDL3_DYLIB"
+fi
+FRAMEWORK_DYLIBS=("$SDL2_DYLIB")
+[ -n "$SDL3_DYLIB" ] && FRAMEWORK_DYLIBS+=("$SDL3_DYLIB")
+
 # Inner code first, then the bundle. Hardened runtime and a secure timestamp
 # are required for notarisation; no entitlements are needed.
 if [ "$UNSIGNED" = "1" ]; then
     echo "==> Codesign (ad-hoc, UNSIGNED build)"
-    codesign --force --sign - "$SDL2_DYLIB"
+    codesign --force --sign - "${FRAMEWORK_DYLIBS[@]}"
     codesign --force --sign - "$APP_BUNDLE"
 else
     echo "==> Codesign ($SIGN_IDENTITY)"
-    codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$SDL2_DYLIB"
+    codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "${FRAMEWORK_DYLIBS[@]}"
     codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
 fi
 codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
+
+# The signed bundle must still start: render one frame in screenshot mode,
+# with a scratch HOME so no real settings are touched. A missing library shows
+# a modal dialog rather than exiting, so give up after 30 seconds.
+echo "==> Smoke-test the signed app"
+SMOKE_DIR="$(mktemp -d)"
+HOME="$SMOKE_DIR" "$APP_BUNDLE/Contents/MacOS/lander" --screenshot "$SMOKE_DIR/smoke.png" \
+    > "$SMOKE_DIR/smoke.log" 2>&1 &
+SMOKE_PID=$!
+for _ in $(seq 30); do
+    kill -0 "$SMOKE_PID" 2>/dev/null || break
+    sleep 1
+done
+if kill -0 "$SMOKE_PID" 2>/dev/null; then
+    kill "$SMOKE_PID"
+    echo "ERROR: the app didn't finish starting within 30 seconds (see $SMOKE_DIR/smoke.log)"
+    exit 1
+fi
+wait "$SMOKE_PID" || { echo "ERROR: the app failed to start (see $SMOKE_DIR/smoke.log)"; exit 1; }
+[ -f "$SMOKE_DIR/smoke.png" ] || { echo "ERROR: the app didn't render a frame (see $SMOKE_DIR/smoke.log)"; exit 1; }
+rm -rf "$SMOKE_DIR"
 
 make_zip() {
     # ditto keeps the bundle's symlinks, executable bits and stapled ticket
