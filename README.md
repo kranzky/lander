@@ -145,12 +145,20 @@ ctest --output-on-failure
 The version comes from `project(lander VERSION ...)` in `CMakeLists.txt`; the
 release scripts stamp it into the app bundle and `lander.exe`.
 
-**macOS** (`scripts/build_release.sh`): builds `dist/Lander.app`, signs it with
-the Developer ID certificate (hardened runtime, timestamped), notarises it with
-the `lineage-notary` notarytool profile, staples the ticket and zips it to
-`dist/Lander-macOS.zip`. Override with `SIGN_IDENTITY` / `NOTARY_PROFILE`, or
-use `SKIP_NOTARIZE=1` for a quick signed-only build. Without the certificate
-it produces an ad-hoc signed `Lander-macOS-unsigned.zip`.
+**Self-contained builds:** releases build SDL2 from source and link it
+statically (`-DLANDER_VENDOR_SDL2=ON`), so players need nothing installed. On
+Windows that is a single `lander.exe` with the C runtime linked in too; on
+macOS a universal (Apple Silicon and Intel) app for macOS 11 or later.
+Everyday builds can use an installed SDL2, such as Homebrew's.
+
+**macOS** (`scripts/build_release.sh`): builds `dist/Lander.app` self-contained
+and universal, checks it links only system libraries, signs it with the
+Developer ID certificate (hardened runtime, timestamped), launches it once as a
+smoke test, notarises it with the `lineage-notary` notarytool profile, staples
+the ticket and zips it to `dist/Lander-macOS.zip`. Override with
+`SIGN_IDENTITY` / `NOTARY_PROFILE`, or use `SKIP_NOTARIZE=1` for a quick
+signed-only build. Without the certificate it produces an ad-hoc signed
+`Lander-macOS-unsigned.zip`.
 
 **Windows** (GitHub Actions, `.github/workflows/ci.yml`): every PR builds,
 tests and smoke-tests on Windows and macOS. Pushing a `vX.Y.Z` tag (matching

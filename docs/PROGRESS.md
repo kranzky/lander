@@ -72,6 +72,7 @@
 | - | Authentic controls: exact port of mouse polar conversion, original steering damping per physics step, original friction | 3c15e3b |
 | - | Authentic rocks and gravity: rocks drop in front of the ship as in the original; gravity rises with score | 1346b21 |
 | - | v1.2.0 release: GitHub Actions CI (build, test, smoke test, Windows signing and itch.io publishing) | 7a4c13d |
+| - | v1.2.1 release: self-contained builds (static SDL2 and C runtime; universal macOS 11+ app) | (pending) |
 
 ## Summary
 

@@ -1,7 +1,7 @@
 # Lander CI, shaped after Augmentinel and blast_radius.
 #
-# Every PR builds and tests on Windows and macOS, runs a smoke test, and
-# uploads the game as a downloadable artifact (Lander-windows, Lander-macos).
+# Every PR builds and tests on Windows and macOS, runs a smoke test, checks the
+# game needs nothing installed, and uploads the Windows build as an artifact.
 # Tag pushes (v*) do the same, sign the Windows exe when the eSigner secrets
 # exist, and publish it to itch.io. macOS signing, notarisation and publishing
 # run locally (scripts/build_release.sh). See the Releasing section of README.md.
@@ -29,9 +29,6 @@ on:
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
-
-env:
-  SDL2_VERSION: 2.32.10
 
 jobs:
   # Emit the build matrix from the dispatch input.
@@ -76,23 +73,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # The official SDL2 development package for MSVC (x64), with its CMake
-      # config; SDL2.dll ships beside lander.exe.
-      - name: Install SDL2 (Windows)
+      # Builds match what ships: SDL2 built from source and linked statically,
+      # with the static C runtime on Windows and a universal binary on macOS
+      - name: Configure (Windows)
         if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $zip = Join-Path $env:RUNNER_TEMP "SDL2.zip"
-          Invoke-WebRequest "https://github.com/libsdl-org/SDL/releases/download/release-$env:SDL2_VERSION/SDL2-devel-$env:SDL2_VERSION-VC.zip" -OutFile $zip
-          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP -Force
-          "CMAKE_PREFIX_PATH=$env:RUNNER_TEMP\SDL2-$env:SDL2_VERSION" | Out-File -FilePath $env:GITHUB_ENV -Append
+        run: cmake -B build -DLANDER_VENDOR_SDL2=ON
 
-      - name: Install SDL2 (macOS)
+      - name: Configure (macOS, universal)
         if: runner.os == 'macOS'
-        run: brew install sdl2
-
-      - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DLANDER_VENDOR_SDL2=ON "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"
 
       - name: Build
         run: cmake --build build --config Release -j
@@ -125,6 +114,30 @@ jobs:
           name: smoke-${{ matrix.os }}
           path: ${{ runner.temp }}/smoke/smoke.png
           if-no-files-found: ignore
+
+      # Players must not need anything installed (such as the Visual C++
+      # redistributable): lander.exe may only import DLLs that ship with Windows
+      - name: Check dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $dumpbin = & $vswhere -latest -find "VC\Tools\MSVC\**\bin\Hostx64\x64\dumpbin.exe" | Select-Object -First 1
+          $imports = & $dumpbin /dependents build\Release\lander.exe | Where-Object { $_ -match '^\s+\S+\.dll\s*$' } | ForEach-Object { $_.Trim() }
+          Write-Host "lander.exe imports: $($imports -join ', ')"
+          $bad = $imports | Where-Object { $_ -match '^(vcruntime|msvcp|ucrtbase|api-ms-win-crt|sdl)' }
+          if ($bad) { Write-Error "lander.exe depends on DLLs players won't have: $($bad -join ', ')"; exit 1 }
+
+      - name: Check dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          lipo -archs build/lander
+          for a in arm64 x86_64; do
+            lipo -archs build/lander | tr ' ' '\n' | grep -qx "$a" || { echo "ERROR: missing the $a slice"; exit 1; }
+          done
+          echo "minos $(otool -l build/lander | awk '/minos/ { print $2; exit }')"
+          bad="$(otool -L -arch all build/lander | awk 'NR > 1 && !/architecture/ { print $1 }' | grep -vE '^(/System/|/usr/lib/)' || true)"
+          [ -z "$bad" ] || { echo "ERROR: lander links libraries players won't have:"; echo "$bad"; exit 1; }
 
       # The .rc embeds the version block; fail if it is missing.
       - name: Check version resource (Windows)
@@ -195,14 +208,14 @@ jobs:
           Write-Host "Signature status: $($sig.Status); signer: $($sig.SignerCertificate.Subject)"
           if ($sig.Status -ne 'Valid') { Write-Error "lander.exe signature is not Valid: $($sig.Status)"; exit 1 }
 
-      # lander.exe needs SDL2.dll and the sounds beside it.
+      # lander.exe is self-contained apart from the sounds beside it.
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $out = "dist\Lander-windows"
           New-Item -ItemType Directory -Force -Path $out | Out-Null
-          foreach ($item in "lander.exe", "SDL2.dll", "sounds") {
+          foreach ($item in "lander.exe", "sounds") {
             Copy-Item "build\Release\$item" $out -Recurse
           }
           Get-ChildItem $out -Recurse -File | ForEach-Object { Write-Host $_.FullName.Substring((Resolve-Path $out).Path.Length + 1) }
