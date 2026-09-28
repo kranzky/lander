@@ -101,7 +101,7 @@ void ParticleSystem::update()
         p.position += p.velocity;
         if (p.hasGravity())
         {
-            p.velocity.y += Fixed::fromRaw(PARTICLE_GRAVITY);
+            p.velocity.y += Fixed::fromRaw(gravity);
         }
 
         // Terrain lookups use world coordinates (rocks are already stored that way)
@@ -731,6 +731,35 @@ void spawnSmokeFromDestroyedObjects(const Camera& camera, uint32_t tick)
 // Global rotation angle for all rocks (they spin together, as in the original)
 static int32_t rockRotationAngle = 0;
 
+bool dropRocksFromTheSky(const Vec3& playerPos, int score)
+{
+    int threshold = score - 800;
+    if (threshold <= 0)
+    {
+        return false;
+    }
+
+    // The original's shared random number generator, as GetRandomNumbers
+    uint32_t r0, r1;
+    gameRng.getRandomNumbers(r0, r1);
+    if (static_cast<int>(r0 >> 18) >= threshold)
+    {
+        return false;
+    }
+
+    // Drop from 32 tiles up (an absolute height, not relative to the ship), in
+    // line with the ship and one tile in front of it: the original's
+    // zCamera - PLAYER_FRONT_Z, where zCamera is 5 tiles behind the ship and
+    // PLAYER_FRONT_Z is 6 tiles
+    Vec3 rockPos;
+    rockPos.x = playerPos.x;
+    rockPos.y = Fixed::fromRaw(~GameConstants::ROCK_HEIGHT.raw);  // MVN: -(ROCK_HEIGHT + 1)
+    rockPos.z = playerPos.z - GameConstants::TILE_SIZE;
+
+    spawnRock(rockPos);
+    return true;
+}
+
 void spawnRock(const Vec3& pos)
 {
     // Random rock colour (purple-brown-green): R=4-11, G=2-9, B=4-7
@@ -750,13 +779,13 @@ void spawnRock(const Vec3& pos)
                      ParticleFlags::EXPLODES_ON_GROUND |
                      buildVidcColor(r, g, b);
 
-    // Starts falling from rest, with a tiny random horizontal drift
-    Vec3 vel;
-    vel.x = Fixed::fromRaw(particleRandom() >> 16);
-    vel.z = Fixed::fromRaw(particleRandom() >> 16);
+    // AddStaticParticleToBuffer with R8 = 10: a random velocity of up to
+    // +/- 2^21 per original frame on every axis, so >> (10 + 3) per step
+    Vec3 vel = randomVelocity(10 + FPS_SHIFT);
 
-    // 170 iterations at 15fps: long enough to fall from 32 tiles
-    int32_t lifespan = 1360 + ((particleRandom() >> 27) & 0x1F);
+    // 170 frames plus 0 to 31 more (R9 = 27), 8 steps per frame
+    constexpr int32_t STEPS_PER_FRAME = 8;
+    int32_t lifespan = (170 + (static_cast<uint32_t>(particleRandom()) >> 27)) * STEPS_PER_FRAME;
 
     particleSystem.addParticle(pos, vel, lifespan, flags);
 }

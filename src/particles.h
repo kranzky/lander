@@ -4,6 +4,7 @@
 #include "fixed.h"
 #include "math3d.h"
 #include "palette.h"
+#include "constants.h"
 #include <cstdint>
 
 // =============================================================================
@@ -44,9 +45,6 @@ namespace ParticleConstants {
     // (200), several object/rock explosions (80 each), exhaust, bullets and
     // smoke. addParticle drops new particles when the pool is full.
     constexpr int MAX_PARTICLES = 1500;
-
-    // Gravity for particles - same as player gravity so they fall together
-    constexpr int32_t PARTICLE_GRAVITY = 0xC00;
 
     // Bounce damping (velocity multiplier after bounce, approximate)
     constexpr int BOUNCE_DAMPING_SHIFT = 1;  // Divide by 2 on bounce
@@ -120,8 +118,12 @@ public:
     int getFreeCount() const { return ParticleConstants::MAX_PARTICLES - particleCount; }
 
     // Update all particles (apply velocity, gravity, lifespan countdown)
-    // Call once per frame
+    // Call once per physics step
     void update();
+
+    // Set gravity per physics step, shared with the ship (see Gravity in
+    // constants.h)
+    void setGravity(int32_t perStep) { gravity = perStep; }
 
     // Access particles for rendering
     int getParticleCount() const { return particleCount; }
@@ -133,6 +135,7 @@ public:
 private:
     Particle particles[ParticleConstants::MAX_PARTICLES];
     int particleCount;  // Number of active particles
+    int32_t gravity = Gravity::perStep(Gravity::INITIAL);
 
     // Remove particle at index by moving last particle into its place
     void removeParticle(int index);
@@ -329,15 +332,20 @@ void spawnSmokeFromDestroyedObjects(const Camera& camera, uint32_t tick);
 //
 // Rocks are spawned as particles with IS_ROCK flag:
 // - Rendered as 3D rotating objects (not as sprites)
-// - Fall from 32 tiles above the camera
-// - Spawn 6 tiles in front of camera (where ship is visually)
+// - Dropped from 32 tiles up, one tile in front of the ship
+// - Start almost at rest, with a small random velocity in every direction
 // - Have gravity, bounce, splash, and can destroy objects
 // - Kill the player on collision
 //
 // =============================================================================
 
+// Port of DropRocksFromTheSky (Lander.arm lines 4578-4625), called once per
+// original frame. Over a score of 800, drops a rock if a random number from 0
+// to 16383 is below (score - 800), so rocks get more frequent as the score
+// rises. Returns true if a rock was dropped.
+bool dropRocksFromTheSky(const Vec3& playerPos, int score);
+
 // Spawn a falling rock at the given position
-// pos: world position to spawn rock (typically high above camera)
 void spawnRock(const Vec3& pos);
 
 // Buffer rocks into graphics buffer system for depth-sorted rendering

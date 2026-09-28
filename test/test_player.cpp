@@ -273,6 +273,44 @@ TEST(terminal_velocity_matches_original) {
     ASSERT(std::fabs(portPerFrame / originalPerFrame - 1.0) < 0.02);
 }
 
+TEST(gravity_rises_with_score) {
+    // The original's PrintCurrentScore rules, applied every frame
+    struct { int score; int32_t gravity; } sequence[] = {
+        {500, 0x30000},   // Start of a game
+        {1023, 0x30000},
+        {1024, 0x50000},  // Heavier from 1024
+        {900, 0x50000},   // ...and stays heavier below 1024
+        {1488, 0x70000},  // Heavier still from 1488
+        {1400, 0x50000},  // Back to &50000 below 1488
+        {600, 0x50000},   // Only a new game resets it
+    };
+
+    int32_t gravity = Gravity::INITIAL;
+    for (const auto& entry : sequence) {
+        gravity = Gravity::forScore(gravity, entry.score);
+        ASSERT(gravity == entry.gravity);
+    }
+}
+
+TEST(ship_falls_faster_under_higher_gravity) {
+    // Free fall for a second at the start and at the heaviest gravity: the
+    // distance fallen scales with gravity (&70000 / &30000)
+    auto fallInOneSecond = [](int32_t gravity) {
+        Player player = makeFloatingShip();
+        player.setGravity(Gravity::perStep(gravity));
+        Fixed start = player.getY();
+        for (int step = 0; step < 15 * STEPS_PER_FRAME; step++) {
+            player.updatePhysics();
+        }
+        return (player.getY() - start).toDouble();
+    };
+
+    double light = fallInOneSecond(Gravity::INITIAL);
+    double heavy = fallInOneSecond(0x70000);
+    printf("(%.2f vs %.2f tiles) ", light, heavy);
+    ASSERT(std::fabs(heavy / light - 7.0 / 3.0) < 0.01);
+}
+
 // -----------------------------------------------------------------------------
 // Main
 // -----------------------------------------------------------------------------
@@ -289,6 +327,8 @@ int main() {
     RUN_TEST(friction_matches_original_per_second);
     RUN_TEST(thrust_and_gravity_match_original_trajectory);
     RUN_TEST(terminal_velocity_matches_original);
+    RUN_TEST(gravity_rises_with_score);
+    RUN_TEST(ship_falls_faster_under_higher_gravity);
 
     printf("\n%d/%d tests passed\n", passCount, testCount);
     return (passCount == testCount) ? 0 : 1;
