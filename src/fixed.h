@@ -198,6 +198,7 @@ namespace GameConstants {
     constexpr Fixed SPLASH_HEIGHT = Fixed::fromRaw(TILE_SIZE.raw / 16);
     constexpr Fixed SMOKE_HEIGHT = Fixed::fromRaw(TILE_SIZE.raw * 3 / 4);
     constexpr Fixed SAFE_HEIGHT = Fixed::fromRaw(TILE_SIZE.raw * 3 / 2);
+    constexpr Fixed ROCK_HEIGHT = Fixed::fromRaw(TILE_SIZE.raw * 32);
     constexpr Fixed LAND_MID_HEIGHT = Fixed::fromRaw(TILE_SIZE.raw * 5);
 
     // Camera sits 5 tiles behind the player; the landscape starts 10 tiles

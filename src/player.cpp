@@ -226,7 +226,7 @@ bool Player::updatePhysics() {
     }
 
     // Apply gravity (positive Y is down in Lander coordinate system)
-    velocity.y = Fixed::fromRaw(velocity.y.raw + PlayerConstants::GRAVITY);
+    velocity.y = Fixed::fromRaw(velocity.y.raw + gravity);
 
     // Clamp altitude to prevent fixed-point overflow
     // The 8.24 format wraps at -128 tiles (0x80000000), which causes visual glitches
@@ -359,7 +359,7 @@ LandingState Player::checkLanding() {
     // this frame before collision detection. A ship hovering stationary will have
     // vy = GRAVITY, not vy = 0, so we compensate for this.
     int32_t absVelX = velocity.x.raw >= 0 ? velocity.x.raw : -velocity.x.raw;
-    int32_t adjustedVelY = velocity.y.raw - PlayerConstants::GRAVITY;  // Remove this frame's gravity
+    int32_t adjustedVelY = velocity.y.raw - gravity;  // Remove this step's gravity
     int32_t absVelY = adjustedVelY >= 0 ? adjustedVelY : -adjustedVelY;
     int32_t absVelZ = velocity.z.raw >= 0 ? velocity.z.raw : -velocity.z.raw;
     int32_t totalVelocity = absVelX + absVelY + absVelZ;

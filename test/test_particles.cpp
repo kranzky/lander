@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <cstdlib>
+#include <cmath>
 #include "particles.h"
 #include "camera.h"
 #include "graphics_buffer.h"
@@ -257,6 +258,64 @@ TEST(smoke_rate_is_per_physics_step) {
     particleSystem.clear();
 }
 
+TEST(no_rocks_until_score_passes_800) {
+    particleSystem.clear();
+    Vec3 playerPos(Fixed::fromInt(4), Fixed::fromInt(-3), Fixed::fromInt(4));
+    for (int frame = 0; frame < 10000; frame++) {
+        ASSERT(!dropRocksFromTheSky(playerPos, 800));
+    }
+    ASSERT(particleSystem.getParticleCount() == 0);
+}
+
+TEST(rocks_drop_in_front_of_ship) {
+    // At a score of 800 + 16384 every frame drops a rock: 32 tiles up, in line
+    // with the ship and one tile in front of it, almost at rest
+    Vec3 playerPos(Fixed::fromInt(20), Fixed::fromInt(-3), Fixed::fromInt(30));
+    constexpr int32_t MAX_SPEED = 1 << 18;  // +/- 2^21 per original frame
+
+    for (int i = 0; i < 200; i++) {
+        particleSystem.clear();
+        ASSERT(dropRocksFromTheSky(playerPos, 800 + 16384));
+        ASSERT(particleSystem.getParticleCount() == 1);
+
+        const Particle& rock = particleSystem.getParticle(0);
+        ASSERT(rock.isRock());
+        ASSERT(rock.position.x == playerPos.x);
+        ASSERT(rock.position.y.raw == -32 * 0x01000000 - 1);
+        ASSERT(rock.position.z == playerPos.z - Fixed::fromInt(1));
+        ASSERT(std::abs(rock.velocity.x.raw) <= MAX_SPEED);
+        ASSERT(std::abs(rock.velocity.y.raw) <= MAX_SPEED);
+        ASSERT(std::abs(rock.velocity.z.raw) <= MAX_SPEED);
+        ASSERT(rock.lifespan >= 170 * 8 && rock.lifespan <= (170 + 31) * 8);
+    }
+    particleSystem.clear();
+}
+
+TEST(rock_frequency_rises_with_score) {
+    // Each frame drops a rock if the original's random number, 0 to 16383, is
+    // below (score - 800). That generator gives very small values only about
+    // half as often as a uniform one, so just over 800 rocks are about half as
+    // frequent as the formula suggests, as in the original; from about 1000 up
+    // they follow it closely.
+    Vec3 playerPos(Fixed::fromInt(20), Fixed::fromInt(-3), Fixed::fromInt(30));
+    struct { int score; double minRatio; double maxRatio; } checks[] = {
+        {900, 0.3, 0.7},   // About half the formula
+        {1500, 0.9, 1.05}, // Close to the formula
+    };
+    for (const auto& check : checks) {
+        constexpr int FRAMES = 200000;
+        int drops = 0;
+        for (int frame = 0; frame < FRAMES; frame++) {
+            particleSystem.clear();
+            drops += dropRocksFromTheSky(playerPos, check.score) ? 1 : 0;
+        }
+        double ratio = drops / (FRAMES * (check.score - 800) / 16384.0);
+        printf("[%d: %.2f of formula] ", check.score, ratio);
+        ASSERT(ratio > check.minRatio && ratio < check.maxRatio);
+    }
+    particleSystem.clear();
+}
+
 // -----------------------------------------------------------------------------
 // Main
 // -----------------------------------------------------------------------------
@@ -277,6 +336,9 @@ int main() {
     RUN_TEST(dense_cluster_is_fully_buffered);
     RUN_TEST(particles_visible_across_world_seam);
     RUN_TEST(smoke_rate_is_per_physics_step);
+    RUN_TEST(no_rocks_until_score_passes_800);
+    RUN_TEST(rocks_drop_in_front_of_ship);
+    RUN_TEST(rock_frequency_rises_with_score);
 
     printf("\n%d/%d tests passed\n", passCount, testCount);
     return (passCount == testCount) ? 0 : 1;

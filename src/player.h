@@ -89,6 +89,9 @@ public:
     // shipDirection and shipPitch toward target values, and computes rotation matrix
     void updateOrientation();
 
+    // Set gravity per physics step (see Gravity in constants.h)
+    void setGravity(int32_t perStep) { gravity = perStep; }
+
     // Update physics: apply gravity, thrust, friction, and update position
     // Returns true if the ship hit terrain
     bool updatePhysics();
@@ -171,6 +174,7 @@ private:
 
     // Fuel level (decreases when thrusting)
     int fuelLevel;
+    int32_t gravity = Gravity::perStep(Gravity::INITIAL);
     uint32_t refuelTicks = 0;  // Physics steps spent refuelling
 };
 
@@ -199,9 +203,6 @@ namespace PlayerConstants {
     // 1/8-size units). Anything that scales velocity each frame is applied as
     // its 8th root per step.
     // ==========================================================================
-
-    // Gravity: original &30000 per frame, / 64 per step
-    constexpr int32_t GRAVITY = 0x30000 / 64;
 
     // Friction: original velocity -= velocity >> 6 per frame (x 63/64). Per step
     // that's the 8th root, 1 - 1/512 to within 0.01%, so shift 6 + 3 = 9.

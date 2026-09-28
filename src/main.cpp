@@ -118,6 +118,9 @@ private:
     // Original Lander starts with 500 points
     int score = 500;
 
+    // Gravity in the original's per-frame units (see Gravity in constants.h)
+    int32_t gravity = Gravity::INITIAL;
+
     // Target FPS selection (index into FPS_OPTIONS array)
     int fpsIndex = DEFAULT_FPS_INDEX;
 
@@ -417,6 +420,7 @@ void Game::resetGame() {
     // Full game reset
     lives = GameConfig::INITIAL_LIVES;
     score = 500;  // Reset score to initial value (matching original Lander)
+    gravity = Gravity::INITIAL;
     player.reset();
     landingState = LandingState::LANDED;  // Start on launchpad
     crashRecoveryTimer = 0;
@@ -473,66 +477,20 @@ void Game::addScore(int points) {
     }
 }
 
-// =============================================================================
-// Rock Spawning
-// =============================================================================
-//
-// Port of DropRocksFromTheSky from Lander.arm (lines 4578-4625).
-//
-// When score >= 800:
-// - Generate random number 0-16383
-// - If random < (score - 800), spawn a rock
-// - Higher scores = more frequent rocks
-//
-// Rocks spawn 32 tiles above and 6 tiles in front of camera position.
-//
-// =============================================================================
-
 void Game::maybeSpawnRock() {
-    // Only spawn rocks when score >= 800
-    if (score < 800) return;
-
-    // Only spawn during normal gameplay
-    if (gameState != GameState::PLAYING) return;
-
-    // Only check once per original frame to match the original spawn rate
-    if (!everyOriginalFrame()) return;
-
-    // Random chance based on score
-    // Original: random 0-16383, spawn if random < (score - 800)
-    // This makes rocks more frequent at higher scores
-    uint32_t rand = static_cast<uint32_t>(std::rand()) & 0x3FFF;  // 0 to 16383
-    int threshold = score - 800;
-
-    if (static_cast<int>(rand) >= threshold) {
-        return;  // Don't spawn this frame
+    // The original checks once per frame, and only while the game is on
+    if (gameState == GameState::PLAYING && everyOriginalFrame()) {
+        dropRocksFromTheSky(player.getPosition(), score);
     }
-
-    // Spawn rock in a circle of radius 30 tiles around the player
-    // Generate random angle and distance within circle
-    constexpr int32_t SPAWN_RADIUS = 30;
-    int angle = std::rand() % 360;
-    int distance = std::rand() % (SPAWN_RADIUS + 1);
-
-    // Convert polar to cartesian (approximate using lookup or simple math)
-    // Use simple approximation: sin/cos from angle
-    float radians = angle * 3.14159f / 180.0f;
-    int32_t offsetX = static_cast<int32_t>(distance * cosf(radians));
-    int32_t offsetZ = static_cast<int32_t>(distance * sinf(radians));
-
-    Vec3 playerPos = player.getPosition();
-    constexpr int32_t ROCK_HEIGHT_ABOVE_PLAYER = 32 * 0x01000000;  // 32 tiles above player
-
-    Vec3 rockPos;
-    rockPos.x = Fixed::fromRaw(playerPos.x.raw + offsetX * GameConstants::TILE_SIZE.raw);
-    rockPos.y = Fixed::fromRaw(playerPos.y.raw - ROCK_HEIGHT_ABOVE_PLAYER);  // Above player (negative Y = up)
-    rockPos.z = Fixed::fromRaw(playerPos.z.raw + offsetZ * GameConstants::TILE_SIZE.raw);
-
-    spawnRock(rockPos);
 }
 
 void Game::update(int mouseRelX, int mouseRelY, uint32_t mouseButtons) {
     tick++;
+
+    // Gravity rises with the score, for the ship and falling particles alike
+    gravity = Gravity::forScore(gravity, score);
+    player.setGravity(Gravity::perStep(gravity));
+    particleSystem.setGravity(Gravity::perStep(gravity));
 
     // Update particles every frame (including during explosions)
     particleSystem.update();

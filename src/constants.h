@@ -47,6 +47,29 @@ constexpr int FRAME_TIME_MS_LOOKUP[] = {
 constexpr int PHYSICS_SCALE[] = {8, 4, 2, 1};
 
 // =============================================================================
+// Gravity
+// =============================================================================
+
+// Gravity in the original's per-frame units (Lander.arm PrintCurrentScore).
+// Each game starts at &30000. Every frame the original sets it to &50000 if
+// the score is at least 1024, then to &70000 if it is at least 1488, so it
+// only falls back (to &50000) if the score drops below 1488, and only resets
+// at the start of a new game. The ship and all falling particles share it.
+namespace Gravity {
+    constexpr int32_t INITIAL = 0x30000;
+
+    constexpr int32_t forScore(int32_t gravity, int score) {
+        if (score >= 1024) gravity = 0x50000;
+        if (score >= 1488) gravity = 0x70000;
+        return gravity;
+    }
+
+    // We take 8 physics steps per original frame, each moving 1/8 as far, so
+    // anything added to velocity once per frame is added 1/64 per step
+    constexpr int32_t perStep(int32_t gravity) { return gravity / 64; }
+}
+
+// =============================================================================
 // Window Settings
 // =============================================================================
 
